@@ -1,0 +1,40 @@
+* text=auto eol=lf
+
+*.java text eol=lf
+*.gradle text eol=lf
+*.kts text eol=lf
+*.properties text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.sql text eol=lf
+*.html text eol=lf
+*.ts text eol=lf
+*.scss text eol=lf
+*.css text eol=lf
+*.sh text eol=lf
+*.xml text eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.jar binary
+*.war binary
+*.ear binary
+*.zip binary
+*.tar.gz binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+*.gradle linguist-language=Groovy
+*.kts linguist-language=Kotlin
+docs-sep/** linguist-documentation

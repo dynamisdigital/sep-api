@@ -1,0 +1,131 @@
+plugins {
+	id 'java'
+	id 'com.diffplug.spotless' version '6.25.0'
+	id 'jacoco'
+}
+
+group = 'com.dynamis'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	testImplementation 'org.junit.jupiter:junit-jupiter:5.11.0'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// ========================
+// Spotless + Palantir Java Format
+// (Sprint 0 Task 0.2)
+// ========================
+spotless {
+	java {
+		target 'src/**/*.java'
+		targetExclude 'build/generated/**', 'build/generated-sources/**'
+
+		palantirJavaFormat('2.50.0')
+		removeUnusedImports()
+		importOrder('', 'java|javax', '\\#')
+		endWithNewline()
+		trimTrailingWhitespace()
+	}
+
+	groovyGradle {
+		target '*.gradle', 'gradle/**/*.gradle'
+		greclipse()
+		endWithNewline()
+		trimTrailingWhitespace()
+	}
+
+	format 'misc', {
+		target '*.md', '*.yml', '*.yaml', '*.json', '.gitignore', '.editorconfig'
+		targetExclude 'build/**', '.gradle/**', 'node_modules/**'
+		trimTrailingWhitespace()
+		endWithNewline()
+		indentWithSpaces(2)
+	}
+
+	sql {
+		target 'src/main/resources/db/migration/**/*.sql'
+		dbeaver()
+		endWithNewline()
+	}
+}
+
+check.dependsOn 'spotlessCheck'
+
+// ========================
+// JaCoCo (Sprint 0 Task 0.3)
+// Verificacao 70% DESATIVADA — ATIVAR na Sprint 4 (Task 4.3)
+// ========================
+jacoco {
+	toolVersion = '0.8.12'
+}
+
+test {
+	useJUnitPlatform()
+	finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+	dependsOn test
+	reports {
+		html.required = true
+		xml.required = true
+		csv.required = false
+
+		html.outputLocation = layout.buildDirectory.dir('reports/jacoco/html')
+		xml.outputLocation = layout.buildDirectory.file('reports/jacoco/jacoco.xml')
+	}
+
+	afterEvaluate {
+		classDirectories.setFrom(files(classDirectories.files.collect {
+			fileTree(dir: it, exclude: [
+				'**/SepApiApplication.class',
+				'**/config/**',
+				'**/dto/**',
+				'**/*MapperImpl.class',
+				'**/package-info.class',
+				'**/exception/*Exception.class'
+			])
+		}))
+	}
+}
+
+jacocoTestCoverageVerification {
+	dependsOn jacocoTestReport
+
+	violationRules {
+		rule {
+			// ATIVAR na Sprint 4 (Task 4.3) quando cobertura distribuida estabilizar
+			enabled = false
+
+			limit {
+				counter = 'LINE'
+				value = 'COVEREDRATIO'
+				minimum = 0.70
+			}
+		}
+
+		rule {
+			element = 'CLASS'
+			includes = ['**.config.**', '**.dto.**']
+			limit {
+				counter = 'LINE'
+				value = 'COVEREDRATIO'
+				minimum = 0.0
+			}
+		}
+	}
+}
+
+// NAO adicionar a check ainda; ativar na Sprint 4
+// check.dependsOn 'jacocoTestCoverageVerification'

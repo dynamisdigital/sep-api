@@ -1,0 +1,36 @@
+# EditorConfig: https://editorconfig.org/
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+# Java: 4 espacos (padrao Spring/Spotless)
+[*.java]
+indent_size = 4
+max_line_length = 120
+
+# Gradle Groovy / Kotlin DSL
+[*.{gradle,gradle.kts}]
+indent_size = 4
+
+# Frontend: 2 espacos
+[*.{ts,js,html,scss,css,json,yml,yaml}]
+indent_size = 2
+
+# Markdown: preserva trailing whitespace
+[*.md]
+indent_size = 2
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Makefile usa tabs
+[Makefile]
+indent_style = tab
+
+# SQL (Flyway)
+[*.sql]
+indent_size = 2
