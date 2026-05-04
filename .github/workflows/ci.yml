@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancela runs antigos do mesmo PR/branch quando novos chegam
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build, Test, Spotless, JaCoCo
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sep
+          POSTGRES_PASSWORD: sep
+          POSTGRES_DB: sep_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Spotless check
+        run: ./gradlew spotlessCheck
+
+      - name: Build
+        run: ./gradlew build -x test --no-daemon
+
+      - name: Test (com Testcontainers)
+        run: ./gradlew test --no-daemon
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/sep_test
+          SPRING_DATASOURCE_USERNAME: sep
+          SPRING_DATASOURCE_PASSWORD: sep
+
+      - name: JaCoCo report
+        if: always()
+        run: ./gradlew jacocoTestReport --no-daemon
+
+      - name: Upload JaCoCo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: build/reports/jacoco/
+          retention-days: 14
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/reports/tests/
+          retention-days: 14
+
+      # Quando ativar verificacao na Sprint 4, descomentar:
+      # - name: JaCoCo verification (>= 70%)
+      #   run: ./gradlew jacocoTestCoverageVerification --no-daemon

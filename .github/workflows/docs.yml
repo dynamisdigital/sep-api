@@ -1,0 +1,20 @@
+name: Docs Validation
+
+on:
+  pull_request:
+    paths:
+      - '**/*.md'
+
+jobs:
+  lint-markdown:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Markdown lint
+        uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          globs: |
+            **/*.md
+        continue-on-error: true # nao bloqueia inicialmente; ativar depois

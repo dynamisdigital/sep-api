@@ -1,1 +1,124 @@
 # sep-api
+
+Backend Java 21 + Spring Boot 3.5.x da plataforma SEP (Sociedade de Emprestimo entre Pessoas).
+
+> Documentacao consolidada do produto vive no repositorio [`docs-SEP`](../docs-SEP):
+> [PRD](../docs-SEP/docs-sep/PRD.md), [CONTEXT](../docs-SEP/docs-sep/CONTEXT.md), [AGENT.md](../docs-SEP/AGENT.md), [ADRs](../docs-SEP/adr/), [specs](../docs-SEP/specs/) e [steps](../docs-SEP/steps/backend/).
+
+## Setup do desenvolvedor
+
+Apos clonar o repositorio:
+
+1. Instalar Java 21 LTS
+2. Instalar Docker e Docker Compose
+3. **Configurar pre-commit hook**: `git config core.hooksPath .githooks`
+4. Rodar `./gradlew build` pela primeira vez
+
+## Code Style
+
+Este projeto usa **Spotless + Palantir Java Format**.
+
+```bash
+# Verificar formatacao
+./gradlew spotlessCheck
+
+# Aplicar formatacao
+./gradlew spotlessApply
+
+# Verificar tudo (build + tests + spotless)
+./gradlew check
+```
+
+### IDE
+
+- **IntelliJ**: Settings → Editor → Code Style → Java → "Set from..." → Palantir Style
+- **VS Code**: extension "Language Support for Java by Red Hat"
+
+## Cobertura de Testes
+
+JaCoCo com target **70% por modulo** (validacao ativada na Sprint 4).
+
+```bash
+./gradlew test jacocoTestReport
+# Relatorio HTML: build/reports/jacoco/html/index.html
+```
+
+### Exclusoes
+
+- `SepApiApplication`, `config/**`, `dto/**`, `*MapperImpl`, `package-info`, excecoes simples.
+
+## Pre-commit Hooks
+
+Este projeto usa Git hooks customizados em `.githooks/`. **Cada dev precisa configurar uma vez:**
+
+```bash
+git config core.hooksPath .githooks
+```
+
+O hook `pre-commit` roda `./gradlew spotlessCheck` antes de cada commit. Se o codigo estiver desformatado, o commit e bloqueado e voce ve a mensagem com o comando para corrigir.
+
+### Para pular o hook (use com responsabilidade)
+
+```bash
+git commit --no-verify
+```
+
+## Continuous Integration
+
+PRs e push para `main` rodam:
+
+- **Spotless check** — formato de codigo
+- **Build** — compilacao com Gradle
+- **Test** — JUnit 5 + Testcontainers (Postgres real)
+- **JaCoCo** — relatorio de cobertura (verificacao 70% ativa apos Sprint 4)
+
+Resultados ficam em **Actions** no GitHub. Relatorios JaCoCo ficam disponiveis como artifact por 14 dias.
+
+### Branch protection
+
+- `main` exige PR review + CI verde
+- Squash merge apenas
+- Branches deletadas automaticamente apos merge
+
+## Conventional Commits
+
+Mensagens de commit seguem [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0/). Ver [CONTRIBUTING.md](CONTRIBUTING.md) para detalhes.
+
+```
+feat(usuarios): adicionar criacao publica
+fix(auth): rejeitar token com sub vazia
+docs(adr): adicionar ADR 0009
+chore: atualizar Spring Boot 3.5.1
+```
+
+## Stack
+
+- Java 21 LTS, Spring Boot 3.5.x, Gradle 8.10.2 (Wrapper)
+- PostgreSQL 16, Hibernate 6, Flyway, Spring Security 6 + JJWT 0.12.x, BCrypt
+- MapStruct, RestClient, Resilience4j, Springdoc OpenAPI 2.x, Actuator, Micrometer + Prometheus
+- JUnit 5 + AssertJ + Testcontainers, WireMock 3.x
+- Spotless + Palantir Java Format, JaCoCo
+
+Detalhes completos: [PRD §11, §18](../docs-SEP/docs-sep/PRD.md).
+
+## Arquitetura
+
+Monolito modular DDD com Hexagonal/Ports & Adapters por modulo. **Provider Pattern obrigatorio** para integracoes externas (Celcoin BaaS).
+
+Modulos previstos: `identity`, `usuarios`, `onboarding`, `credito`, `contratos`, `cobranca`, `escrow`, `backoffice`, `financeiro`, `credores`, `pix`, `shared`.
+
+Detalhes: [ADR 0001](../docs-SEP/adr/0001-monolito-modular-orientado-a-ddd.md), [ADR 0007](../docs-SEP/adr/0007-ddd-com-hexagonal-ports-and-adapters-por-modulo.md).
+
+## Marco regulatorio
+
+SEP opera sob a Resolucao CMN 4.656/2018. Implicacoes desde a Sprint 1: KYC/KYB obrigatorio, segregacao patrimonial via conta escrow, PLD, auditoria reforcada.
+
+## Sprints
+
+- Sprint 0 — Hygiene & Foundation (este branch)
+- Sprint 1 — Fundacao Tecnica (Spring Boot, Postgres, Flyway)
+- Sprint 2 — Gestao de Usuarios
+- Sprint 3 — Seguranca/Auth JWT
+- Sprint 4 — Erros, Documentacao, Testes, Webhook Receiver
+
+Detalhamento: [docs-SEP/specs/fase-1/](../docs-SEP/specs/fase-1/) e [docs-SEP/steps/backend/](../docs-SEP/steps/backend/).

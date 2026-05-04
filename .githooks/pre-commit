@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+#
+# Pre-commit hook do projeto SEP (sep-api).
+# Bloqueia commit se Spotless detectar codigo desformatado.
+#
+# Para pular o hook (NAO RECOMENDADO):
+#   git commit --no-verify
+#
+
+set -e
+
+echo "🔍 Pre-commit: rodando Spotless..."
+
+# Detecta se esta em Windows (Git Bash) ou Unix
+if [ -f "./gradlew.bat" ] && command -v cmd.exe &> /dev/null; then
+    GRADLEW="./gradlew.bat"
+else
+    GRADLEW="./gradlew"
+fi
+
+# Roda spotlessCheck
+if ! $GRADLEW spotlessCheck --quiet; then
+    echo ""
+    echo "❌ Spotless detectou codigo desformatado."
+    echo ""
+    echo "Para corrigir automaticamente:"
+    echo "  $GRADLEW spotlessApply"
+    echo ""
+    echo "Depois adicione e tente o commit novamente:"
+    echo "  git add ."
+    echo "  git commit"
+    echo ""
+    exit 1
+fi
+
+echo "✅ Spotless OK."
+exit 0
