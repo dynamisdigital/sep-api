@@ -1,0 +1,18 @@
+# CODEOWNERS — define quem e auto-atribuido como reviewer em cada area.
+# Documentacao: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# ATENCAO: substituir placeholders @MAURICIO_GITHUB_USERNAME etc. por usernames reais
+# antes de ativar branch protection com CODEOWNERS exigido.
+
+# Default: Dev Senior aprova qualquer PR
+* @MAURICIO_GITHUB_USERNAME
+
+# Specs e ADRs (vivem em docs-SEP, nao neste repo, mas mantemos a regra
+# como referencia caso algum dia sejam mirrored aqui)
+# specs/ @MAURICIO_GITHUB_USERNAME
+# adr/   @MAURICIO_GITHUB_USERNAME
+
+# Build / CI
+build.gradle              @MAURICIO_GITHUB_USERNAME
+settings.gradle           @MAURICIO_GITHUB_USERNAME
+.github/workflows/        @MAURICIO_GITHUB_USERNAME
