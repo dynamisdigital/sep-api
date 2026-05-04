@@ -13,6 +13,6 @@
 # adr/   @MAURICIO_GITHUB_USERNAME
 
 # Build / CI
-build.gradle              @MAURICIO_GITHUB_USERNAME
-settings.gradle           @MAURICIO_GITHUB_USERNAME
-.github/workflows/        @MAURICIO_GITHUB_USERNAME
+build.gradle              @mauriciofcjr
+settings.gradle           @mauriciofcjr
+.github/workflows/        @mauriciofcjr
