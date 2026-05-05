@@ -29,9 +29,9 @@ spring:
 
   mvc:
     throw-exception-if-no-handler-found: true
-  web:
-    resources:
-      add-mappings: false # nao tentar servir static resources para 404 paths
+    # spring.web.resources.add-mappings fica DEFAULT (true) para servir webjars
+    # do Swagger UI; paths inexistentes geram NoResourceFoundException, mapeada
+    # para 404 em ApiExceptionHandler.
 
 management:
   endpoints:

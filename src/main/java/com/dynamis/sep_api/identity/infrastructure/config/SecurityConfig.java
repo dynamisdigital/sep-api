@@ -14,6 +14,18 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * <p>Nesta sprint apenas CORS e a politica de sessao stateless sao definidas. O filtro JWT,
  * autorizacao por perfil/ownership e demais regras entram na Sprint 3.
  *
+ * <p>Endpoints liberados publicamente nesta fase:
+ *
+ * <ul>
+ *   <li>{@code /actuator/**}: healthcheck, info, metrics, prometheus (uteis em dev/CI)
+ *   <li>{@code /v3/api-docs} + {@code /v3/api-docs/**}: contratos OpenAPI brutos
+ *   <li>{@code /swagger-ui.html} + {@code /swagger-ui/**} + {@code /webjars/**}: UI do Swagger e
+ *       seus assets estaticos (CSS/JS)
+ * </ul>
+ *
+ * <p>A Sprint 3 vai trocar este permit-all amplo de {@code /actuator/**} por configuracao por
+ * profile (publico em dev, autenticado em prod).
+ *
  * @see com.dynamis.sep_api.shared.config.CorsConfig
  */
 @Configuration
@@ -30,22 +42,17 @@ public class SecurityConfig {
         http.cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        // endpoints publicos basicos da Sprint 1 (Sprint 3 trara cadastro de usuario e login)
-                        .requestMatchers(
-                                "/actuator/health",
-                                "/actuator/info",
-                                "/actuator/prometheus",
+                .authorizeHttpRequests(auth -> auth.requestMatchers(
+                                "/actuator/**",
+                                "/v3/api-docs",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
-                                "/swagger-ui/**")
+                                "/swagger-ui/**",
+                                "/webjars/**")
                         .permitAll()
                         // qualquer outra rota fica restrita ate Sprint 3 plugar JWT
                         .anyRequest()
-                        .authenticated())
-                // basic auth temporario apenas para nao bloquear /actuator durante dev;
-                // sera removido na Sprint 3 quando JWT entrar
-                .httpBasic(httpBasic -> {});
+                        .authenticated());
 
         return http.build();
     }
