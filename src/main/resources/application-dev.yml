@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:sep_dev}
+    username: ${DB_USER:sep}
+    password: ${DB_PASSWORD:sep}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+management:
+  endpoint:
+    health:
+      show-details: always # em dev, expor detalhes do healthcheck
+  endpoints:
+    web:
+      exposure:
+        include: "*" # em dev, expor todos para facilitar debug
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+    com.dynamis.sep_api: TRACE
