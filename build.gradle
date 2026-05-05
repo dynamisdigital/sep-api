@@ -1,5 +1,7 @@
 plugins {
 	id 'java'
+	id 'org.springframework.boot' version '3.5.5'
+	id 'io.spring.dependency-management' version '1.1.7'
 	id 'com.diffplug.spotless' version '6.25.0'
 	id 'jacoco'
 }
@@ -17,9 +19,78 @@ repositories {
 	mavenCentral()
 }
 
+ext {
+	set('mapstructVersion', '1.6.3')
+	set('jjwtVersion', '0.12.6')
+	set('springdocVersion', '2.6.0')
+	set('javaUuidGeneratorVersion', '5.1.0')
+	set('resilience4jVersion', '2.2.0')
+	set('logstashEncoderVersion', '8.0')
+	set('testcontainersVersion', '1.21.3')
+	set('restAssuredVersion', '5.5.0')
+	set('wiremockVersion', '3.9.2')
+	set('wiremockSpringBootVersion', '3.1.0')
+}
+
 dependencies {
-	testImplementation 'org.junit.jupiter:junit-jupiter:5.11.0'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	// Spring Boot starters
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+	// Persistencia (Postgres + Flyway)
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-database-postgresql'
+	runtimeOnly 'org.postgresql:postgresql'
+
+	// JWT (preparado para Sprint 3)
+	implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+	runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
+	runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+
+	// Documentacao OpenAPI (configurada em detalhe na Sprint 4)
+	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+
+	// Mapeamento type-safe (substitui ModelMapper - ADR 0006)
+	implementation "org.mapstruct:mapstruct:${mapstructVersion}"
+	annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
+
+	// UUID v6 (PRD §11)
+	implementation "com.fasterxml.uuid:java-uuid-generator:${javaUuidGeneratorVersion}"
+
+	// Resilience4j (preparacao Celcoin via Provider Pattern - ADR 0004)
+	implementation "io.github.resilience4j:resilience4j-spring-boot3:${resilience4jVersion}"
+
+	// Observabilidade (Micrometer + Prometheus)
+	implementation 'io.micrometer:micrometer-registry-prometheus'
+
+	// Logs estruturados com MDC (correlationId/traceId)
+	implementation "net.logstash.logback:logstash-logback-encoder:${logstashEncoderVersion}"
+
+	// Testes
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.security:spring-security-test'
+	// Testcontainers declarado mas SmokeBootTest da Sprint 1 usa Postgres local
+	// (docker-compose) por incompatibilidade conhecida do docker-java embutido
+	// em TC 1.21 com Docker Engine 28+. Sprint posterior reativa Testcontainers.
+	testImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
+	testImplementation "org.testcontainers:postgresql:${testcontainersVersion}"
+	testImplementation "io.rest-assured:rest-assured:${restAssuredVersion}"
+
+	// WireMock para integration tests dos adapters HTTP do Celcoin (ADR 0008; uso real entra em Epic 5)
+	testImplementation "org.wiremock:wiremock-standalone:${wiremockVersion}"
+	testImplementation "org.wiremock.integrations:wiremock-spring-boot:${wiremockSpringBootVersion}"
+}
+
+// Compilation hints
+compileJava {
+	options.compilerArgs += [
+		'-parameters',
+		'-Amapstruct.defaultComponentModel=spring',
+		'-Amapstruct.unmappedTargetPolicy=ERROR'
+	]
 }
 
 // ========================
@@ -53,18 +124,18 @@ spotless {
 		indentWithSpaces(2)
 	}
 
-	sql {
-		target 'src/main/resources/db/migration/**/*.sql'
-		dbeaver()
-		endWithNewline()
-	}
+	// SQL formatter (dbeaver) intencionalmente desabilitado: gera output muito
+	// agressivo (uppercase em palavras reservadas como `role`, quebras em
+	// multiplas linhas para CREATE TABLE) que prejudica a legibilidade das
+	// migrations Flyway. As migrations seguem padrao manual: 4 espacos de
+	// indentacao, palavras reservadas em UPPER, identificadores em snake_case.
 }
 
 check.dependsOn 'spotlessCheck'
 
 // ========================
 // JaCoCo (Sprint 0 Task 0.3)
-// Verificacao 70% DESATIVADA — ATIVAR na Sprint 4 (Task 4.3)
+// Verificacao 70% DESATIVADA - ATIVAR na Sprint 4 (Task 4.3)
 // ========================
 jacoco {
 	toolVersion = '0.8.12'
