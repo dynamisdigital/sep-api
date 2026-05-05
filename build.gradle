@@ -26,7 +26,7 @@ ext {
 	set('javaUuidGeneratorVersion', '5.1.0')
 	set('resilience4jVersion', '2.2.0')
 	set('logstashEncoderVersion', '8.0')
-	set('testcontainersVersion', '1.20.4')
+	set('testcontainersVersion', '1.21.3')
 	set('restAssuredVersion', '5.5.0')
 	set('wiremockVersion', '3.9.2')
 	set('wiremockSpringBootVersion', '3.1.0')
@@ -72,6 +72,9 @@ dependencies {
 	// Testes
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
+	// Testcontainers declarado mas SmokeBootTest da Sprint 1 usa Postgres local
+	// (docker-compose) por incompatibilidade conhecida do docker-java embutido
+	// em TC 1.21 com Docker Engine 28+. Sprint posterior reativa Testcontainers.
 	testImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
 	testImplementation "org.testcontainers:postgresql:${testcontainersVersion}"
 	testImplementation "io.rest-assured:rest-assured:${restAssuredVersion}"
