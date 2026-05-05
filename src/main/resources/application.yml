@@ -1,0 +1,104 @@
+spring:
+  profiles:
+    default: dev
+  application:
+    name: sep-api
+
+  jpa:
+    hibernate:
+      ddl-auto: validate # Flyway gerencia o schema; Hibernate apenas valida
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: America/Sao_Paulo
+        format_sql: false
+
+  jackson:
+    time-zone: America/Sao_Paulo
+    serialization:
+      write-dates-with-zone-id: true
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+  mvc:
+    throw-exception-if-no-handler-found: true
+    # spring.web.resources.add-mappings fica DEFAULT (true) para servir webjars
+    # do Swagger UI; paths inexistentes geram NoResourceFoundException, mapeada
+    # para 404 em ApiExceptionHandler.
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: never # nao expor detalhes em prod; dev sobrescreve
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+server:
+  port: 8080
+  forward-headers-strategy: framework # respeita X-Forwarded-* atras de proxy
+
+# Propriedades de aplicacao (placeholders; valores reais via env vars)
+app:
+  jwt:
+    secret: ${APP_JWT_SECRET:placeholder-dev-only-min-256-bits-key-replace-in-prod-please}
+    expiration-seconds: ${APP_JWT_EXPIRATION:3600}
+  cors:
+    allowed-origins: ${APP_CORS_ORIGINS:http://localhost:4200,http://localhost:8100}
+    allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+    allowed-headers: Authorization,Content-Type,Idempotency-Key,X-Correlation-Id
+    exposed-headers: X-Correlation-Id
+    allow-credentials: true
+    max-age: 3600
+  integration:
+    connect-timeout-seconds: 10
+    read-timeout-seconds: 30
+
+# Defaults Resilience4j (overrides por instance vem nas Sprints 6+)
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+  retry:
+    configs:
+      default:
+        maxAttempts: 3
+        waitDuration: 500ms
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 30s
+
+logging:
+  level:
+    root: INFO
+    com.dynamis.sep_api: DEBUG
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{correlationId:-}] %-5level %logger{36} - %msg%n"
