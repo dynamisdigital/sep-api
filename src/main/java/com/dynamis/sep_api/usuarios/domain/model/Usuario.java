@@ -65,4 +65,9 @@ public class Usuario extends EntidadeAuditavel {
     public Role getRole() {
         return role;
     }
+
+    /** Substitui o hash da senha. Recebe sempre hash BCrypt — nunca senha em texto claro. */
+    public void alterarSenha(String novoPasswordHash) {
+        this.password = novoPasswordHash;
+    }
 }

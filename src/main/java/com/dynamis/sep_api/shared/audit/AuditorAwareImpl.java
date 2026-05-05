@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.shared.audit;
 
+import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -11,10 +12,9 @@ import java.util.Optional;
 /**
  * Provedor do auditor (criadoPor/modificadoPor) para o JPA Auditing.
  *
- * <p>Atende PRD §15: prioriza o UUID do usuario autenticado (preenchido pela Sprint 3), com
- * fallback {@code "system"} quando nao ha autenticacao no contexto. Nunca retorna {@link
- * Optional#empty()} para garantir que os campos {@code criado_por} e {@code modificado_por}
- * fiquem sempre populados.
+ * <p>PRD §15: prioriza o UUID do usuario autenticado, com fallback {@code "system"} quando nao
+ * ha autenticacao real no contexto. Sprint 3 reconhece {@link UsuarioAutenticado} como
+ * principal vindo do filtro JWT e extrai o UUID via {@link UsuarioAutenticado#id()}.
  */
 @Component("auditorAware")
 public class AuditorAwareImpl implements AuditorAware<String> {
@@ -27,8 +27,9 @@ public class AuditorAwareImpl implements AuditorAware<String> {
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             return Optional.of(SYSTEM);
         }
-        // Sprint 3 vai colocar o UUID do usuario no Authentication.getName().
-        // Por ora, qualquer principal autenticado retorna o nome (placeholder).
+        if (auth.getPrincipal() instanceof UsuarioAutenticado principal) {
+            return Optional.of(principal.id().toString());
+        }
         String name = auth.getName();
         return Optional.of(name == null || name.isBlank() ? SYSTEM : name);
     }

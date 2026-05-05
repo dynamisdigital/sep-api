@@ -1,8 +1,13 @@
 package com.dynamis.sep_api.usuarios.web.controller;
 
+import com.dynamis.sep_api.identity.infrastructure.security.JwtAuthenticationFilter;
+import com.dynamis.sep_api.identity.infrastructure.security.JwtTokenProvider;
 import com.dynamis.sep_api.shared.exception.ApiExceptionHandler;
 import com.dynamis.sep_api.usuarios.application.exception.UsernameJaExisteException;
+import com.dynamis.sep_api.usuarios.application.usecase.AlterarSenhaUseCase;
+import com.dynamis.sep_api.usuarios.application.usecase.ConsultarUsuarioUseCase;
 import com.dynamis.sep_api.usuarios.application.usecase.CriarUsuarioUseCase;
+import com.dynamis.sep_api.usuarios.application.usecase.ListarUsuariosUseCase;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
 import com.dynamis.sep_api.usuarios.web.dto.UsuarioCreateDto;
@@ -45,7 +50,22 @@ class UsuarioControllerTest {
     private CriarUsuarioUseCase criarUsuarioUseCase;
 
     @MockBean
+    private ConsultarUsuarioUseCase consultarUsuarioUseCase;
+
+    @MockBean
+    private ListarUsuariosUseCase listarUsuariosUseCase;
+
+    @MockBean
+    private AlterarSenhaUseCase alterarSenhaUseCase;
+
+    @MockBean
     private UsuarioMapper mapper;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private JwtTokenProvider jwtTokenProvider;
 
     @Test
     void postValidoRetorna201ComLocationESemPassword() throws Exception {

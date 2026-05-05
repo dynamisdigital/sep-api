@@ -1,43 +1,38 @@
 package com.dynamis.sep_api.identity.infrastructure.config;
 
+import com.dynamis.sep_api.identity.infrastructure.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
- * Configuracao base de seguranca para a Sprint 1.
+ * Configuracao de seguranca consolidada apos a Sprint 3.
  *
- * <p>Nesta sprint apenas CORS e a politica de sessao stateless sao definidas. O filtro JWT,
- * autorizacao por perfil/ownership e demais regras entram na Sprint 3.
- *
- * <p>Endpoints liberados publicamente nesta fase:
- *
- * <ul>
- *   <li>{@code /actuator/**}: healthcheck, info, metrics, prometheus (uteis em dev/CI)
- *   <li>{@code /v3/api-docs} + {@code /v3/api-docs/**}: contratos OpenAPI brutos
- *   <li>{@code /swagger-ui.html} + {@code /swagger-ui/**} + {@code /webjars/**}: UI do Swagger e
- *       seus assets estaticos (CSS/JS)
- * </ul>
- *
- * <p>A Sprint 3 vai trocar este permit-all amplo de {@code /actuator/**} por configuracao por
- * profile (publico em dev, autenticado em prod).
- *
- * @see com.dynamis.sep_api.shared.config.CorsConfig
+ * <p>Sprint 3 introduz autenticacao JWT: registra o {@link JwtAuthenticationFilter} antes do
+ * {@code UsernamePasswordAuthenticationFilter} e habilita method security para
+ * {@code @PreAuthorize}. Endpoints publicos: docs, actuator, cadastro publico de usuario,
+ * login. Demais rotas exigem token valido.
  */
 @Configuration
+@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
     private final UrlBasedCorsConfigurationSource corsConfigurationSource;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    public SecurityConfig(UrlBasedCorsConfigurationSource corsConfigurationSource) {
+    public SecurityConfig(
+            UrlBasedCorsConfigurationSource corsConfigurationSource, JwtAuthenticationFilter jwtAuthenticationFilter) {
         this.corsConfigurationSource = corsConfigurationSource;
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
     @Bean
@@ -55,9 +50,11 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/usuarios")
                         .permitAll()
-                        // qualquer outra rota fica restrita ate Sprint 3 plugar JWT
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/login")
+                        .permitAll()
                         .anyRequest()
-                        .authenticated());
+                        .authenticated())
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
