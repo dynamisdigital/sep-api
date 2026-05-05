@@ -22,7 +22,7 @@ repositories {
 ext {
 	set('mapstructVersion', '1.6.3')
 	set('jjwtVersion', '0.12.6')
-	set('springdocVersion', '2.6.0')
+	set('springdocVersion', '2.8.13')
 	set('javaUuidGeneratorVersion', '5.1.0')
 	set('resilience4jVersion', '2.2.0')
 	set('logstashEncoderVersion', '8.0')
