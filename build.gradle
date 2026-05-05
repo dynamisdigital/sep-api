@@ -121,11 +121,11 @@ spotless {
 		indentWithSpaces(2)
 	}
 
-	sql {
-		target 'src/main/resources/db/migration/**/*.sql'
-		dbeaver()
-		endWithNewline()
-	}
+	// SQL formatter (dbeaver) intencionalmente desabilitado: gera output muito
+	// agressivo (uppercase em palavras reservadas como `role`, quebras em
+	// multiplas linhas para CREATE TABLE) que prejudica a legibilidade das
+	// migrations Flyway. As migrations seguem padrao manual: 4 espacos de
+	// indentacao, palavras reservadas em UPPER, identificadores em snake_case.
 }
 
 check.dependsOn 'spotlessCheck'
