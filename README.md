@@ -65,14 +65,14 @@ git commit --no-verify
 
 ## Continuous Integration
 
-PRs e push para `main` rodam:
+PRs para `main`/`develop` e push para `feature/**`, `develop` e `main` rodam a esteira em duas etapas:
 
-- **Spotless check** — formato de codigo
-- **Build** — compilacao com Gradle
-- **Test** — JUnit 5 + Testcontainers (Postgres real)
-- **JaCoCo** — relatorio de cobertura (verificacao 70% ativa apos Sprint 4)
+1. **Test, Spotless, JaCoCo** — formato de codigo, JUnit 5 com PostgreSQL 16 via service container e verificacao JaCoCo 70%
+2. **Build Package** — empacotamento com `bootJar`, executado apenas se a etapa de testes passar
 
-Resultados ficam em **Actions** no GitHub. Relatorios JaCoCo ficam disponiveis como artifact por 14 dias.
+Resultados ficam em **Actions** no GitHub. Relatorios JaCoCo, resultados de teste e o JAR gerado ficam disponiveis como artifacts por 14 dias.
+
+Esta fase ainda nao publica imagem Docker, nao envia para GHCR e nao faz deploy remoto. Deploy e distribuicao ficam para a trilha futura de infraestrutura.
 
 ### Branch protection
 
