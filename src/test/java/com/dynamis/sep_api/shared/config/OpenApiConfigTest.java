@@ -1,0 +1,45 @@
+package com.dynamis.sep_api.shared.config;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@ActiveProfiles("dev")
+class OpenApiConfigTest {
+
+    @Autowired
+    private WebApplicationContext context;
+
+    private MockMvc mockMvc;
+
+    @Test
+    void apiDocsExpoeSchemasESecurity() throws Exception {
+        mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme")
+                        .value("bearer"))
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.bearerFormat")
+                        .value("JWT"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/login']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/me']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/usuarios']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/usuarios/{id}']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/usuarios/{id}/senha']").exists())
+                .andExpect(jsonPath("$.components.schemas.UsuarioCreateDto").exists())
+                .andExpect(jsonPath("$.components.schemas.UsuarioResponseDto").exists())
+                .andExpect(jsonPath("$.components.schemas.LoginRequestDto").exists())
+                .andExpect(jsonPath("$.components.schemas.TokenResponseDto").exists())
+                .andExpect(jsonPath("$.components.schemas.ErrorResponseDto").exists());
+    }
+}
