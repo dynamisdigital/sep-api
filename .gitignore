@@ -16,6 +16,8 @@ gradle-app.setting
 !gradle/wrapper/gradle-wrapper.properties
 
 out/
+!src/**/port/out/
+!src/**/port/out/**
 target/
 .gradle-cache/
 
