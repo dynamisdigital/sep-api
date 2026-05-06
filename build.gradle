@@ -174,10 +174,22 @@ jacocoTestReport {
 jacocoTestCoverageVerification {
 	dependsOn jacocoTestReport
 
+	afterEvaluate {
+		classDirectories.setFrom(files(classDirectories.files.collect {
+			fileTree(dir: it, exclude: [
+				'**/SepApiApplication.class',
+				'**/config/**',
+				'**/dto/**',
+				'**/*MapperImpl.class',
+				'**/package-info.class',
+				'**/exception/*Exception.class'
+			])
+		}))
+	}
+
 	violationRules {
 		rule {
-			// ATIVAR na Sprint 4 (Task 4.3) quando cobertura distribuida estabilizar
-			enabled = false
+			enabled = true
 
 			limit {
 				counter = 'LINE'
@@ -185,18 +197,7 @@ jacocoTestCoverageVerification {
 				minimum = 0.70
 			}
 		}
-
-		rule {
-			element = 'CLASS'
-			includes = ['**.config.**', '**.dto.**']
-			limit {
-				counter = 'LINE'
-				value = 'COVEREDRATIO'
-				minimum = 0.0
-			}
-		}
 	}
 }
 
-// NAO adicionar a check ainda; ativar na Sprint 4
-// check.dependsOn 'jacocoTestCoverageVerification'
+check.dependsOn 'jacocoTestCoverageVerification'

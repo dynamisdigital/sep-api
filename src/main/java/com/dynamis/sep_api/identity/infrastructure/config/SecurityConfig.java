@@ -1,5 +1,7 @@
 package com.dynamis.sep_api.identity.infrastructure.config;
 
+import com.dynamis.sep_api.identity.infrastructure.security.ApiAccessDeniedHandler;
+import com.dynamis.sep_api.identity.infrastructure.security.ApiAuthenticationEntryPoint;
 import com.dynamis.sep_api.identity.infrastructure.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,12 +17,13 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
- * Configuracao de seguranca consolidada apos a Sprint 3.
+ * Configuracao de seguranca consolidada apos a Sprint 3 e estendida na Sprint 4.
  *
  * <p>Sprint 3 introduz autenticacao JWT: registra o {@link JwtAuthenticationFilter} antes do
  * {@code UsernamePasswordAuthenticationFilter} e habilita method security para
- * {@code @PreAuthorize}. Endpoints publicos: docs, actuator, cadastro publico de usuario,
- * login. Demais rotas exigem token valido.
+ * {@code @PreAuthorize}. Sprint 4 conecta {@link ApiAuthenticationEntryPoint} +
+ * {@link ApiAccessDeniedHandler} para 401/403 padronizados em JSON e libera o endpoint de
+ * webhooks (autenticacao por HMAC, nao por JWT).
  */
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
@@ -28,11 +31,18 @@ public class SecurityConfig {
 
     private final UrlBasedCorsConfigurationSource corsConfigurationSource;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final ApiAuthenticationEntryPoint apiAuthenticationEntryPoint;
+    private final ApiAccessDeniedHandler apiAccessDeniedHandler;
 
     public SecurityConfig(
-            UrlBasedCorsConfigurationSource corsConfigurationSource, JwtAuthenticationFilter jwtAuthenticationFilter) {
+            UrlBasedCorsConfigurationSource corsConfigurationSource,
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            ApiAuthenticationEntryPoint apiAuthenticationEntryPoint,
+            ApiAccessDeniedHandler apiAccessDeniedHandler) {
         this.corsConfigurationSource = corsConfigurationSource;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.apiAuthenticationEntryPoint = apiAuthenticationEntryPoint;
+        this.apiAccessDeniedHandler = apiAccessDeniedHandler;
     }
 
     @Bean
@@ -52,8 +62,12 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login")
                         .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/webhooks/**")
+                        .permitAll()
                         .anyRequest()
                         .authenticated())
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(apiAuthenticationEntryPoint)
+                        .accessDeniedHandler(apiAccessDeniedHandler))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

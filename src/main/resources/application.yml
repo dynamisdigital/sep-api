@@ -74,6 +74,9 @@ app:
   integration:
     connect-timeout-seconds: 10
     read-timeout-seconds: 30
+  webhooks:
+    secrets:
+      celcoin: ${APP_WEBHOOK_SECRET_CELCOIN:dev-webhook-secret-change-me}
 
 # Defaults Resilience4j (overrides por instance vem nas Sprints 6+)
 resilience4j:
