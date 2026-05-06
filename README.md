@@ -65,7 +65,7 @@ git commit --no-verify
 
 ## Continuous Integration
 
-PRs e push para `main` e `develop` rodam a esteira em duas etapas:
+PRs para `main`/`develop` e push para `feature/**`, `develop` e `main` rodam a esteira em duas etapas:
 
 1. **Test, Spotless, JaCoCo** — formato de codigo, JUnit 5 com PostgreSQL 16 via service container e verificacao JaCoCo 70%
 2. **Build Package** — empacotamento com `bootJar`, executado apenas se a etapa de testes passar
