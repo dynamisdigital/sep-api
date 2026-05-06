@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.usuarios.web.controller;
 
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
+import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
 import com.dynamis.sep_api.usuarios.application.usecase.AlterarSenhaUseCase;
 import com.dynamis.sep_api.usuarios.application.usecase.ConsultarUsuarioUseCase;
 import com.dynamis.sep_api.usuarios.application.usecase.CriarUsuarioUseCase;
@@ -10,6 +11,12 @@ import com.dynamis.sep_api.usuarios.web.dto.UsuarioCreateDto;
 import com.dynamis.sep_api.usuarios.web.dto.UsuarioResponseDto;
 import com.dynamis.sep_api.usuarios.web.dto.UsuarioSenhaUpdateDto;
 import com.dynamis.sep_api.usuarios.web.mapper.UsuarioMapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -28,6 +35,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/usuarios")
+@Tag(name = "usuarios", description = "Cadastro e gestao de usuarios")
 public class UsuarioController {
 
     private final CriarUsuarioUseCase criarUsuarioUseCase;
@@ -50,6 +58,30 @@ public class UsuarioController {
     }
 
     @PostMapping
+    @Operation(summary = "Criar usuario", description = "Cria usuario sem autenticacao (cadastro publico).")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "201",
+                description = "Usuario criado",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = UsuarioResponseDto.class))),
+        @ApiResponse(
+                responseCode = "400",
+                description = "Requisicao invalida",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "409",
+                description = "Username ja cadastrado",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
     public ResponseEntity<UsuarioResponseDto> criar(@Valid @RequestBody UsuarioCreateDto dto) {
         Usuario salvo = criarUsuarioUseCase.executar(dto);
         UsuarioResponseDto body = mapper.toResponse(salvo);
@@ -59,6 +91,37 @@ public class UsuarioController {
 
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Buscar usuario por id", description = "Admin acessa qualquer; cliente apenas o proprio.")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Usuario encontrado",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = UsuarioResponseDto.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Acesso negado",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Usuario nao encontrado",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
     public ResponseEntity<UsuarioResponseDto> consultar(
             @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
         Usuario usuario = consultarUsuarioUseCase.executar(id, principal);
@@ -67,6 +130,24 @@ public class UsuarioController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Listar usuarios", description = "Apenas ADMIN.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Lista de usuarios"),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Acesso negado",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
     public ResponseEntity<List<UsuarioResponseDto>> listar() {
         List<UsuarioResponseDto> resp = listarUsuariosUseCase.executar().stream()
                 .map(mapper::toResponse)
@@ -76,6 +157,38 @@ public class UsuarioController {
 
     @PatchMapping("/{id}/senha")
     @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Alterar senha", description = "Apenas o proprio usuario altera a propria senha.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Senha alterada"),
+        @ApiResponse(
+                responseCode = "400",
+                description = "Senha atual incorreta ou requisicao invalida",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Acesso negado",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Usuario nao encontrado",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
     public ResponseEntity<Void> alterarSenha(
             @PathVariable UUID id,
             @Valid @RequestBody UsuarioSenhaUpdateDto dto,
