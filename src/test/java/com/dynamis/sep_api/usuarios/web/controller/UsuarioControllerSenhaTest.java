@@ -140,7 +140,7 @@ class UsuarioControllerSenhaTest {
 
         mockMvc.perform(patch("/api/v1/usuarios/{id}/senha", id)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"passwordAtual\":\"123456\",\"novaSenha\":\"123\"}"))
+                        .content("{\"passwordAtual\":\"\",\"novaSenha\":\"\"}"))
                 .andExpect(status().isBadRequest());
     }
 }

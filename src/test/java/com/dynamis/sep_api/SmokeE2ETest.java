@@ -43,7 +43,8 @@ class SmokeE2ETest {
         // 1. Cria admin
         String adminId = RestAssured.given()
                 .contentType(ContentType.JSON)
-                .body("{\"username\":\"" + adminEmail + "\",\"password\":\"123456\",\"role\":\"ADMIN\"}")
+                .body("{\"username\":\"" + adminEmail
+                        + "\",\"password\":\"senha-passphrase-segura\",\"role\":\"ADMIN\"}")
                 .when()
                 .post("/api/v1/usuarios")
                 .then()
@@ -55,7 +56,8 @@ class SmokeE2ETest {
         // 2. Cria cliente
         String clienteId = RestAssured.given()
                 .contentType(ContentType.JSON)
-                .body("{\"username\":\"" + clienteEmail + "\",\"password\":\"abcdef\",\"role\":\"CLIENTE\"}")
+                .body("{\"username\":\"" + clienteEmail
+                        + "\",\"password\":\"nova-passphrase-segura\",\"role\":\"CLIENTE\"}")
                 .when()
                 .post("/api/v1/usuarios")
                 .then()
@@ -66,7 +68,7 @@ class SmokeE2ETest {
         // 3. Login admin
         Response loginAdmin = RestAssured.given()
                 .contentType(ContentType.JSON)
-                .body("{\"username\":\"" + adminEmail + "\",\"password\":\"123456\"}")
+                .body("{\"username\":\"" + adminEmail + "\",\"password\":\"senha-passphrase-segura\"}")
                 .when()
                 .post("/api/v1/auth/login")
                 .then()
@@ -79,7 +81,7 @@ class SmokeE2ETest {
         // 4. Login cliente
         String clienteToken = RestAssured.given()
                 .contentType(ContentType.JSON)
-                .body("{\"username\":\"" + clienteEmail + "\",\"password\":\"abcdef\"}")
+                .body("{\"username\":\"" + clienteEmail + "\",\"password\":\"nova-passphrase-segura\"}")
                 .when()
                 .post("/api/v1/auth/login")
                 .then()
@@ -117,7 +119,7 @@ class SmokeE2ETest {
         RestAssured.given()
                 .header("Authorization", "Bearer " + clienteToken)
                 .contentType(ContentType.JSON)
-                .body("{\"passwordAtual\":\"abcdef\",\"novaSenha\":\"zzzzzz\"}")
+                .body("{\"passwordAtual\":\"nova-passphrase-segura\",\"novaSenha\":\"outra-passphrase-segura\"}")
                 .when()
                 .patch("/api/v1/usuarios/" + clienteId + "/senha")
                 .then()
@@ -127,7 +129,7 @@ class SmokeE2ETest {
         RestAssured.given()
                 .header("Authorization", "Bearer " + clienteToken)
                 .contentType(ContentType.JSON)
-                .body("{\"passwordAtual\":\"zzzzzz\",\"novaSenha\":\"yyyyyy\"}")
+                .body("{\"passwordAtual\":\"outra-passphrase-segura\",\"novaSenha\":\"mais-uma-passphrase\"}")
                 .when()
                 .patch("/api/v1/usuarios/" + adminId + "/senha")
                 .then()

@@ -157,7 +157,12 @@ public class UsuarioController {
 
     @PatchMapping("/{id}/senha")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Alterar senha", description = "Apenas o proprio usuario altera a propria senha.")
+    @com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp
+    @Operation(
+            summary = "Alterar senha",
+            description =
+                    "Apenas o proprio usuario altera a propria senha. Sprint 5: exige step-up token (X-Step-Up-Token)"
+                            + " quando MFA habilitado.")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Senha alterada"),
         @ApiResponse(

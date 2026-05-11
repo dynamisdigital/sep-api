@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.shared.exception;
 
+import com.dynamis.sep_api.identity.application.exception.ContaBloqueadaException;
 import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -93,6 +94,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponseDto> handleAuth(AuthenticationException ex, HttpServletRequest request) {
         return build(HttpStatus.UNAUTHORIZED, "Unauthorized", "Autenticacao requerida", request);
+    }
+
+    @ExceptionHandler(ContaBloqueadaException.class)
+    public ResponseEntity<ErrorResponseDto> handleLocked(ContaBloqueadaException ex, HttpServletRequest request) {
+        return build(HttpStatus.LOCKED, "Locked", ex.getMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)

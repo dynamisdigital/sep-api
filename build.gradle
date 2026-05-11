@@ -39,6 +39,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-aop'
 
 	// Persistencia (Postgres + Flyway)
 	implementation 'org.flywaydb:flyway-core'
@@ -62,6 +63,11 @@ dependencies {
 
 	// Resilience4j (preparacao Celcoin via Provider Pattern - ADR 0004)
 	implementation "io.github.resilience4j:resilience4j-spring-boot3:${resilience4jVersion}"
+
+	// MFA TOTP (Sprint 5 - ADR 0010)
+	implementation 'com.warrenstrange:googleauth:1.5.0'
+	implementation 'com.google.zxing:core:3.5.3'
+	implementation 'com.google.zxing:javase:3.5.3'
 
 	// Observabilidade (Micrometer + Prometheus)
 	implementation 'io.micrometer:micrometer-registry-prometheus'

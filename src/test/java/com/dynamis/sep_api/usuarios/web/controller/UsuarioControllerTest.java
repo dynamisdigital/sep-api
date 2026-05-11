@@ -77,7 +77,9 @@ class UsuarioControllerTest {
                 OffsetDateTime.now(),
                 OffsetDateTime.now(),
                 "system",
-                "system");
+                "system",
+                false,
+                false);
         when(criarUsuarioUseCase.executar(any(UsuarioCreateDto.class))).thenReturn(salvo);
         when(mapper.toResponse(salvo)).thenReturn(response);
 
@@ -108,9 +110,9 @@ class UsuarioControllerTest {
     }
 
     @Test
-    void postComSenhaTamanhoInvalidoRetorna400() throws Exception {
+    void postComPasswordVazioRetorna400() throws Exception {
         String body = """
-            {"username":"admin@sep.test","password":"12345","role":"ADMIN"}
+            {"username":"admin@sep.test","password":"","role":"ADMIN"}
             """;
 
         mockMvc.perform(post("/api/v1/usuarios")

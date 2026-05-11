@@ -14,4 +14,7 @@ public record UsuarioResponseDto(
         @Schema(example = "2026-04-24T18:30:00-03:00") OffsetDateTime dataCriacao,
         @Schema(example = "2026-04-24T18:30:00-03:00") OffsetDateTime dataModificacao,
         @Schema(example = "system") String criadoPor,
-        @Schema(example = "system") String modificadoPor) {}
+        @Schema(example = "system") String modificadoPor,
+        @Schema(description = "Sprint 5: usuario precisa redefinir senha no proximo login.")
+                boolean precisaRedefinirSenha,
+        @Schema(description = "Sprint 5: MFA TOTP ativo no momento.") boolean mfaHabilitado) {}
