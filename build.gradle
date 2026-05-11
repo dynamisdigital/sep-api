@@ -32,7 +32,15 @@ ext {
 	set('wiremockSpringBootVersion', '3.1.0')
 }
 
+// Sprint 5 Task 5.2: googleauth 1.5.0 puxa httpclient 4.5.12 transitivamente.
+// httpclient 4.x esta EOL desde 2022; 4.5.14 e o ultimo patch da serie 4 e fecha
+// vulnerabilidades reportadas pelo Snyk em 4.5.13 e anteriores. Constraint forca
+// a versao segura ate a migracao para uma lib TOTP sem dependencia transitiva
+// de httpclient (avaliacao em ADR pos-Sprint 5).
 dependencies {
+	constraints {
+		implementation 'org.apache.httpcomponents:httpclient:4.5.14'
+	}
 	// Spring Boot starters
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
