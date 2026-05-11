@@ -16,6 +16,8 @@ import com.dynamis.sep_api.identity.infrastructure.security.JwtTokenProvider;
 import com.dynamis.sep_api.identity.infrastructure.totp.GoogleAuthAdapter;
 import com.dynamis.sep_api.identity.infrastructure.totp.TotpCryptoService;
 import com.dynamis.sep_api.identity.web.dto.TokenResponseDto;
+import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
+import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import com.dynamis.sep_api.usuarios.application.exception.UsuarioNaoEncontradoException;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
 import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository;
@@ -44,6 +46,7 @@ public class VerificarTotpUseCase {
     private final UsuarioMapper usuarioMapper;
     private final LockoutService lockoutService;
     private final RegistrarTentativaLoginUseCase registrarTentativaLogin;
+    private final AuditLogSegurancaService auditService;
 
     public VerificarTotpUseCase(
             UsuarioRepository usuarioRepository,
@@ -57,7 +60,8 @@ public class VerificarTotpUseCase {
             RefreshTokenService refreshTokenService,
             UsuarioMapper usuarioMapper,
             LockoutService lockoutService,
-            RegistrarTentativaLoginUseCase registrarTentativaLogin) {
+            RegistrarTentativaLoginUseCase registrarTentativaLogin,
+            AuditLogSegurancaService auditService) {
         this.usuarioRepository = usuarioRepository;
         this.totpRepository = totpRepository;
         this.backupCodeService = backupCodeService;
@@ -70,6 +74,7 @@ public class VerificarTotpUseCase {
         this.usuarioMapper = usuarioMapper;
         this.lockoutService = lockoutService;
         this.registrarTentativaLogin = registrarTentativaLogin;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -89,6 +94,7 @@ public class VerificarTotpUseCase {
         }
 
         boolean ok = false;
+        boolean usouBackupCode = false;
         if (ehCodigoTotp(codigo)) {
             int numerico = Integer.parseInt(codigo);
             String secretClaro = crypto.decifrar(secret.getSecretCifrado());
@@ -96,6 +102,7 @@ public class VerificarTotpUseCase {
         }
         if (!ok) {
             ok = backupCodeService.consumir(usuarioId, codigo);
+            usouBackupCode = ok;
         }
         if (!ok) {
             challengeService.devolver(mfaChallengeId, usuarioId);
@@ -106,6 +113,8 @@ public class VerificarTotpUseCase {
         }
 
         registrarTentativaLogin.registrar(usuarioId, usuario.getUsername(), ip, userAgent, LoginAttemptStatus.SUCESSO);
+        auditService.gravar(
+                usouBackupCode ? TipoEventoSeguranca.BACKUP_CODE_USED : TipoEventoSeguranca.TOTP_OK, usuarioId);
         String access = jwtTokenProvider.gerarToken(usuario);
         TokenCru refresh = refreshTokenService.emitirParaNovoLogin(usuario.getId());
         return TokenResponseDto.comTokens(

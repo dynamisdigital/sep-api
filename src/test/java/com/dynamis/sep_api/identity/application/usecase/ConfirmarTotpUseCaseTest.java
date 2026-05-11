@@ -8,6 +8,9 @@ import com.dynamis.sep_api.identity.domain.model.UsuarioTotpSecret;
 import com.dynamis.sep_api.identity.infrastructure.persistence.UsuarioTotpSecretRepository;
 import com.dynamis.sep_api.identity.infrastructure.totp.GoogleAuthAdapter;
 import com.dynamis.sep_api.identity.infrastructure.totp.TotpCryptoService;
+import com.dynamis.sep_api.usuarios.domain.model.Role;
+import com.dynamis.sep_api.usuarios.domain.model.Usuario;
+import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +28,8 @@ class ConfirmarTotpUseCaseTest {
     private UsuarioTotpSecretRepository repository;
     private GoogleAuthAdapter googleAuth;
     private TotpCryptoService crypto;
+    private UsuarioRepository usuarioRepository;
+    private com.dynamis.sep_api.shared.audit.AuditLogSegurancaService auditService;
     private ConfirmarTotpUseCase useCase;
 
     @BeforeEach
@@ -32,21 +37,27 @@ class ConfirmarTotpUseCaseTest {
         repository = mock(UsuarioTotpSecretRepository.class);
         googleAuth = mock(GoogleAuthAdapter.class);
         crypto = mock(TotpCryptoService.class);
-        useCase = new ConfirmarTotpUseCase(repository, googleAuth, crypto);
+        usuarioRepository = mock(UsuarioRepository.class);
+        auditService = mock(com.dynamis.sep_api.shared.audit.AuditLogSegurancaService.class);
+        useCase = new ConfirmarTotpUseCase(repository, googleAuth, crypto, usuarioRepository, auditService);
     }
 
     @Test
     void confirmarComCodigoValidoMudaParaAtivo() {
-        UUID id = UUID.randomUUID();
+        Usuario usuario = Usuario.criar("u@sep.test", "h", Role.CLIENTE);
+        UUID id = usuario.getId();
         UsuarioTotpSecret pendente = UsuarioTotpSecret.iniciar(id, "cifrado");
         when(repository.findByUsuarioId(id)).thenReturn(Optional.of(pendente));
         when(crypto.decifrar("cifrado")).thenReturn("SECRET");
         when(googleAuth.validarCodigo("SECRET", 123456)).thenReturn(true);
+        when(usuarioRepository.findById(id)).thenReturn(Optional.of(usuario));
 
         useCase.executar(id, "123456");
 
         assertThat(pendente.getStatus()).isEqualTo(MfaStatus.ATIVO);
+        assertThat(usuario.isMfaHabilitado()).isTrue();
         verify(repository).save(pendente);
+        verify(usuarioRepository).save(usuario);
     }
 
     @Test

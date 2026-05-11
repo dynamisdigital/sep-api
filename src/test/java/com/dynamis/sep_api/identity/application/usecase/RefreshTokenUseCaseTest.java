@@ -93,7 +93,9 @@ class RefreshTokenUseCaseTest {
                 OffsetDateTime.now(),
                 OffsetDateTime.now(),
                 "system",
-                "system");
+                "system",
+                false,
+                false);
         when(usuarioMapper.toResponse(usuario)).thenReturn(dto);
 
         TokenResponseDto resp = useCase.executar("cru-velho");

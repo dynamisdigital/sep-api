@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.usuarios.application.usecase;
 
+import com.dynamis.sep_api.identity.domain.vo.PasswordPolicy;
 import com.dynamis.sep_api.usuarios.application.exception.UsernameJaExisteException;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
@@ -30,14 +31,17 @@ class CriarUsuarioUseCaseTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private PasswordPolicy passwordPolicy;
+
     @InjectMocks
     private CriarUsuarioUseCase useCase;
 
     @Test
     void criaAdminValido() {
-        UsuarioCreateDto dto = new UsuarioCreateDto("admin@sep.test", "123456", Role.ADMIN);
+        UsuarioCreateDto dto = new UsuarioCreateDto("admin@sep.test", "senha-passphrase-segura", Role.ADMIN);
         when(repository.existsByUsername("admin@sep.test")).thenReturn(false);
-        when(passwordEncoder.encode("123456")).thenReturn("$2a$10$hash");
+        when(passwordEncoder.encode("senha-passphrase-segura")).thenReturn("$2a$10$hash");
         when(repository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Usuario salvo = useCase.executar(dto);
@@ -49,9 +53,9 @@ class CriarUsuarioUseCaseTest {
 
     @Test
     void criaClienteValido() {
-        UsuarioCreateDto dto = new UsuarioCreateDto("cliente@sep.test", "654321", Role.CLIENTE);
+        UsuarioCreateDto dto = new UsuarioCreateDto("cliente@sep.test", "outra-passphrase-segura", Role.CLIENTE);
         when(repository.existsByUsername("cliente@sep.test")).thenReturn(false);
-        when(passwordEncoder.encode("654321")).thenReturn("$2a$10$hash2");
+        when(passwordEncoder.encode("outra-passphrase-segura")).thenReturn("$2a$10$hash2");
         when(repository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Usuario salvo = useCase.executar(dto);
@@ -61,7 +65,7 @@ class CriarUsuarioUseCaseTest {
 
     @Test
     void lancaUsernameJaExisteQuandoExistsByUsernameRetornaTrue() {
-        UsuarioCreateDto dto = new UsuarioCreateDto("admin@sep.test", "123456", Role.ADMIN);
+        UsuarioCreateDto dto = new UsuarioCreateDto("admin@sep.test", "senha-passphrase-segura", Role.ADMIN);
         when(repository.existsByUsername("admin@sep.test")).thenReturn(true);
 
         assertThatThrownBy(() -> useCase.executar(dto))
@@ -74,9 +78,9 @@ class CriarUsuarioUseCaseTest {
 
     @Test
     void senhaPersistidaEAQueVeioDoPasswordEncoder() {
-        UsuarioCreateDto dto = new UsuarioCreateDto("admin@sep.test", "abcdef", Role.ADMIN);
+        UsuarioCreateDto dto = new UsuarioCreateDto("admin@sep.test", "abcdefghijkl", Role.ADMIN);
         when(repository.existsByUsername("admin@sep.test")).thenReturn(false);
-        when(passwordEncoder.encode("abcdef")).thenReturn("$2a$10$encodedHash");
+        when(passwordEncoder.encode("abcdefghijkl")).thenReturn("$2a$10$encodedHash");
         when(repository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         useCase.executar(dto);
@@ -84,14 +88,14 @@ class CriarUsuarioUseCaseTest {
         ArgumentCaptor<Usuario> captor = ArgumentCaptor.forClass(Usuario.class);
         verify(repository).save(captor.capture());
         assertThat(captor.getValue().getPassword()).isEqualTo("$2a$10$encodedHash");
-        assertThat(captor.getValue().getPassword()).isNotEqualTo("abcdef");
+        assertThat(captor.getValue().getPassword()).isNotEqualTo("abcdefghijkl");
     }
 
     @Test
     void chamaRepositorySaveApenasUmaVez() {
-        UsuarioCreateDto dto = new UsuarioCreateDto("admin@sep.test", "123456", Role.ADMIN);
+        UsuarioCreateDto dto = new UsuarioCreateDto("admin@sep.test", "senha-passphrase-segura", Role.ADMIN);
         when(repository.existsByUsername("admin@sep.test")).thenReturn(false);
-        when(passwordEncoder.encode("123456")).thenReturn("$2a$10$h");
+        when(passwordEncoder.encode("senha-passphrase-segura")).thenReturn("$2a$10$h");
         when(repository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         useCase.executar(dto);

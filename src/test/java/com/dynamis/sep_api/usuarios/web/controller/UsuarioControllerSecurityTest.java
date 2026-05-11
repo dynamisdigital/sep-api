@@ -81,7 +81,15 @@ class UsuarioControllerSecurityTest {
 
     private UsuarioResponseDto fakeResponse(UUID id, Role role) {
         return new UsuarioResponseDto(
-                id, id + "@sep.test", role, OffsetDateTime.now(), OffsetDateTime.now(), "system", "system");
+                id,
+                id + "@sep.test",
+                role,
+                OffsetDateTime.now(),
+                OffsetDateTime.now(),
+                "system",
+                "system",
+                false,
+                false);
     }
 
     @Test

@@ -49,6 +49,7 @@ class VerificarTotpUseCaseTest {
     private UsuarioMapper usuarioMapper;
     private LockoutService lockoutService;
     private RegistrarTentativaLoginUseCase registrarTentativaLogin;
+    private com.dynamis.sep_api.shared.audit.AuditLogSegurancaService auditService;
     private VerificarTotpUseCase useCase;
 
     @BeforeEach
@@ -65,6 +66,7 @@ class VerificarTotpUseCaseTest {
         usuarioMapper = mock(UsuarioMapper.class);
         lockoutService = mock(LockoutService.class);
         registrarTentativaLogin = mock(RegistrarTentativaLoginUseCase.class);
+        auditService = mock(com.dynamis.sep_api.shared.audit.AuditLogSegurancaService.class);
         useCase = new VerificarTotpUseCase(
                 usuarioRepository,
                 totpRepository,
@@ -77,7 +79,8 @@ class VerificarTotpUseCaseTest {
                 refreshTokenService,
                 usuarioMapper,
                 lockoutService,
-                registrarTentativaLogin);
+                registrarTentativaLogin,
+                auditService);
     }
 
     private UsuarioTotpSecret secretAtivo(UUID id) {
@@ -99,7 +102,15 @@ class VerificarTotpUseCaseTest {
 
     private UsuarioResponseDto dto(UUID id) {
         return new UsuarioResponseDto(
-                id, "u@sep.test", Role.CLIENTE, OffsetDateTime.now(), OffsetDateTime.now(), "system", "system");
+                id,
+                "u@sep.test",
+                Role.CLIENTE,
+                OffsetDateTime.now(),
+                OffsetDateTime.now(),
+                "system",
+                "system",
+                false,
+                false);
     }
 
     @Test

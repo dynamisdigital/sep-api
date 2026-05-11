@@ -29,6 +29,7 @@ class DesabilitarTotpUseCaseTest {
     private UsuarioTotpSecretRepository totpRepository;
     private UsuarioBackupCodeRepository backupCodeRepository;
     private PasswordEncoder passwordEncoder;
+    private com.dynamis.sep_api.shared.audit.AuditLogSegurancaService auditService;
     private DesabilitarTotpUseCase useCase;
 
     @BeforeEach
@@ -37,7 +38,9 @@ class DesabilitarTotpUseCaseTest {
         totpRepository = mock(UsuarioTotpSecretRepository.class);
         backupCodeRepository = mock(UsuarioBackupCodeRepository.class);
         passwordEncoder = mock(PasswordEncoder.class);
-        useCase = new DesabilitarTotpUseCase(usuarioRepository, totpRepository, backupCodeRepository, passwordEncoder);
+        auditService = mock(com.dynamis.sep_api.shared.audit.AuditLogSegurancaService.class);
+        useCase = new DesabilitarTotpUseCase(
+                usuarioRepository, totpRepository, backupCodeRepository, passwordEncoder, auditService);
     }
 
     @Test

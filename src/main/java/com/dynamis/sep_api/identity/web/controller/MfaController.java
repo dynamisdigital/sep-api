@@ -148,7 +148,8 @@ public class MfaController {
 
     @PostMapping("/disable")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Desabilitar TOTP", description = "Exige senha atual. Step-up token sera exigido na Task 5.6.")
+    @com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp
+    @Operation(summary = "Desabilitar TOTP", description = "Exige senha atual + step-up token (X-Step-Up-Token).")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "MFA desabilitado"),
         @ApiResponse(

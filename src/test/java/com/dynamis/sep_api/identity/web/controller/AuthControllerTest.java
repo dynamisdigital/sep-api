@@ -93,7 +93,9 @@ class AuthControllerTest {
                 OffsetDateTime.now(),
                 OffsetDateTime.now(),
                 "system",
-                "system");
+                "system",
+                false,
+                false);
     }
 
     @Test
@@ -199,7 +201,15 @@ class AuthControllerTest {
                         new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
         Usuario usuario = Usuario.criar("admin@sep.test", "$2a$hash", Role.ADMIN);
         UsuarioResponseDto response = new UsuarioResponseDto(
-                id, "admin@sep.test", Role.ADMIN, OffsetDateTime.now(), OffsetDateTime.now(), "system", "system");
+                id,
+                "admin@sep.test",
+                Role.ADMIN,
+                OffsetDateTime.now(),
+                OffsetDateTime.now(),
+                "system",
+                "system",
+                false,
+                false);
         when(usuarioRepository.findById(id)).thenReturn(Optional.of(usuario));
         when(mapper.toResponse(usuario)).thenReturn(response);
 

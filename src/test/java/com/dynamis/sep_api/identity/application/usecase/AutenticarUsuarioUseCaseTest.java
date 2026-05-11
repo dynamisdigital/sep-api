@@ -82,7 +82,9 @@ class AutenticarUsuarioUseCaseTest {
                 OffsetDateTime.now(),
                 OffsetDateTime.now(),
                 "system",
-                "system");
+                "system",
+                false,
+                false);
         when(repository.findByUsername("admin@sep.test")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("123456", "$2a$hash")).thenReturn(true);
         when(totpRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.empty());
@@ -137,7 +139,9 @@ class AutenticarUsuarioUseCaseTest {
                 OffsetDateTime.now(),
                 OffsetDateTime.now(),
                 "system",
-                "system");
+                "system",
+                false,
+                false);
         when(repository.findByUsername("u@sep.test")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("senha", "$2a$hash")).thenReturn(true);
         UsuarioTotpSecret pendente = UsuarioTotpSecret.iniciar(usuario.getId(), "cifrado");

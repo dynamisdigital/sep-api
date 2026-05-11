@@ -160,7 +160,9 @@ class MfaControllerTest {
                 OffsetDateTime.now(),
                 OffsetDateTime.now(),
                 "system",
-                "system");
+                "system",
+                false,
+                false);
         when(verificar.executar(eq(challengeId), eq("123456"), any(), any()))
                 .thenReturn(TokenResponseDto.comTokens("access-jwt", 900L, "refresh-cru", usuario));
 
@@ -183,7 +185,9 @@ class MfaControllerTest {
                 OffsetDateTime.now(),
                 OffsetDateTime.now(),
                 "system",
-                "system");
+                "system",
+                false,
+                false);
         when(verificar.executar(eq(challengeId), eq("AAAA1111"), any(), any()))
                 .thenReturn(TokenResponseDto.comTokens("access", 900L, "refresh", usuario));
 
