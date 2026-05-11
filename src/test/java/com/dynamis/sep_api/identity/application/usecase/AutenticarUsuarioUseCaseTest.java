@@ -1,5 +1,7 @@
 package com.dynamis.sep_api.identity.application.usecase;
 
+import com.dynamis.sep_api.identity.application.exception.ContaBloqueadaException;
+import com.dynamis.sep_api.identity.application.service.LockoutService;
 import com.dynamis.sep_api.identity.application.service.MfaChallengeService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService.TokenCru;
@@ -61,6 +63,12 @@ class AutenticarUsuarioUseCaseTest {
     @Mock
     private RefreshTokenService refreshTokenService;
 
+    @Mock
+    private LockoutService lockoutService;
+
+    @Mock
+    private RegistrarTentativaLoginUseCase registrarTentativaLogin;
+
     @InjectMocks
     private AutenticarUsuarioUseCase useCase;
 
@@ -86,7 +94,8 @@ class AutenticarUsuarioUseCaseTest {
                 .thenReturn(new TokenCru("refresh-cru", persistido));
         when(mapper.toResponse(usuario)).thenReturn(response);
 
-        TokenResponseDto resultado = useCase.executar(new LoginRequestDto("admin@sep.test", "123456"));
+        TokenResponseDto resultado =
+                useCase.executar(new LoginRequestDto("admin@sep.test", "123456"), "127.0.0.1", "ua");
 
         assertThat(resultado.accessToken()).isEqualTo("token-jwt-fake");
         assertThat(resultado.refreshToken()).isEqualTo("refresh-cru");
@@ -108,7 +117,7 @@ class AutenticarUsuarioUseCaseTest {
         UUID challengeId = UUID.randomUUID();
         when(mfaChallengeService.iniciar(usuario.getId())).thenReturn(challengeId);
 
-        TokenResponseDto resultado = useCase.executar(new LoginRequestDto("u@sep.test", "senha"));
+        TokenResponseDto resultado = useCase.executar(new LoginRequestDto("u@sep.test", "senha"), "127.0.0.1", "ua");
 
         assertThat(resultado.mfaRequired()).isTrue();
         assertThat(resultado.mfaChallengeId()).isEqualTo(challengeId);
@@ -142,7 +151,7 @@ class AutenticarUsuarioUseCaseTest {
                                 usuario.getId(), "h", OffsetDateTime.now().plusDays(30))));
         when(mapper.toResponse(usuario)).thenReturn(response);
 
-        TokenResponseDto resultado = useCase.executar(new LoginRequestDto("u@sep.test", "senha"));
+        TokenResponseDto resultado = useCase.executar(new LoginRequestDto("u@sep.test", "senha"), "127.0.0.1", "ua");
 
         assertThat(resultado.mfaRequired()).isFalse();
         assertThat(resultado.accessToken()).isEqualTo("jwt");
@@ -154,7 +163,7 @@ class AutenticarUsuarioUseCaseTest {
         when(repository.findByUsername("admin@sep.test")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches(any(), any())).thenReturn(false);
 
-        assertThatThrownBy(() -> useCase.executar(new LoginRequestDto("admin@sep.test", "errada")))
+        assertThatThrownBy(() -> useCase.executar(new LoginRequestDto("admin@sep.test", "errada"), "127.0.0.1", "ua"))
                 .isInstanceOf(BadCredentialsException.class);
     }
 
@@ -162,7 +171,18 @@ class AutenticarUsuarioUseCaseTest {
     void usuarioInexistenteLancaBadCredentials() {
         when(repository.findByUsername("nao@existe.test")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> useCase.executar(new LoginRequestDto("nao@existe.test", "123456")))
+        assertThatThrownBy(() -> useCase.executar(new LoginRequestDto("nao@existe.test", "123456"), "127.0.0.1", "ua"))
                 .isInstanceOf(BadCredentialsException.class);
+    }
+
+    @Test
+    void contaBloqueadaLancaAntesDeValidarSenha() {
+        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30))
+                .when(lockoutService)
+                .verificar("locked@sep.test");
+
+        assertThatThrownBy(() -> useCase.executar(new LoginRequestDto("locked@sep.test", "x"), "127.0.0.1", "ua"))
+                .isInstanceOf(ContaBloqueadaException.class);
+        verify(repository, never()).findByUsername(any());
     }
 }

@@ -99,7 +99,7 @@ class AuthControllerTest {
     @Test
     void postLoginRetorna200ComAccessERefresh() throws Exception {
         UsuarioResponseDto usuario = usuarioDto();
-        when(autenticarUsuarioUseCase.executar(any()))
+        when(autenticarUsuarioUseCase.executar(any(), any(), any()))
                 .thenReturn(TokenResponseDto.comTokens("token-jwt", 900L, "refresh-cru", usuario));
 
         mockMvc.perform(post("/api/v1/auth/login")
@@ -117,7 +117,8 @@ class AuthControllerTest {
     @Test
     void postLoginComMfaRetornaApenasChallengeId() throws Exception {
         UUID challengeId = UUID.randomUUID();
-        when(autenticarUsuarioUseCase.executar(any())).thenReturn(TokenResponseDto.desafioMfa(challengeId));
+        when(autenticarUsuarioUseCase.executar(any(), any(), any()))
+                .thenReturn(TokenResponseDto.desafioMfa(challengeId));
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -130,7 +131,8 @@ class AuthControllerTest {
 
     @Test
     void postLoginCredenciaisInvalidasRetorna401() throws Exception {
-        when(autenticarUsuarioUseCase.executar(any())).thenThrow(new BadCredentialsException("Credenciais invalidas"));
+        when(autenticarUsuarioUseCase.executar(any(), any(), any()))
+                .thenThrow(new BadCredentialsException("Credenciais invalidas"));
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

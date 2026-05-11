@@ -4,6 +4,7 @@ import com.dynamis.sep_api.identity.application.usecase.AutenticarUsuarioUseCase
 import com.dynamis.sep_api.identity.application.usecase.LogoutAllUseCase;
 import com.dynamis.sep_api.identity.application.usecase.LogoutUseCase;
 import com.dynamis.sep_api.identity.application.usecase.RefreshTokenUseCase;
+import com.dynamis.sep_api.identity.infrastructure.security.RateLimitFilter;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.identity.web.dto.LoginRequestDto;
 import com.dynamis.sep_api.identity.web.dto.LogoutRequestDto;
@@ -21,6 +22,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -86,8 +88,9 @@ public class AuthController {
                                 mediaType = "application/json",
                                 schema = @Schema(implementation = ErrorResponseDto.class)))
     })
-    public ResponseEntity<TokenResponseDto> login(@Valid @RequestBody LoginRequestDto dto) {
-        return ResponseEntity.ok(autenticarUsuarioUseCase.executar(dto));
+    public ResponseEntity<TokenResponseDto> login(@Valid @RequestBody LoginRequestDto dto, HttpServletRequest request) {
+        return ResponseEntity.ok(autenticarUsuarioUseCase.executar(
+                dto, RateLimitFilter.extrairIp(request), request.getHeader("User-Agent")));
     }
 
     @PostMapping("/refresh")

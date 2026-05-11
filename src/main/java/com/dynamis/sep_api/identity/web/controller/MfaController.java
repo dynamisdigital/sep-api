@@ -4,6 +4,7 @@ import com.dynamis.sep_api.identity.application.usecase.ConfirmarTotpUseCase;
 import com.dynamis.sep_api.identity.application.usecase.DesabilitarTotpUseCase;
 import com.dynamis.sep_api.identity.application.usecase.HabilitarTotpUseCase;
 import com.dynamis.sep_api.identity.application.usecase.VerificarTotpUseCase;
+import com.dynamis.sep_api.identity.infrastructure.security.RateLimitFilter;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.identity.web.dto.TokenResponseDto;
 import com.dynamis.sep_api.identity.web.dto.TotpConfirmRequestDto;
@@ -17,6 +18,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -135,8 +137,13 @@ public class MfaController {
                                 mediaType = "application/json",
                                 schema = @Schema(implementation = ErrorResponseDto.class)))
     })
-    public ResponseEntity<TokenResponseDto> verify(@Valid @RequestBody TotpVerifyRequestDto dto) {
-        return ResponseEntity.ok(verificar.executar(dto.mfaChallengeId(), dto.codigo()));
+    public ResponseEntity<TokenResponseDto> verify(
+            @Valid @RequestBody TotpVerifyRequestDto dto, HttpServletRequest request) {
+        return ResponseEntity.ok(verificar.executar(
+                dto.mfaChallengeId(),
+                dto.codigo(),
+                RateLimitFilter.extrairIp(request),
+                request.getHeader("User-Agent")));
     }
 
     @PostMapping("/disable")

@@ -161,7 +161,7 @@ class MfaControllerTest {
                 OffsetDateTime.now(),
                 "system",
                 "system");
-        when(verificar.executar(eq(challengeId), eq("123456")))
+        when(verificar.executar(eq(challengeId), eq("123456"), any(), any()))
                 .thenReturn(TokenResponseDto.comTokens("access-jwt", 900L, "refresh-cru", usuario));
 
         mockMvc.perform(post("/api/v1/auth/totp/verify")
@@ -184,7 +184,7 @@ class MfaControllerTest {
                 OffsetDateTime.now(),
                 "system",
                 "system");
-        when(verificar.executar(eq(challengeId), eq("AAAA1111")))
+        when(verificar.executar(eq(challengeId), eq("AAAA1111"), any(), any()))
                 .thenReturn(TokenResponseDto.comTokens("access", 900L, "refresh", usuario));
 
         mockMvc.perform(post("/api/v1/auth/totp/verify")
@@ -197,7 +197,7 @@ class MfaControllerTest {
     @Test
     void verifyCodigoInvalidoRetorna400() throws Exception {
         UUID challengeId = UUID.randomUUID();
-        when(verificar.executar(any(), any())).thenThrow(new TotpInvalidoException());
+        when(verificar.executar(any(), any(), any(), any())).thenThrow(new TotpInvalidoException());
 
         mockMvc.perform(post("/api/v1/auth/totp/verify")
                         .contentType(MediaType.APPLICATION_JSON)

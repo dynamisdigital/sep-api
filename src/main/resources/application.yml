@@ -86,6 +86,13 @@ app:
       issuer: ${APP_TOTP_ISSUER:SEP}
       window-size: ${APP_TOTP_WINDOW_SIZE:1}
       encryption-key: ${APP_TOTP_ENCRYPTION_KEY:dev-totp-encryption-key-min-32-bytes-please-change}
+    rate-limit:
+      login-per-minute-per-ip: ${APP_RATE_LIMIT_LOGIN:5}
+      totp-verify-per-minute-per-ip: ${APP_RATE_LIMIT_TOTP_VERIFY:5}
+    lockout:
+      max-attempts: ${APP_LOCKOUT_MAX_ATTEMPTS:5}
+      window-minutes: ${APP_LOCKOUT_WINDOW_MINUTES:15}
+      lockout-minutes: ${APP_LOCKOUT_LOCKOUT_MINUTES:30}
 
 # Defaults Resilience4j (overrides por instance vem nas Sprints 6+)
 resilience4j:
@@ -106,6 +113,12 @@ resilience4j:
     configs:
       default:
         timeoutDuration: 30s
+  ratelimiter:
+    configs:
+      default:
+        limitForPeriod: 5
+        limitRefreshPeriod: 60s
+        timeoutDuration: 0
 
 logging:
   level:

@@ -3,9 +3,11 @@ package com.dynamis.sep_api.identity.application.usecase;
 import com.dynamis.sep_api.identity.application.exception.MfaNaoHabilitadoException;
 import com.dynamis.sep_api.identity.application.exception.TotpInvalidoException;
 import com.dynamis.sep_api.identity.application.service.BackupCodeService;
+import com.dynamis.sep_api.identity.application.service.LockoutService;
 import com.dynamis.sep_api.identity.application.service.MfaChallengeService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService.TokenCru;
+import com.dynamis.sep_api.identity.domain.model.LoginAttemptStatus;
 import com.dynamis.sep_api.identity.domain.model.MfaStatus;
 import com.dynamis.sep_api.identity.domain.model.UsuarioTotpSecret;
 import com.dynamis.sep_api.identity.infrastructure.persistence.UsuarioTotpSecretRepository;
@@ -24,11 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 /**
- * Verifica TOTP ou backup code apresentado depois do login com senha (Sprint 5 Task 5.3).
- *
- * <p>Recebe o {@code mfaChallengeId} emitido pelo login com senha valida. Em sucesso, emite par
- * access + refresh tokens (conclui o login). Em falha, devolve o challenge pro store (continua
- * valido ate TTL) e lanca 400.
+ * Verifica TOTP/backup code apresentado apos o login com senha (Sprint 5 Task 5.3) e integra
+ * lockout (Task 5.4): falhas TOTP contam para o limite de tentativas.
  */
 @Service
 public class VerificarTotpUseCase {
@@ -43,6 +42,8 @@ public class VerificarTotpUseCase {
     private final JwtProperties jwtProperties;
     private final RefreshTokenService refreshTokenService;
     private final UsuarioMapper usuarioMapper;
+    private final LockoutService lockoutService;
+    private final RegistrarTentativaLoginUseCase registrarTentativaLogin;
 
     public VerificarTotpUseCase(
             UsuarioRepository usuarioRepository,
@@ -54,7 +55,9 @@ public class VerificarTotpUseCase {
             JwtTokenProvider jwtTokenProvider,
             JwtProperties jwtProperties,
             RefreshTokenService refreshTokenService,
-            UsuarioMapper usuarioMapper) {
+            UsuarioMapper usuarioMapper,
+            LockoutService lockoutService,
+            RegistrarTentativaLoginUseCase registrarTentativaLogin) {
         this.usuarioRepository = usuarioRepository;
         this.totpRepository = totpRepository;
         this.backupCodeService = backupCodeService;
@@ -65,14 +68,19 @@ public class VerificarTotpUseCase {
         this.jwtProperties = jwtProperties;
         this.refreshTokenService = refreshTokenService;
         this.usuarioMapper = usuarioMapper;
+        this.lockoutService = lockoutService;
+        this.registrarTentativaLogin = registrarTentativaLogin;
     }
 
     @Transactional
-    public TokenResponseDto executar(UUID mfaChallengeId, String codigo) {
+    public TokenResponseDto executar(UUID mfaChallengeId, String codigo, String ip, String userAgent) {
         if (codigo == null || codigo.isBlank()) {
             throw new TotpInvalidoException();
         }
         UUID usuarioId = challengeService.consumir(mfaChallengeId);
+        Usuario usuario =
+                usuarioRepository.findById(usuarioId).orElseThrow(() -> new UsuarioNaoEncontradoException(usuarioId));
+        lockoutService.verificar(usuario.getUsername());
 
         UsuarioTotpSecret secret =
                 totpRepository.findByUsuarioId(usuarioId).orElseThrow(MfaNaoHabilitadoException::new);
@@ -91,11 +99,13 @@ public class VerificarTotpUseCase {
         }
         if (!ok) {
             challengeService.devolver(mfaChallengeId, usuarioId);
+            registrarTentativaLogin.registrar(
+                    usuarioId, usuario.getUsername(), ip, userAgent, LoginAttemptStatus.TOTP_INVALIDO);
+            lockoutService.avaliarPosFalha(usuarioId, usuario.getUsername());
             throw new TotpInvalidoException();
         }
 
-        Usuario usuario =
-                usuarioRepository.findById(usuarioId).orElseThrow(() -> new UsuarioNaoEncontradoException(usuarioId));
+        registrarTentativaLogin.registrar(usuarioId, usuario.getUsername(), ip, userAgent, LoginAttemptStatus.SUCESSO);
         String access = jwtTokenProvider.gerarToken(usuario);
         TokenCru refresh = refreshTokenService.emitirParaNovoLogin(usuario.getId());
         return TokenResponseDto.comTokens(

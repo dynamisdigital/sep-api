@@ -4,6 +4,7 @@ import com.dynamis.sep_api.identity.application.exception.MfaChallengeInvalidoEx
 import com.dynamis.sep_api.identity.application.exception.MfaNaoHabilitadoException;
 import com.dynamis.sep_api.identity.application.exception.TotpInvalidoException;
 import com.dynamis.sep_api.identity.application.service.BackupCodeService;
+import com.dynamis.sep_api.identity.application.service.LockoutService;
 import com.dynamis.sep_api.identity.application.service.MfaChallengeService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService.TokenCru;
@@ -46,6 +47,8 @@ class VerificarTotpUseCaseTest {
     private JwtProperties jwtProperties;
     private RefreshTokenService refreshTokenService;
     private UsuarioMapper usuarioMapper;
+    private LockoutService lockoutService;
+    private RegistrarTentativaLoginUseCase registrarTentativaLogin;
     private VerificarTotpUseCase useCase;
 
     @BeforeEach
@@ -60,6 +63,8 @@ class VerificarTotpUseCaseTest {
         jwtProperties = mock(JwtProperties.class);
         refreshTokenService = mock(RefreshTokenService.class);
         usuarioMapper = mock(UsuarioMapper.class);
+        lockoutService = mock(LockoutService.class);
+        registrarTentativaLogin = mock(RegistrarTentativaLoginUseCase.class);
         useCase = new VerificarTotpUseCase(
                 usuarioRepository,
                 totpRepository,
@@ -70,7 +75,9 @@ class VerificarTotpUseCaseTest {
                 jwtTokenProvider,
                 jwtProperties,
                 refreshTokenService,
-                usuarioMapper);
+                usuarioMapper,
+                lockoutService,
+                registrarTentativaLogin);
     }
 
     private UsuarioTotpSecret secretAtivo(UUID id) {
@@ -105,7 +112,7 @@ class VerificarTotpUseCaseTest {
         when(googleAuth.validarCodigo("SECRET", 123456)).thenReturn(true);
         mockarEmissaoTokens(usuario, dto(usuario.getId()));
 
-        TokenResponseDto resp = useCase.executar(challengeId, "123456");
+        TokenResponseDto resp = useCase.executar(challengeId, "123456", "127.0.0.1", "ua");
 
         assertThat(resp.accessToken()).isEqualTo("access-novo");
         assertThat(resp.refreshToken()).isEqualTo("refresh-novo");
@@ -121,7 +128,7 @@ class VerificarTotpUseCaseTest {
         when(backupCodeService.consumir(usuario.getId(), "AAAA1111")).thenReturn(true);
         mockarEmissaoTokens(usuario, dto(usuario.getId()));
 
-        TokenResponseDto resp = useCase.executar(challengeId, "AAAA1111");
+        TokenResponseDto resp = useCase.executar(challengeId, "AAAA1111", "127.0.0.1", "ua");
 
         assertThat(resp.accessToken()).isEqualTo("access-novo");
     }
@@ -129,15 +136,19 @@ class VerificarTotpUseCaseTest {
     @Test
     void codigoErradoDevolveChallengeELanca400() {
         UUID challengeId = UUID.randomUUID();
-        UUID usuarioId = UUID.randomUUID();
+        Usuario usuario = Usuario.criar("u@sep.test", "h", Role.CLIENTE);
+        UUID usuarioId = usuario.getId();
         when(challengeService.consumir(challengeId)).thenReturn(usuarioId);
+        when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
         when(totpRepository.findByUsuarioId(usuarioId)).thenReturn(Optional.of(secretAtivo(usuarioId)));
         when(crypto.decifrar("cifrado")).thenReturn("SECRET");
         when(googleAuth.validarCodigo("SECRET", 999999)).thenReturn(false);
         when(backupCodeService.consumir(usuarioId, "999999")).thenReturn(false);
 
-        assertThatThrownBy(() -> useCase.executar(challengeId, "999999")).isInstanceOf(TotpInvalidoException.class);
+        assertThatThrownBy(() -> useCase.executar(challengeId, "999999", "127.0.0.1", "ua"))
+                .isInstanceOf(TotpInvalidoException.class);
         verify(challengeService).devolver(challengeId, usuarioId);
+        verify(registrarTentativaLogin).registrar(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -145,27 +156,32 @@ class VerificarTotpUseCaseTest {
         UUID challengeId = UUID.randomUUID();
         when(challengeService.consumir(challengeId)).thenThrow(new MfaChallengeInvalidoException());
 
-        assertThatThrownBy(() -> useCase.executar(challengeId, "123456"))
+        assertThatThrownBy(() -> useCase.executar(challengeId, "123456", "127.0.0.1", "ua"))
                 .isInstanceOf(MfaChallengeInvalidoException.class);
     }
 
     @Test
     void mfaNaoAtivoLanca400() {
         UUID challengeId = UUID.randomUUID();
-        UUID usuarioId = UUID.randomUUID();
+        Usuario usuario = Usuario.criar("u@sep.test", "h", Role.CLIENTE);
+        UUID usuarioId = usuario.getId();
         when(challengeService.consumir(challengeId)).thenReturn(usuarioId);
+        when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
         UsuarioTotpSecret pendente = UsuarioTotpSecret.iniciar(usuarioId, "cifrado");
         when(totpRepository.findByUsuarioId(usuarioId)).thenReturn(Optional.of(pendente));
 
-        assertThatThrownBy(() -> useCase.executar(challengeId, "123456")).isInstanceOf(MfaNaoHabilitadoException.class);
+        assertThatThrownBy(() -> useCase.executar(challengeId, "123456", "127.0.0.1", "ua"))
+                .isInstanceOf(MfaNaoHabilitadoException.class);
     }
 
     @Test
     void codigoVazioLanca400SemConsumirChallenge() {
         UUID challengeId = UUID.randomUUID();
 
-        assertThatThrownBy(() -> useCase.executar(challengeId, "")).isInstanceOf(TotpInvalidoException.class);
-        assertThatThrownBy(() -> useCase.executar(challengeId, null)).isInstanceOf(TotpInvalidoException.class);
+        assertThatThrownBy(() -> useCase.executar(challengeId, "", "127.0.0.1", "ua"))
+                .isInstanceOf(TotpInvalidoException.class);
+        assertThatThrownBy(() -> useCase.executar(challengeId, null, "127.0.0.1", "ua"))
+                .isInstanceOf(TotpInvalidoException.class);
         verify(challengeService, org.mockito.Mockito.never()).consumir(any());
     }
 }
