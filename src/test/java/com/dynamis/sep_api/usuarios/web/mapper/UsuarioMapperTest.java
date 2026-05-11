@@ -29,8 +29,28 @@ class UsuarioMapperTest {
         assertThat(response.dataModificacao()).isNotNull();
         assertThat(response.criadoPor()).isEqualTo("system");
         assertThat(response.modificadoPor()).isEqualTo("system");
+        assertThat(response.precisaRedefinirSenha()).isFalse();
+        assertThat(response.mfaHabilitado()).isFalse();
         assertThat(UsuarioResponseDto.class.getRecordComponents())
                 .noneMatch(rc -> rc.getName().equals("password"));
+    }
+
+    @Test
+    void toResponsePropagaFlagsDeSeguranca() throws Exception {
+        Usuario usuario = Usuario.criar("legacy@sep.test", "hash-fake", Role.CLIENTE);
+        injetarBoolean(usuario, "precisaRedefinirSenha", true);
+        injetarBoolean(usuario, "mfaHabilitado", true);
+
+        UsuarioResponseDto response = mapper.toResponse(usuario);
+
+        assertThat(response.precisaRedefinirSenha()).isTrue();
+        assertThat(response.mfaHabilitado()).isTrue();
+    }
+
+    private void injetarBoolean(Usuario usuario, String nome, boolean valor) throws Exception {
+        Field field = usuario.getClass().getDeclaredField(nome);
+        field.setAccessible(true);
+        field.set(usuario, valor);
     }
 
     private void injetarAuditoria(Usuario usuario, OffsetDateTime quando, String quem) throws Exception {
