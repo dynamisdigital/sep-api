@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.usuarios.application.usecase;
 
+import com.dynamis.sep_api.identity.domain.vo.PasswordPolicy;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.usuarios.application.exception.SenhaAtualIncorretaException;
 import com.dynamis.sep_api.usuarios.application.exception.UsuarioNaoEncontradoException;
@@ -33,6 +34,12 @@ class AlterarSenhaUseCaseTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private PasswordPolicy passwordPolicy;
+
+    @Mock
+    private com.dynamis.sep_api.shared.audit.AuditLogSegurancaService auditService;
+
     @InjectMocks
     private AlterarSenhaUseCase useCase;
 
@@ -42,10 +49,10 @@ class AlterarSenhaUseCaseTest {
         UUID id = usuario.getId();
         UsuarioAutenticado principal = new UsuarioAutenticado(id, "a@sep.test", Role.CLIENTE);
         when(repository.findById(id)).thenReturn(Optional.of(usuario));
-        when(passwordEncoder.matches("123456", "$2a$hashAntigo")).thenReturn(true);
-        when(passwordEncoder.encode("abcdef")).thenReturn("$2a$hashNovo");
+        when(passwordEncoder.matches("senha-atual-aqui", "$2a$hashAntigo")).thenReturn(true);
+        when(passwordEncoder.encode("nova-passphrase-segura")).thenReturn("$2a$hashNovo");
 
-        useCase.executar(id, new UsuarioSenhaUpdateDto("123456", "abcdef"), principal);
+        useCase.executar(id, new UsuarioSenhaUpdateDto("senha-atual-aqui", "nova-passphrase-segura"), principal);
 
         assertThat(usuario.getPassword()).isEqualTo("$2a$hashNovo");
     }
@@ -55,7 +62,8 @@ class AlterarSenhaUseCaseTest {
         UUID alheio = UUID.randomUUID();
         UsuarioAutenticado principal = new UsuarioAutenticado(UUID.randomUUID(), "a@sep.test", Role.CLIENTE);
 
-        assertThatThrownBy(() -> useCase.executar(alheio, new UsuarioSenhaUpdateDto("123456", "abcdef"), principal))
+        assertThatThrownBy(() -> useCase.executar(
+                        alheio, new UsuarioSenhaUpdateDto("senha-atual-aqui", "nova-passphrase-segura"), principal))
                 .isInstanceOf(AccessDeniedException.class);
 
         verify(repository, never()).findById(alheio);
@@ -69,7 +77,8 @@ class AlterarSenhaUseCaseTest {
         when(repository.findById(id)).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("errada", "$2a$hashAntigo")).thenReturn(false);
 
-        assertThatThrownBy(() -> useCase.executar(id, new UsuarioSenhaUpdateDto("errada", "abcdef"), principal))
+        assertThatThrownBy(() ->
+                        useCase.executar(id, new UsuarioSenhaUpdateDto("errada", "nova-passphrase-segura"), principal))
                 .isInstanceOf(SenhaAtualIncorretaException.class);
     }
 
@@ -79,10 +88,10 @@ class AlterarSenhaUseCaseTest {
         UUID id = usuario.getId();
         UsuarioAutenticado principal = new UsuarioAutenticado(id, "a@sep.test", Role.CLIENTE);
         when(repository.findById(id)).thenReturn(Optional.of(usuario));
-        when(passwordEncoder.matches("123456", "$2a$hashAntigo")).thenReturn(true);
-        when(passwordEncoder.encode("abcdef")).thenReturn("$2a$hashNovo");
+        when(passwordEncoder.matches("senha-atual-aqui", "$2a$hashAntigo")).thenReturn(true);
+        when(passwordEncoder.encode("nova-passphrase-segura")).thenReturn("$2a$hashNovo");
 
-        useCase.executar(id, new UsuarioSenhaUpdateDto("123456", "abcdef"), principal);
+        useCase.executar(id, new UsuarioSenhaUpdateDto("senha-atual-aqui", "nova-passphrase-segura"), principal);
 
         assertThat(usuario.getPassword()).startsWith("$2a$").isNotEqualTo("abcdef");
     }
@@ -93,7 +102,8 @@ class AlterarSenhaUseCaseTest {
         UsuarioAutenticado principal = new UsuarioAutenticado(id, "a@sep.test", Role.CLIENTE);
         when(repository.findById(id)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> useCase.executar(id, new UsuarioSenhaUpdateDto("123456", "abcdef"), principal))
+        assertThatThrownBy(() -> useCase.executar(
+                        id, new UsuarioSenhaUpdateDto("senha-atual-aqui", "nova-passphrase-segura"), principal))
                 .isInstanceOf(UsuarioNaoEncontradoException.class);
     }
 }

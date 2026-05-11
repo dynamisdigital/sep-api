@@ -3,6 +3,9 @@ package com.dynamis.sep_api.identity.infrastructure.config;
 import com.dynamis.sep_api.identity.infrastructure.security.ApiAccessDeniedHandler;
 import com.dynamis.sep_api.identity.infrastructure.security.ApiAuthenticationEntryPoint;
 import com.dynamis.sep_api.identity.infrastructure.security.JwtAuthenticationFilter;
+import com.dynamis.sep_api.identity.infrastructure.security.RateLimitFilter;
+import com.dynamis.sep_api.identity.infrastructure.security.RateLimitProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -46,7 +49,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, RateLimitFilter rateLimitFilter)
+            throws Exception {
         http.cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -62,13 +66,20 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login")
                         .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/totp/verify")
+                        .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/webhooks/**")
                         .permitAll()
                         .anyRequest()
                         .authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(apiAuthenticationEntryPoint)
                         .accessDeniedHandler(apiAccessDeniedHandler))
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
@@ -76,5 +87,10 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public RateLimitFilter rateLimitFilter(RateLimitProperties properties, ObjectMapper objectMapper) {
+        return new RateLimitFilter(properties, objectMapper);
     }
 }

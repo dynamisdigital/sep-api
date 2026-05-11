@@ -12,9 +12,11 @@ import jakarta.persistence.Table;
 import java.util.UUID;
 
 /**
- * Usuario do sistema SEP. Materializa a tabela {@code usuario} entregue pela migration V1.
+ * Usuario do sistema SEP. Materializa a tabela {@code usuario} entregue pelas migrations V1+V6.
  *
  * <p>A senha deve chegar hashada; esta entidade nao deve receber segredo em texto claro.
+ *
+ * <p>Sprint 5 Task 5.5 adicionou {@code precisaRedefinirSenha} e {@code mfaHabilitado}.
  */
 @Entity
 @Table(name = "usuario")
@@ -34,6 +36,12 @@ public class Usuario extends EntidadeAuditavel {
     @Column(name = "role", nullable = false, length = 40)
     private Role role;
 
+    @Column(name = "precisa_redefinir_senha", nullable = false)
+    private boolean precisaRedefinirSenha;
+
+    @Column(name = "mfa_habilitado", nullable = false)
+    private boolean mfaHabilitado;
+
     protected Usuario() {
         // requerido pelo Hibernate
     }
@@ -43,6 +51,8 @@ public class Usuario extends EntidadeAuditavel {
         this.username = username;
         this.password = password;
         this.role = role;
+        this.precisaRedefinirSenha = false;
+        this.mfaHabilitado = false;
     }
 
     public static Usuario criar(String username, String passwordHash, Role role) {
@@ -66,8 +76,25 @@ public class Usuario extends EntidadeAuditavel {
         return role;
     }
 
+    public boolean isPrecisaRedefinirSenha() {
+        return precisaRedefinirSenha;
+    }
+
+    public boolean isMfaHabilitado() {
+        return mfaHabilitado;
+    }
+
     /** Substitui o hash da senha. Recebe sempre hash BCrypt — nunca senha em texto claro. */
     public void alterarSenha(String novoPasswordHash) {
         this.password = novoPasswordHash;
+        this.precisaRedefinirSenha = false;
+    }
+
+    public void marcarMfaHabilitado() {
+        this.mfaHabilitado = true;
+    }
+
+    public void marcarMfaDesabilitado() {
+        this.mfaHabilitado = false;
     }
 }

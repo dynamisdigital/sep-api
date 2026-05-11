@@ -63,7 +63,11 @@ server:
 app:
   jwt:
     secret: ${APP_JWT_SECRET:placeholder-dev-only-min-256-bits-key-replace-in-prod-please}
-    expiration-seconds: ${APP_JWT_EXPIRATION:3600}
+    # access-expiration-seconds substitui expiration-seconds (Sprint 5 Task 5.3 — access curto + refresh longo)
+    access-expiration-seconds: ${APP_JWT_ACCESS_EXPIRATION:900}
+    refresh-expiration-seconds: ${APP_JWT_REFRESH_EXPIRATION:2592000}
+    # Compatibilidade: nome antigo mantido como fallback do access-expiration
+    expiration-seconds: ${APP_JWT_EXPIRATION:900}
   cors:
     allowed-origins: ${APP_CORS_ORIGINS:http://localhost:4200,http://localhost:8100}
     allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
@@ -77,6 +81,18 @@ app:
   webhooks:
     secrets:
       celcoin: ${APP_WEBHOOK_SECRET_CELCOIN:dev-webhook-secret-change-me}
+  security:
+    totp:
+      issuer: ${APP_TOTP_ISSUER:SEP}
+      window-size: ${APP_TOTP_WINDOW_SIZE:1}
+      encryption-key: ${APP_TOTP_ENCRYPTION_KEY:dev-totp-encryption-key-min-32-bytes-please-change}
+    rate-limit:
+      login-per-minute-per-ip: ${APP_RATE_LIMIT_LOGIN:5}
+      totp-verify-per-minute-per-ip: ${APP_RATE_LIMIT_TOTP_VERIFY:5}
+    lockout:
+      max-attempts: ${APP_LOCKOUT_MAX_ATTEMPTS:5}
+      window-minutes: ${APP_LOCKOUT_WINDOW_MINUTES:15}
+      lockout-minutes: ${APP_LOCKOUT_LOCKOUT_MINUTES:30}
 
 # Defaults Resilience4j (overrides por instance vem nas Sprints 6+)
 resilience4j:
@@ -97,6 +113,12 @@ resilience4j:
     configs:
       default:
         timeoutDuration: 30s
+  ratelimiter:
+    configs:
+      default:
+        limitForPeriod: 5
+        limitRefreshPeriod: 60s
+        timeoutDuration: 0
 
 logging:
   level:

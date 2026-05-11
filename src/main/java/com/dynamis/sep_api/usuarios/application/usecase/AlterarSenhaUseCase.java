@@ -1,6 +1,9 @@
 package com.dynamis.sep_api.usuarios.application.usecase;
 
+import com.dynamis.sep_api.identity.domain.vo.PasswordPolicy;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
+import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
+import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import com.dynamis.sep_api.usuarios.application.exception.SenhaAtualIncorretaException;
 import com.dynamis.sep_api.usuarios.application.exception.UsuarioNaoEncontradoException;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
@@ -18,10 +21,18 @@ public class AlterarSenhaUseCase {
 
     private final UsuarioRepository repository;
     private final PasswordEncoder passwordEncoder;
+    private final PasswordPolicy passwordPolicy;
+    private final AuditLogSegurancaService auditService;
 
-    public AlterarSenhaUseCase(UsuarioRepository repository, PasswordEncoder passwordEncoder) {
+    public AlterarSenhaUseCase(
+            UsuarioRepository repository,
+            PasswordEncoder passwordEncoder,
+            PasswordPolicy passwordPolicy,
+            AuditLogSegurancaService auditService) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
+        this.passwordPolicy = passwordPolicy;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -33,7 +44,9 @@ public class AlterarSenhaUseCase {
         if (!passwordEncoder.matches(dto.passwordAtual(), usuario.getPassword())) {
             throw new SenhaAtualIncorretaException();
         }
+        passwordPolicy.validar(dto.novaSenha());
         usuario.alterarSenha(passwordEncoder.encode(dto.novaSenha()));
-        // dirty checking persiste no commit da transacao
+        // dirty checking persiste no commit da transacao; alterarSenha tambem zera precisaRedefinirSenha
+        auditService.gravar(TipoEventoSeguranca.PASSWORD_CHANGED, id);
     }
 }
