@@ -77,6 +77,11 @@ app:
   webhooks:
     secrets:
       celcoin: ${APP_WEBHOOK_SECRET_CELCOIN:dev-webhook-secret-change-me}
+  security:
+    totp:
+      issuer: ${APP_TOTP_ISSUER:SEP}
+      window-size: ${APP_TOTP_WINDOW_SIZE:1}
+      encryption-key: ${APP_TOTP_ENCRYPTION_KEY:dev-totp-encryption-key-min-32-bytes-please-change}
 
 # Defaults Resilience4j (overrides por instance vem nas Sprints 6+)
 resilience4j:

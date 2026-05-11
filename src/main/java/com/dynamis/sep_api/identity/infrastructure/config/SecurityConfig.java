@@ -62,6 +62,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login")
                         .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/totp/verify")
+                        .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/webhooks/**")
                         .permitAll()
                         .anyRequest()
