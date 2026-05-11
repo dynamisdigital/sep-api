@@ -37,7 +37,8 @@ public class JwtTokenProvider {
     private final long expirationSeconds;
 
     public JwtTokenProvider(
-            @Value("${app.jwt.secret}") String secret, @Value("${app.jwt.expiration-seconds}") long expirationSeconds) {
+            @Value("${app.jwt.secret}") String secret,
+            @Value("${app.jwt.access-expiration-seconds:${app.jwt.expiration-seconds:900}}") long expirationSeconds) {
         this.secretKey = buildKey(secret);
         this.expirationSeconds = expirationSeconds;
     }

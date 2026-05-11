@@ -5,11 +5,11 @@ import com.dynamis.sep_api.identity.application.usecase.DesabilitarTotpUseCase;
 import com.dynamis.sep_api.identity.application.usecase.HabilitarTotpUseCase;
 import com.dynamis.sep_api.identity.application.usecase.VerificarTotpUseCase;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
+import com.dynamis.sep_api.identity.web.dto.TokenResponseDto;
 import com.dynamis.sep_api.identity.web.dto.TotpConfirmRequestDto;
 import com.dynamis.sep_api.identity.web.dto.TotpDisableRequestDto;
 import com.dynamis.sep_api.identity.web.dto.TotpSetupResponseDto;
 import com.dynamis.sep_api.identity.web.dto.TotpVerifyRequestDto;
-import com.dynamis.sep_api.identity.web.dto.TotpVerifyResponseDto;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -116,27 +116,27 @@ public class MfaController {
 
     @PostMapping("/verify")
     @Operation(
-            summary = "Verificar TOTP durante login",
-            description = "Publico; usado apos validar senha. Aceita codigo TOTP de 6 digitos ou backup"
-                    + " code. Wiring com mfaChallengeId entra na Task 5.3.")
+            summary = "Verificar TOTP e concluir login",
+            description = "Publico. Apresenta mfaChallengeId emitido pelo /auth/login + codigo TOTP (6 digitos) ou"
+                    + " backup code; em sucesso emite access + refresh tokens.")
     @ApiResponses({
         @ApiResponse(
                 responseCode = "200",
-                description = "Codigo aceito",
+                description = "Codigo aceito; sessao emitida",
                 content =
                         @Content(
                                 mediaType = "application/json",
-                                schema = @Schema(implementation = TotpVerifyResponseDto.class))),
+                                schema = @Schema(implementation = TokenResponseDto.class))),
         @ApiResponse(
                 responseCode = "400",
-                description = "Codigo invalido ou MFA nao habilitado",
+                description = "Codigo invalido, challenge expirado ou MFA nao habilitado",
                 content =
                         @Content(
                                 mediaType = "application/json",
                                 schema = @Schema(implementation = ErrorResponseDto.class)))
     })
-    public ResponseEntity<TotpVerifyResponseDto> verify(@Valid @RequestBody TotpVerifyRequestDto dto) {
-        return ResponseEntity.ok(verificar.executar(dto.usuarioId(), dto.codigo()));
+    public ResponseEntity<TokenResponseDto> verify(@Valid @RequestBody TotpVerifyRequestDto dto) {
+        return ResponseEntity.ok(verificar.executar(dto.mfaChallengeId(), dto.codigo()));
     }
 
     @PostMapping("/disable")

@@ -11,13 +11,14 @@ import com.dynamis.sep_api.identity.infrastructure.security.ApiAuthenticationEnt
 import com.dynamis.sep_api.identity.infrastructure.security.JwtAuthenticationFilter;
 import com.dynamis.sep_api.identity.infrastructure.security.JwtTokenProvider;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
+import com.dynamis.sep_api.identity.web.dto.TokenResponseDto;
 import com.dynamis.sep_api.identity.web.dto.TotpConfirmRequestDto;
 import com.dynamis.sep_api.identity.web.dto.TotpDisableRequestDto;
 import com.dynamis.sep_api.identity.web.dto.TotpSetupResponseDto;
 import com.dynamis.sep_api.identity.web.dto.TotpVerifyRequestDto;
-import com.dynamis.sep_api.identity.web.dto.TotpVerifyResponseDto;
 import com.dynamis.sep_api.shared.exception.ApiExceptionHandler;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
+import com.dynamis.sep_api.usuarios.web.dto.UsuarioResponseDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -149,38 +151,57 @@ class MfaControllerTest {
     }
 
     @Test
-    void verifyAceitaCodigoTotp() throws Exception {
-        UUID id = UUID.randomUUID();
-        when(verificar.executar(eq(id), eq("123456"))).thenReturn(new TotpVerifyResponseDto(true, false));
+    void verifyAceitaCodigoTotpEEmiteTokens() throws Exception {
+        UUID challengeId = UUID.randomUUID();
+        UsuarioResponseDto usuario = new UsuarioResponseDto(
+                UUID.randomUUID(),
+                "u@sep.test",
+                Role.CLIENTE,
+                OffsetDateTime.now(),
+                OffsetDateTime.now(),
+                "system",
+                "system");
+        when(verificar.executar(eq(challengeId), eq("123456")))
+                .thenReturn(TokenResponseDto.comTokens("access-jwt", 900L, "refresh-cru", usuario));
 
         mockMvc.perform(post("/api/v1/auth/totp/verify")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new TotpVerifyRequestDto(id, "123456"))))
+                        .content(objectMapper.writeValueAsString(new TotpVerifyRequestDto(challengeId, "123456"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.verificado").value(true))
-                .andExpect(jsonPath("$.usouBackupCode").value(false));
+                .andExpect(jsonPath("$.accessToken").value("access-jwt"))
+                .andExpect(jsonPath("$.refreshToken").value("refresh-cru"))
+                .andExpect(jsonPath("$.mfaRequired").value(false));
     }
 
     @Test
     void verifyAceitaBackupCode() throws Exception {
-        UUID id = UUID.randomUUID();
-        when(verificar.executar(eq(id), eq("AAAA1111"))).thenReturn(new TotpVerifyResponseDto(true, true));
+        UUID challengeId = UUID.randomUUID();
+        UsuarioResponseDto usuario = new UsuarioResponseDto(
+                UUID.randomUUID(),
+                "u@sep.test",
+                Role.CLIENTE,
+                OffsetDateTime.now(),
+                OffsetDateTime.now(),
+                "system",
+                "system");
+        when(verificar.executar(eq(challengeId), eq("AAAA1111")))
+                .thenReturn(TokenResponseDto.comTokens("access", 900L, "refresh", usuario));
 
         mockMvc.perform(post("/api/v1/auth/totp/verify")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new TotpVerifyRequestDto(id, "AAAA1111"))))
+                        .content(objectMapper.writeValueAsString(new TotpVerifyRequestDto(challengeId, "AAAA1111"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.usouBackupCode").value(true));
+                .andExpect(jsonPath("$.accessToken").value("access"));
     }
 
     @Test
     void verifyCodigoInvalidoRetorna400() throws Exception {
-        UUID id = UUID.randomUUID();
+        UUID challengeId = UUID.randomUUID();
         when(verificar.executar(any(), any())).thenThrow(new TotpInvalidoException());
 
         mockMvc.perform(post("/api/v1/auth/totp/verify")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new TotpVerifyRequestDto(id, "999999"))))
+                        .content(objectMapper.writeValueAsString(new TotpVerifyRequestDto(challengeId, "999999"))))
                 .andExpect(status().isBadRequest());
     }
 

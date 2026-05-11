@@ -3,48 +3,76 @@ package com.dynamis.sep_api.identity.application.usecase;
 import com.dynamis.sep_api.identity.application.exception.MfaNaoHabilitadoException;
 import com.dynamis.sep_api.identity.application.exception.TotpInvalidoException;
 import com.dynamis.sep_api.identity.application.service.BackupCodeService;
+import com.dynamis.sep_api.identity.application.service.MfaChallengeService;
+import com.dynamis.sep_api.identity.application.service.RefreshTokenService;
+import com.dynamis.sep_api.identity.application.service.RefreshTokenService.TokenCru;
 import com.dynamis.sep_api.identity.domain.model.MfaStatus;
 import com.dynamis.sep_api.identity.domain.model.UsuarioTotpSecret;
 import com.dynamis.sep_api.identity.infrastructure.persistence.UsuarioTotpSecretRepository;
+import com.dynamis.sep_api.identity.infrastructure.security.JwtProperties;
+import com.dynamis.sep_api.identity.infrastructure.security.JwtTokenProvider;
 import com.dynamis.sep_api.identity.infrastructure.totp.GoogleAuthAdapter;
 import com.dynamis.sep_api.identity.infrastructure.totp.TotpCryptoService;
-import com.dynamis.sep_api.identity.web.dto.TotpVerifyResponseDto;
+import com.dynamis.sep_api.identity.web.dto.TokenResponseDto;
+import com.dynamis.sep_api.usuarios.application.exception.UsuarioNaoEncontradoException;
+import com.dynamis.sep_api.usuarios.domain.model.Usuario;
+import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository;
+import com.dynamis.sep_api.usuarios.web.mapper.UsuarioMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
 /**
- * Verifica TOTP ou backup code durante o login (apos senha valida). Codigo de 6 digitos vai pelo
- * adapter TOTP; qualquer outro formato e tentado como backup code (consumo unico).
+ * Verifica TOTP ou backup code apresentado depois do login com senha (Sprint 5 Task 5.3).
  *
- * <p>Em falha, lanca {@link TotpInvalidoException}. Rate limit por usuario/challenge entra na Task
- * 5.4.
+ * <p>Recebe o {@code mfaChallengeId} emitido pelo login com senha valida. Em sucesso, emite par
+ * access + refresh tokens (conclui o login). Em falha, devolve o challenge pro store (continua
+ * valido ate TTL) e lanca 400.
  */
 @Service
 public class VerificarTotpUseCase {
 
+    private final UsuarioRepository usuarioRepository;
     private final UsuarioTotpSecretRepository totpRepository;
     private final BackupCodeService backupCodeService;
     private final GoogleAuthAdapter googleAuth;
     private final TotpCryptoService crypto;
+    private final MfaChallengeService challengeService;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final JwtProperties jwtProperties;
+    private final RefreshTokenService refreshTokenService;
+    private final UsuarioMapper usuarioMapper;
 
     public VerificarTotpUseCase(
+            UsuarioRepository usuarioRepository,
             UsuarioTotpSecretRepository totpRepository,
             BackupCodeService backupCodeService,
             GoogleAuthAdapter googleAuth,
-            TotpCryptoService crypto) {
+            TotpCryptoService crypto,
+            MfaChallengeService challengeService,
+            JwtTokenProvider jwtTokenProvider,
+            JwtProperties jwtProperties,
+            RefreshTokenService refreshTokenService,
+            UsuarioMapper usuarioMapper) {
+        this.usuarioRepository = usuarioRepository;
         this.totpRepository = totpRepository;
         this.backupCodeService = backupCodeService;
         this.googleAuth = googleAuth;
         this.crypto = crypto;
+        this.challengeService = challengeService;
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.jwtProperties = jwtProperties;
+        this.refreshTokenService = refreshTokenService;
+        this.usuarioMapper = usuarioMapper;
     }
 
     @Transactional
-    public TotpVerifyResponseDto executar(UUID usuarioId, String codigo) {
+    public TokenResponseDto executar(UUID mfaChallengeId, String codigo) {
         if (codigo == null || codigo.isBlank()) {
             throw new TotpInvalidoException();
         }
+        UUID usuarioId = challengeService.consumir(mfaChallengeId);
 
         UsuarioTotpSecret secret =
                 totpRepository.findByUsuarioId(usuarioId).orElseThrow(MfaNaoHabilitadoException::new);
@@ -52,19 +80,26 @@ public class VerificarTotpUseCase {
             throw new MfaNaoHabilitadoException();
         }
 
+        boolean ok = false;
         if (ehCodigoTotp(codigo)) {
             int numerico = Integer.parseInt(codigo);
             String secretClaro = crypto.decifrar(secret.getSecretCifrado());
-            if (googleAuth.validarCodigo(secretClaro, numerico)) {
-                return new TotpVerifyResponseDto(true, false);
-            }
+            ok = googleAuth.validarCodigo(secretClaro, numerico);
+        }
+        if (!ok) {
+            ok = backupCodeService.consumir(usuarioId, codigo);
+        }
+        if (!ok) {
+            challengeService.devolver(mfaChallengeId, usuarioId);
+            throw new TotpInvalidoException();
         }
 
-        if (backupCodeService.consumir(usuarioId, codigo)) {
-            return new TotpVerifyResponseDto(true, true);
-        }
-
-        throw new TotpInvalidoException();
+        Usuario usuario =
+                usuarioRepository.findById(usuarioId).orElseThrow(() -> new UsuarioNaoEncontradoException(usuarioId));
+        String access = jwtTokenProvider.gerarToken(usuario);
+        TokenCru refresh = refreshTokenService.emitirParaNovoLogin(usuario.getId());
+        return TokenResponseDto.comTokens(
+                access, jwtProperties.getAccessExpirationSeconds(), refresh.token(), usuarioMapper.toResponse(usuario));
     }
 
     private boolean ehCodigoTotp(String codigo) {
