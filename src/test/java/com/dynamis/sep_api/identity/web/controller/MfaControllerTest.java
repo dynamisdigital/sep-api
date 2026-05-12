@@ -10,6 +10,7 @@ import com.dynamis.sep_api.identity.infrastructure.security.ApiAccessDeniedHandl
 import com.dynamis.sep_api.identity.infrastructure.security.ApiAuthenticationEntryPoint;
 import com.dynamis.sep_api.identity.infrastructure.security.JwtAuthenticationFilter;
 import com.dynamis.sep_api.identity.infrastructure.security.JwtTokenProvider;
+import com.dynamis.sep_api.identity.infrastructure.security.RefreshCookieService;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.identity.web.dto.TokenResponseDto;
 import com.dynamis.sep_api.identity.web.dto.TotpConfirmRequestDto;
@@ -21,6 +22,7 @@ import com.dynamis.sep_api.usuarios.domain.model.Role;
 import com.dynamis.sep_api.usuarios.web.dto.UsuarioResponseDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -28,6 +30,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -79,6 +82,17 @@ class MfaControllerTest {
 
     @MockBean
     private ApiAccessDeniedHandler apiAccessDeniedHandler;
+
+    @MockBean
+    private RefreshCookieService refreshCookieService;
+
+    @BeforeEach
+    void configureCookieService() {
+        when(refreshCookieService.emitir(any(), any())).thenAnswer(invocation -> {
+            TokenResponseDto body = invocation.getArgument(1);
+            return ResponseEntity.ok(body);
+        });
+    }
 
     private void autenticar(UUID id) {
         UsuarioAutenticado principal = new UsuarioAutenticado(id, "u@sep.test", Role.CLIENTE);
