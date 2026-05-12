@@ -4,7 +4,11 @@ on:
   pull_request:
     branches: [main, develop]
   push:
-    branches: [main, develop]
+    # Roda em push de qualquer branch (feature/*, fix/*, hotfix/*, etc.) pra
+    # garantir test+build antes de abrir PR. PRs ainda recebem run via
+    # pull_request — branches com PR aberto rodarao 2 vezes; tolerado por
+    # decisao da equipe (commit 6fb99ac restaurado apos PR #29).
+    branches: ['**']
   workflow_dispatch:
 
 # Cancela runs antigos do mesmo PR/branch quando novos chegam
