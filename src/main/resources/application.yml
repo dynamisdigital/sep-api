@@ -75,6 +75,14 @@ app:
     exposed-headers: X-Correlation-Id
     allow-credentials: true
     max-age: 3600
+  # Cookie HttpOnly de refresh token para canal WEB (5F-FIX-02). Em producao, secure=true e
+  # same-site=Strict; em dev-local mantemos Lax + secure=false para http://localhost.
+  refresh-cookie:
+    name: ${APP_REFRESH_COOKIE_NAME:sep-refresh}
+    path: ${APP_REFRESH_COOKIE_PATH:/api/v1/auth}
+    secure: ${APP_REFRESH_COOKIE_SECURE:false}
+    same-site: ${APP_REFRESH_COOKIE_SAME_SITE:Lax}
+    domain: ${APP_REFRESH_COOKIE_DOMAIN:}
   integration:
     connect-timeout-seconds: 10
     read-timeout-seconds: 30
