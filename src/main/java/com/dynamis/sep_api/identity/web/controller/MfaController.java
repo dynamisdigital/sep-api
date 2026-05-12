@@ -1,10 +1,12 @@
 package com.dynamis.sep_api.identity.web.controller;
 
+import com.dynamis.sep_api.identity.application.ClientChannel;
 import com.dynamis.sep_api.identity.application.usecase.ConfirmarTotpUseCase;
 import com.dynamis.sep_api.identity.application.usecase.DesabilitarTotpUseCase;
 import com.dynamis.sep_api.identity.application.usecase.HabilitarTotpUseCase;
 import com.dynamis.sep_api.identity.application.usecase.VerificarTotpUseCase;
 import com.dynamis.sep_api.identity.infrastructure.security.RateLimitFilter;
+import com.dynamis.sep_api.identity.infrastructure.security.RefreshCookieService;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.identity.web.dto.TokenResponseDto;
 import com.dynamis.sep_api.identity.web.dto.TotpConfirmRequestDto;
@@ -25,6 +27,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -37,16 +40,19 @@ public class MfaController {
     private final ConfirmarTotpUseCase confirmar;
     private final VerificarTotpUseCase verificar;
     private final DesabilitarTotpUseCase desabilitar;
+    private final RefreshCookieService refreshCookieService;
 
     public MfaController(
             HabilitarTotpUseCase habilitar,
             ConfirmarTotpUseCase confirmar,
             VerificarTotpUseCase verificar,
-            DesabilitarTotpUseCase desabilitar) {
+            DesabilitarTotpUseCase desabilitar,
+            RefreshCookieService refreshCookieService) {
         this.habilitar = habilitar;
         this.confirmar = confirmar;
         this.verificar = verificar;
         this.desabilitar = desabilitar;
+        this.refreshCookieService = refreshCookieService;
     }
 
     @PostMapping("/setup")
@@ -138,12 +144,15 @@ public class MfaController {
                                 schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     public ResponseEntity<TokenResponseDto> verify(
-            @Valid @RequestBody TotpVerifyRequestDto dto, HttpServletRequest request) {
-        return ResponseEntity.ok(verificar.executar(
+            @Valid @RequestBody TotpVerifyRequestDto dto,
+            @RequestHeader(value = ClientChannel.HEADER, required = false) String canalHeader,
+            HttpServletRequest request) {
+        TokenResponseDto body = verificar.executar(
                 dto.mfaChallengeId(),
                 dto.codigo(),
                 RateLimitFilter.extrairIp(request),
-                request.getHeader("User-Agent")));
+                request.getHeader("User-Agent"));
+        return refreshCookieService.emitir(ClientChannel.fromHeader(canalHeader), body);
     }
 
     @PostMapping("/disable")
