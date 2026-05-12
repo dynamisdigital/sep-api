@@ -26,12 +26,17 @@ import javax.crypto.SecretKey;
  * bytes UTF-8 (compatibilidade com placeholder dev). Minimo 256 bits exigido pelo JJWT.
  *
  * <p>Claims emitidas: {@code sub} (UUID v6 canonico), {@code email}, {@code roles}, {@code iat},
- * {@code exp}. JJWT 0.12.x usa {@code Jwts.parser().verifyWith(key)}.
+ * {@code exp}. Quando o usuario tiver flag {@link Usuario#isPrecisaRedefinirSenha()}, a claim {@code
+ * password_reset_required=true} e adicionada (follow-up 5F-FIX-04 da Sprint 5). JJWT 0.12.x usa
+ * {@code Jwts.parser().verifyWith(key)}.
  */
 @Component
 public class JwtTokenProvider {
 
     private static final Logger log = LoggerFactory.getLogger(JwtTokenProvider.class);
+
+    /** Nome da claim que sinaliza sessao limitada a alterar a propria senha. */
+    public static final String CLAIM_PASSWORD_RESET_REQUIRED = "password_reset_required";
 
     private final SecretKey secretKey;
     private final long expirationSeconds;
@@ -68,14 +73,16 @@ public class JwtTokenProvider {
         Instant expiracao = agora.plusSeconds(expirationSeconds);
         String correlationId = MDC.get("correlationId");
         log.debug("Emitindo JWT para usuario {} (correlationId={})", usuario.getId(), correlationId);
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(usuario.getId().toString())
                 .claim("email", usuario.getUsername())
                 .claim("roles", List.of("ROLE_" + usuario.getRole().name()))
                 .issuedAt(Date.from(agora))
-                .expiration(Date.from(expiracao))
-                .signWith(secretKey, Jwts.SIG.HS256)
-                .compact();
+                .expiration(Date.from(expiracao));
+        if (usuario.isPrecisaRedefinirSenha()) {
+            builder.claim(CLAIM_PASSWORD_RESET_REQUIRED, true);
+        }
+        return builder.signWith(secretKey, Jwts.SIG.HS256).compact();
     }
 
     public boolean tokenValido(String token) {
@@ -99,7 +106,8 @@ public class JwtTokenProvider {
         UUID id = UUID.fromString(claims.getSubject());
         String email = claims.get("email", String.class);
         Role role = extrairRole(claims);
-        return new UsuarioAutenticado(id, email, role);
+        Boolean resetRequired = claims.get(CLAIM_PASSWORD_RESET_REQUIRED, Boolean.class);
+        return new UsuarioAutenticado(id, email, role, Boolean.TRUE.equals(resetRequired));
     }
 
     private static Role extrairRole(Claims claims) {

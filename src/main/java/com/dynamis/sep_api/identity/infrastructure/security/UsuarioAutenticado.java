@@ -10,12 +10,23 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Principal autenticado por JWT. Carrega o UUID do usuario, o e-mail e o {@link Role}, evitando
- * round-trip ao banco em rotas autenticadas. Usado pelo {@link JwtAuthenticationFilter} como
- * principal do {@code Authentication} populado no {@code SecurityContextHolder}; o
- * {@code AuditorAwareImpl} reconhece este tipo e extrai {@link #id()} para auditoria.
+ * Principal autenticado por JWT. Carrega o UUID do usuario, o e-mail, o {@link Role} e o flag
+ * {@code passwordResetRequired} (follow-up 5F-FIX-04 da Sprint 5), evitando round-trip ao banco em
+ * rotas autenticadas. Usado pelo {@link JwtAuthenticationFilter} como principal do {@code
+ * Authentication} populado no {@code SecurityContextHolder}; o {@code AuditorAwareImpl} reconhece
+ * este tipo e extrai {@link #id()} para auditoria.
+ *
+ * <p>Quando {@code passwordResetRequired} for {@code true}, o {@link
+ * PasswordResetEnforcementFilter} bloqueia rotas que nao sejam {@code GET /api/v1/auth/me}, {@code
+ * PATCH /api/v1/usuarios/{id}/senha} ou {@code POST /api/v1/auth/logout}.
  */
-public record UsuarioAutenticado(UUID id, String username, Role role) implements UserDetails {
+public record UsuarioAutenticado(UUID id, String username, Role role, boolean passwordResetRequired)
+        implements UserDetails {
+
+    /** Construtor de conveniencia mantido para chamadas legadas (testes etc.) sem reset pendente. */
+    public UsuarioAutenticado(UUID id, String username, Role role) {
+        this(id, username, role, false);
+    }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

@@ -110,4 +110,40 @@ class RefreshTokenRepositoryTest {
 
         assertThat(ativo.estaAtivo()).isTrue();
     }
+
+    @Test
+    void marcarUsadoSeAtivoVenceApenasUmaVez() {
+        // 5F-FIX-06: a transicao ATIVO -> USADO deve afetar exatamente 1 linha; uma segunda
+        // chamada no mesmo hash retorna 0 porque o status ja nao e ATIVO. Isso impede que duas
+        // chamadas concorrentes apresentando o mesmo refresh recebam dois tokens validos.
+        RefreshToken ativo = RefreshToken.emitirNovoLogin(
+                usuarioId, "hash-corrida", OffsetDateTime.now().plusDays(30));
+        repository.saveAndFlush(ativo);
+
+        int primeira = repository.marcarUsadoSeAtivo("hash-corrida", OffsetDateTime.now());
+        repository.flush();
+        int segunda = repository.marcarUsadoSeAtivo("hash-corrida", OffsetDateTime.now());
+        repository.flush();
+
+        assertThat(primeira).isEqualTo(1);
+        assertThat(segunda).isEqualTo(0);
+        RefreshToken persistido = repository.findByTokenHash("hash-corrida").orElseThrow();
+        assertThat(persistido.getStatus()).isEqualTo(RefreshTokenStatus.USADO);
+        assertThat(persistido.getUsadoEm()).isNotNull();
+    }
+
+    @Test
+    void marcarUsadoSeAtivoNaoAfetaTokenNaoAtivo() {
+        // Token ja USADO ou REVOGADO nao sofre transicao via update condicional.
+        RefreshToken revogado = RefreshToken.emitirNovoLogin(
+                usuarioId, "hash-revogado", OffsetDateTime.now().plusDays(30));
+        revogado.revogar();
+        repository.saveAndFlush(revogado);
+
+        int afetados = repository.marcarUsadoSeAtivo("hash-revogado", OffsetDateTime.now());
+
+        assertThat(afetados).isEqualTo(0);
+        assertThat(repository.findByTokenHash("hash-revogado").orElseThrow().getStatus())
+                .isEqualTo(RefreshTokenStatus.REVOGADO);
+    }
 }

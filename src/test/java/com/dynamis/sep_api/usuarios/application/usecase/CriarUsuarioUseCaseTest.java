@@ -6,6 +6,7 @@ import com.dynamis.sep_api.usuarios.domain.model.Role;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
 import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository;
 import com.dynamis.sep_api.usuarios.web.dto.UsuarioCreateDto;
+import com.dynamis.sep_api.usuarios.web.dto.UsuarioInternoCreateDto;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -38,39 +39,68 @@ class CriarUsuarioUseCaseTest {
     private CriarUsuarioUseCase useCase;
 
     @Test
-    void criaAdminValido() {
-        UsuarioCreateDto dto = new UsuarioCreateDto("admin@sep.test", "senha-passphrase-segura", Role.ADMIN);
-        when(repository.existsByUsername("admin@sep.test")).thenReturn(false);
+    void cadastroPublicoSempreCriaCliente() {
+        // 5F-FIX-01: payload publico nao carrega role; resultado sempre CLIENTE.
+        UsuarioCreateDto dto = new UsuarioCreateDto("cliente@sep.test", "senha-passphrase-segura");
+        when(repository.existsByUsername("cliente@sep.test")).thenReturn(false);
         when(passwordEncoder.encode("senha-passphrase-segura")).thenReturn("$2a$10$hash");
         when(repository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Usuario salvo = useCase.executar(dto);
 
-        assertThat(salvo.getUsername()).isEqualTo("admin@sep.test");
-        assertThat(salvo.getRole()).isEqualTo(Role.ADMIN);
+        assertThat(salvo.getUsername()).isEqualTo("cliente@sep.test");
+        assertThat(salvo.getRole()).isEqualTo(Role.CLIENTE);
         assertThat(salvo.getPassword()).isEqualTo("$2a$10$hash");
     }
 
     @Test
-    void criaClienteValido() {
-        UsuarioCreateDto dto = new UsuarioCreateDto("cliente@sep.test", "outra-passphrase-segura", Role.CLIENTE);
-        when(repository.existsByUsername("cliente@sep.test")).thenReturn(false);
-        when(passwordEncoder.encode("outra-passphrase-segura")).thenReturn("$2a$10$hash2");
+    void cadastroInternoCriaAdminQuandoRoleAdmin() {
+        UsuarioInternoCreateDto dto =
+                new UsuarioInternoCreateDto("operador@sep.test", "outra-passphrase-segura", Role.ADMIN);
+        when(repository.existsByUsername("operador@sep.test")).thenReturn(false);
+        when(passwordEncoder.encode("outra-passphrase-segura")).thenReturn("$2a$10$h2");
         when(repository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Usuario salvo = useCase.executar(dto);
+        Usuario salvo = useCase.executarInterno(dto);
+
+        assertThat(salvo.getRole()).isEqualTo(Role.ADMIN);
+    }
+
+    @Test
+    void cadastroInternoCriaClienteQuandoRoleCliente() {
+        UsuarioInternoCreateDto dto =
+                new UsuarioInternoCreateDto("interno@sep.test", "passphrase-interna-segura", Role.CLIENTE);
+        when(repository.existsByUsername("interno@sep.test")).thenReturn(false);
+        when(passwordEncoder.encode("passphrase-interna-segura")).thenReturn("$2a$10$h3");
+        when(repository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Usuario salvo = useCase.executarInterno(dto);
 
         assertThat(salvo.getRole()).isEqualTo(Role.CLIENTE);
     }
 
     @Test
-    void lancaUsernameJaExisteQuandoExistsByUsernameRetornaTrue() {
-        UsuarioCreateDto dto = new UsuarioCreateDto("admin@sep.test", "senha-passphrase-segura", Role.ADMIN);
-        when(repository.existsByUsername("admin@sep.test")).thenReturn(true);
+    void cadastroPublicoLancaUsernameJaExisteQuandoExistsByUsernameRetornaTrue() {
+        UsuarioCreateDto dto = new UsuarioCreateDto("cliente@sep.test", "senha-passphrase-segura");
+        when(repository.existsByUsername("cliente@sep.test")).thenReturn(true);
 
         assertThatThrownBy(() -> useCase.executar(dto))
                 .isInstanceOf(UsernameJaExisteException.class)
-                .hasMessageContaining("admin@sep.test");
+                .hasMessageContaining("cliente@sep.test");
+
+        verify(repository, never()).save(any());
+        verify(passwordEncoder, never()).encode(any());
+    }
+
+    @Test
+    void cadastroInternoLancaUsernameJaExisteQuandoExistsByUsernameRetornaTrue() {
+        UsuarioInternoCreateDto dto =
+                new UsuarioInternoCreateDto("operador@sep.test", "outra-passphrase-segura", Role.ADMIN);
+        when(repository.existsByUsername("operador@sep.test")).thenReturn(true);
+
+        assertThatThrownBy(() -> useCase.executarInterno(dto))
+                .isInstanceOf(UsernameJaExisteException.class)
+                .hasMessageContaining("operador@sep.test");
 
         verify(repository, never()).save(any());
         verify(passwordEncoder, never()).encode(any());
@@ -78,8 +108,8 @@ class CriarUsuarioUseCaseTest {
 
     @Test
     void senhaPersistidaEAQueVeioDoPasswordEncoder() {
-        UsuarioCreateDto dto = new UsuarioCreateDto("admin@sep.test", "abcdefghijkl", Role.ADMIN);
-        when(repository.existsByUsername("admin@sep.test")).thenReturn(false);
+        UsuarioCreateDto dto = new UsuarioCreateDto("cliente@sep.test", "abcdefghijkl");
+        when(repository.existsByUsername("cliente@sep.test")).thenReturn(false);
         when(passwordEncoder.encode("abcdefghijkl")).thenReturn("$2a$10$encodedHash");
         when(repository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -93,8 +123,8 @@ class CriarUsuarioUseCaseTest {
 
     @Test
     void chamaRepositorySaveApenasUmaVez() {
-        UsuarioCreateDto dto = new UsuarioCreateDto("admin@sep.test", "senha-passphrase-segura", Role.ADMIN);
-        when(repository.existsByUsername("admin@sep.test")).thenReturn(false);
+        UsuarioCreateDto dto = new UsuarioCreateDto("cliente@sep.test", "senha-passphrase-segura");
+        when(repository.existsByUsername("cliente@sep.test")).thenReturn(false);
         when(passwordEncoder.encode("senha-passphrase-segura")).thenReturn("$2a$10$h");
         when(repository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

@@ -84,4 +84,46 @@ class JwtTokenProviderTest {
 
         assertThat(provider.tokenValido(tokenAssinadoComOutro)).isFalse();
     }
+
+    @Test
+    void tokenSemFlagDeResetNaoEmiteClaim() {
+        // 5F-FIX-04: usuario com flag false NAO carrega a claim password_reset_required.
+        Usuario usuario = Usuario.criar("ok@sep.test", "$2a$hash", Role.CLIENTE);
+        String token = provider.gerarToken(usuario);
+
+        Claims claims = Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET_BASE64)))
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        assertThat(claims.get(JwtTokenProvider.CLAIM_PASSWORD_RESET_REQUIRED)).isNull();
+
+        UsuarioAutenticado principal = provider.extrairPrincipal(token);
+        assertThat(principal.passwordResetRequired()).isFalse();
+    }
+
+    @Test
+    void tokenEmitidoParaUsuarioComResetCarregaClaimEPrincipal() throws Exception {
+        // 5F-FIX-04: emissao via gerarToken para usuario com precisaRedefinirSenha=true inclui
+        // claim password_reset_required=true; extraido em UsuarioAutenticado.passwordResetRequired.
+        Usuario usuario = Usuario.criar("reset@sep.test", "$2a$hash", Role.CLIENTE);
+        // Forca flag via reflection (entidade so muda flag interno via alterarSenha -> false, e
+        // V6 -> true via UPDATE direto; aqui simulamos o estado pos-V6).
+        java.lang.reflect.Field f = Usuario.class.getDeclaredField("precisaRedefinirSenha");
+        f.setAccessible(true);
+        f.setBoolean(usuario, true);
+
+        String token = provider.gerarToken(usuario);
+
+        Claims claims = Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET_BASE64)))
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        assertThat(claims.get(JwtTokenProvider.CLAIM_PASSWORD_RESET_REQUIRED, Boolean.class))
+                .isTrue();
+
+        UsuarioAutenticado principal = provider.extrairPrincipal(token);
+        assertThat(principal.passwordResetRequired()).isTrue();
+    }
 }
