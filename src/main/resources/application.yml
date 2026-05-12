@@ -71,7 +71,7 @@ app:
   cors:
     allowed-origins: ${APP_CORS_ORIGINS:http://localhost:4200,http://localhost:8100}
     allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
-    allowed-headers: Authorization,Content-Type,Idempotency-Key,X-Correlation-Id
+    allowed-headers: Authorization,Content-Type,Idempotency-Key,X-Correlation-Id,X-Step-Up-Token,X-Client-Channel
     exposed-headers: X-Correlation-Id
     allow-credentials: true
     max-age: 3600

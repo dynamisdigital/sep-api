@@ -68,12 +68,12 @@ class UsuarioControllerTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @Test
-    void postValidoRetorna201ComLocationESemPassword() throws Exception {
-        Usuario salvo = Usuario.criar("admin@sep.test", "$2a$10$h", Role.ADMIN);
+    void postPublicoCriaClienteRetorna201ComLocationESemPassword() throws Exception {
+        Usuario salvo = Usuario.criar("cliente@sep.test", "$2a$10$h", Role.CLIENTE);
         UsuarioResponseDto response = new UsuarioResponseDto(
                 salvo.getId(),
-                "admin@sep.test",
-                Role.ADMIN,
+                "cliente@sep.test",
+                Role.CLIENTE,
                 OffsetDateTime.now(),
                 OffsetDateTime.now(),
                 "system",
@@ -86,20 +86,49 @@ class UsuarioControllerTest {
         mockMvc.perform(post("/api/v1/usuarios")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new UsuarioCreateDto("admin@sep.test", "123456", Role.ADMIN))))
+                                new UsuarioCreateDto("cliente@sep.test", "senha-passphrase-segura"))))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", startsWith("/api/v1/usuarios/")))
-                .andExpect(jsonPath("$.username").value("admin@sep.test"))
-                .andExpect(jsonPath("$.role").value("ADMIN"))
+                .andExpect(jsonPath("$.username").value("cliente@sep.test"))
+                .andExpect(jsonPath("$.role").value("CLIENTE"))
                 .andExpect(jsonPath("$.password").doesNotExist())
                 .andExpect(content().string(containsString("\"id\":")))
                 .andExpect(content().string(containsString("\"criadoPor\":\"system\"")));
     }
 
     @Test
+    void postPublicoIgnoraRoleAdminNoPayloadECriaCliente() throws Exception {
+        // 5F-FIX-01: payload com role=ADMIN nao escala privilegio; campo e ignorado e sempre vira CLIENTE.
+        Usuario salvo = Usuario.criar("hacker@sep.test", "$2a$10$h", Role.CLIENTE);
+        UsuarioResponseDto response = new UsuarioResponseDto(
+                salvo.getId(),
+                "hacker@sep.test",
+                Role.CLIENTE,
+                OffsetDateTime.now(),
+                OffsetDateTime.now(),
+                "system",
+                "system",
+                false,
+                false);
+        when(criarUsuarioUseCase.executar(any(UsuarioCreateDto.class))).thenReturn(salvo);
+        when(mapper.toResponse(salvo)).thenReturn(response);
+
+        String body =
+                """
+                {"username":"hacker@sep.test","password":"senha-passphrase-segura","role":"ADMIN"}
+                """;
+
+        mockMvc.perform(post("/api/v1/usuarios")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.role").value("CLIENTE"));
+    }
+
+    @Test
     void postComUsernameInvalidoRetorna400() throws Exception {
         String body = """
-            {"username":"nao-eh-email","password":"123456","role":"ADMIN"}
+            {"username":"nao-eh-email","password":"senha-passphrase-segura"}
             """;
 
         mockMvc.perform(post("/api/v1/usuarios")
@@ -112,7 +141,7 @@ class UsuarioControllerTest {
     @Test
     void postComPasswordVazioRetorna400() throws Exception {
         String body = """
-            {"username":"admin@sep.test","password":"","role":"ADMIN"}
+            {"username":"cliente@sep.test","password":""}
             """;
 
         mockMvc.perform(post("/api/v1/usuarios")
@@ -123,29 +152,16 @@ class UsuarioControllerTest {
     }
 
     @Test
-    void postComRoleInvalidoRetorna400() throws Exception {
-        String body =
-                """
-            {"username":"admin@sep.test","password":"123456","role":"SUPER_USER"}
-            """;
-
-        mockMvc.perform(post("/api/v1/usuarios")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
     void postComUsernameJaExistenteRetorna409() throws Exception {
         when(criarUsuarioUseCase.executar(any(UsuarioCreateDto.class)))
-                .thenThrow(new UsernameJaExisteException("admin@sep.test"));
+                .thenThrow(new UsernameJaExisteException("cliente@sep.test"));
 
         mockMvc.perform(post("/api/v1/usuarios")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new UsuarioCreateDto("admin@sep.test", "123456", Role.ADMIN))))
+                                new UsuarioCreateDto("cliente@sep.test", "senha-passphrase-segura"))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.message").value(containsString("admin@sep.test")));
+                .andExpect(jsonPath("$.message").value(containsString("cliente@sep.test")));
     }
 }
