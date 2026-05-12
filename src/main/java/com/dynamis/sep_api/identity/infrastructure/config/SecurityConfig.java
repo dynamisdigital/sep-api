@@ -3,6 +3,7 @@ package com.dynamis.sep_api.identity.infrastructure.config;
 import com.dynamis.sep_api.identity.infrastructure.security.ApiAccessDeniedHandler;
 import com.dynamis.sep_api.identity.infrastructure.security.ApiAuthenticationEntryPoint;
 import com.dynamis.sep_api.identity.infrastructure.security.JwtAuthenticationFilter;
+import com.dynamis.sep_api.identity.infrastructure.security.PasswordResetEnforcementFilter;
 import com.dynamis.sep_api.identity.infrastructure.security.RateLimitFilter;
 import com.dynamis.sep_api.identity.infrastructure.security.RateLimitProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,16 +35,19 @@ public class SecurityConfig {
 
     private final UrlBasedCorsConfigurationSource corsConfigurationSource;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final PasswordResetEnforcementFilter passwordResetEnforcementFilter;
     private final ApiAuthenticationEntryPoint apiAuthenticationEntryPoint;
     private final ApiAccessDeniedHandler apiAccessDeniedHandler;
 
     public SecurityConfig(
             UrlBasedCorsConfigurationSource corsConfigurationSource,
             JwtAuthenticationFilter jwtAuthenticationFilter,
+            PasswordResetEnforcementFilter passwordResetEnforcementFilter,
             ApiAuthenticationEntryPoint apiAuthenticationEntryPoint,
             ApiAccessDeniedHandler apiAccessDeniedHandler) {
         this.corsConfigurationSource = corsConfigurationSource;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.passwordResetEnforcementFilter = passwordResetEnforcementFilter;
         this.apiAuthenticationEntryPoint = apiAuthenticationEntryPoint;
         this.apiAccessDeniedHandler = apiAccessDeniedHandler;
     }
@@ -79,6 +83,7 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(apiAuthenticationEntryPoint)
                         .accessDeniedHandler(apiAccessDeniedHandler))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(passwordResetEnforcementFilter, JwtAuthenticationFilter.class)
                 .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();

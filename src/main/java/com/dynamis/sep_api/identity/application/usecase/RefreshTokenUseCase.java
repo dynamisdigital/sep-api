@@ -24,15 +24,19 @@ import java.time.OffsetDateTime;
 import java.util.Optional;
 
 /**
- * Rotacao de refresh token com deteccao de reuso (Sprint 5 Task 5.3).
+ * Rotacao de refresh token com deteccao de reuso (Sprint 5 Task 5.3) + transicao atomica
+ * concorrency-safe (Sprint 5 follow-up 5F-FIX-06).
  *
  * <p>Comportamento:
  *
  * <ul>
- *   <li>Token ATIVO e dentro do prazo: marca como USADO, emite novo (mesma familia) + novo access.
- *   <li>Token USADO re-apresentado: revoga toda a familia + grava {@link
- *       TipoEventoSeguranca#REFRESH_REUSE_DETECTED} + lanca 401 (compromisso provavel).
- *   <li>Token REVOGADO / EXPIRADO / desconhecido: lanca 401.
+ *   <li>Token ATIVO e dentro do prazo: a transicao ATIVO -> USADO acontece via update condicional
+ *       no banco (uma unica transacao vence em corrida); o vencedor emite novo refresh (mesma
+ *       familia) + novo access.
+ *   <li>Token USADO re-apresentado (ou perdedor da corrida): revoga toda a familia + grava {@link
+ *       TipoEventoSeguranca#REFRESH_REUSE_DETECTED} + lanca 401 (compromisso provavel ou refresh
+ *       simultaneo malicioso).
+ *   <li>Token REVOGADO / EXPIRADO / desconhecido: lanca 401 sem revogar familia.
  * </ul>
  */
 @Service
@@ -71,29 +75,33 @@ public class RefreshTokenUseCase {
             throw new BadCredentialsException("Refresh token invalido");
         }
         String hash = refreshTokenService.hashSha256Hex(refreshTokenCru);
-        Optional<RefreshToken> opt = repository.findByTokenHash(hash);
-        if (opt.isEmpty()) {
-            throw new BadCredentialsException("Refresh token invalido");
-        }
-        RefreshToken atual = opt.get();
 
-        if (atual.foiUsado()) {
-            log.warn("Reuse detection: refresh token ja usado re-apresentado para familia {}", atual.getFamilyId());
-            repository.revogarFamilia(atual.getFamilyId(), OffsetDateTime.now());
-            auditRepository.save(AuditLogSeguranca.registrar(
-                    TipoEventoSeguranca.REFRESH_REUSE_DETECTED,
-                    atual.getUsuarioId(),
-                    null,
-                    null,
-                    "{\"familyId\":\"" + atual.getFamilyId() + "\",\"acao\":\"revogar-familia\"}"));
-            throw new BadCredentialsException("Refresh token invalido");
-        }
-        if (!atual.estaAtivo()) {
+        // Transicao atomica ATIVO -> USADO. Apenas a transacao vencedora recebe rows=1.
+        int rowsAfetadas = repository.marcarUsadoSeAtivo(hash, OffsetDateTime.now());
+
+        if (rowsAfetadas == 0) {
+            // Token nao estava ATIVO. Re-le do banco para classificar o caso:
+            // - USADO  -> reuse / corrida concorrente: revoga familia + audita
+            // - REVOGADO/EXPIRADO / inexistente -> 401 simples
+            Optional<RefreshToken> opt = repository.findByTokenHash(hash);
+            if (opt.isPresent() && opt.get().foiUsado()) {
+                RefreshToken usado = opt.get();
+                log.warn("Reuse detection: refresh token ja usado re-apresentado (familia {})", usado.getFamilyId());
+                repository.revogarFamilia(usado.getFamilyId(), OffsetDateTime.now());
+                auditRepository.save(AuditLogSeguranca.registrar(
+                        TipoEventoSeguranca.REFRESH_REUSE_DETECTED,
+                        usado.getUsuarioId(),
+                        null,
+                        null,
+                        "{\"familyId\":\"" + usado.getFamilyId() + "\",\"acao\":\"revogar-familia\"}"));
+            }
             throw new BadCredentialsException("Refresh token invalido");
         }
 
-        atual.marcarUsado();
-        repository.save(atual);
+        // Vencedor: recupera entidade ja USADA para extrair familia/usuario.
+        RefreshToken atual = repository
+                .findByTokenHash(hash)
+                .orElseThrow(() -> new BadCredentialsException("Refresh token invalido"));
 
         Usuario usuario = usuarioRepository
                 .findById(atual.getUsuarioId())
