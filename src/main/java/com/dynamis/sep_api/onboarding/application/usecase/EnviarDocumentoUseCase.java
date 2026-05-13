@@ -46,7 +46,8 @@ public class EnviarDocumentoUseCase {
     }
 
     @Transactional
-    public DocumentoCadastral executar(UUID solicitacaoId, UUID usuarioAutenticadoId, DocumentoUploadCommand cmd) {
+    public DocumentoCadastral executar(
+            UUID solicitacaoId, UUID usuarioAutenticadoId, boolean isAdmin, DocumentoUploadCommand cmd) {
         if (cmd == null || cmd.conteudo() == null || cmd.conteudo().length == 0) {
             throw new ValidacaoException(CODIGO_TAMANHO_EXCEDIDO, "Conteudo do documento e obrigatorio");
         }
@@ -62,7 +63,7 @@ public class EnviarDocumentoUseCase {
         SolicitacaoOnboarding solicitacao = solicitacaoRepository
                 .findById(solicitacaoId)
                 .orElseThrow(() -> new OnboardingNaoEncontradoException(solicitacaoId));
-        if (!solicitacao.getUsuarioId().equals(usuarioAutenticadoId)) {
+        if (!isAdmin && !solicitacao.getUsuarioId().equals(usuarioAutenticadoId)) {
             throw new AccessDeniedException("Solicitacao nao pertence ao usuario autenticado");
         }
 
@@ -74,8 +75,10 @@ public class EnviarDocumentoUseCase {
                 solicitacaoId, cmd.tipo(), cmd.conteudo(), cmd.mimeType(), cmd.nomeOriginal(), sha256);
         DocumentoCadastral salvo = storage.salvar(documento);
 
+        // Evento de dominio carrega o usuario dono da solicitacao para auditoria, nao quem
+        // disparou (poderia ser ADMIN operando em nome do cliente).
         eventPublisher.publishEvent(new DocumentoCadastralEnviadoEvent(
-                solicitacaoId, usuarioAutenticadoId, salvo.getId(), salvo.getTipo(), sha256));
+                solicitacaoId, solicitacao.getUsuarioId(), salvo.getId(), salvo.getTipo(), sha256));
         return salvo;
     }
 

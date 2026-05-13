@@ -56,7 +56,7 @@ class EnviarDocumentoUseCaseTest {
         DocumentoUploadCommand cmd =
                 new DocumentoUploadCommand(TipoDocumento.RG, "image/jpeg", "rg.jpg", new byte[] {1, 2, 3});
 
-        DocumentoCadastral salvo = useCase.executar(solicitacao.getId(), usuarioId, cmd);
+        DocumentoCadastral salvo = useCase.executar(solicitacao.getId(), usuarioId, false, cmd);
 
         assertThat(solicitacao.getStatus()).isEqualTo(StatusOnboarding.DOCUMENTOS_RECEBIDOS);
         assertThat(salvo.getSha256()).hasSize(64);
@@ -68,7 +68,7 @@ class EnviarDocumentoUseCaseTest {
         DocumentoUploadCommand cmd =
                 new DocumentoUploadCommand(TipoDocumento.RG, "application/octet-stream", "rg.bin", new byte[] {1});
 
-        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, cmd))
+        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, false, cmd))
                 .isInstanceOf(ValidacaoException.class)
                 .hasMessageContaining("MIME");
     }
@@ -78,7 +78,7 @@ class EnviarDocumentoUseCaseTest {
         byte[] grande = new byte[10 * 1024 * 1024 + 1];
         DocumentoUploadCommand cmd = new DocumentoUploadCommand(TipoDocumento.RG, "image/jpeg", "rg.jpg", grande);
 
-        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, cmd))
+        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, false, cmd))
                 .isInstanceOf(ValidacaoException.class)
                 .hasMessageContaining("tamanho");
     }
@@ -87,7 +87,7 @@ class EnviarDocumentoUseCaseTest {
     void rejeitaConteudoVazio() {
         DocumentoUploadCommand cmd = new DocumentoUploadCommand(TipoDocumento.RG, "image/jpeg", "rg.jpg", new byte[0]);
 
-        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, cmd))
+        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, false, cmd))
                 .isInstanceOf(ValidacaoException.class);
     }
 
@@ -97,7 +97,7 @@ class EnviarDocumentoUseCaseTest {
         DocumentoUploadCommand cmd =
                 new DocumentoUploadCommand(TipoDocumento.RG, "image/jpeg", "rg.jpg", new byte[] {1});
 
-        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), outro, cmd))
+        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), outro, false, cmd))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
@@ -107,7 +107,19 @@ class EnviarDocumentoUseCaseTest {
         DocumentoUploadCommand cmd =
                 new DocumentoUploadCommand(TipoDocumento.RG, "image/jpeg", "rg.jpg", new byte[] {1});
 
-        assertThatThrownBy(() -> useCase.executar(UUID.randomUUID(), usuarioId, cmd))
+        assertThatThrownBy(() -> useCase.executar(UUID.randomUUID(), usuarioId, false, cmd))
                 .isInstanceOf(OnboardingNaoEncontradoException.class);
+    }
+
+    @Test
+    void adminAnexaDocumentoEmSolicitacaoDeTerceiro() {
+        UUID adminId = UUID.randomUUID();
+        DocumentoUploadCommand cmd =
+                new DocumentoUploadCommand(TipoDocumento.RG, "image/jpeg", "rg.jpg", new byte[] {1, 2, 3});
+
+        DocumentoCadastral salvo = useCase.executar(solicitacao.getId(), adminId, true, cmd);
+
+        assertThat(salvo).isNotNull();
+        assertThat(solicitacao.getStatus()).isEqualTo(StatusOnboarding.DOCUMENTOS_RECEBIDOS);
     }
 }

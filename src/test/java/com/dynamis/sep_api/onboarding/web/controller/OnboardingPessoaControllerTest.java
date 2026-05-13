@@ -168,7 +168,7 @@ class OnboardingPessoaControllerTest {
                         .param("tipo", "RG"))
                 .andExpect(status().isNoContent());
 
-        verify(enviarDocumentoUseCase).executar(eq(solicitacaoId), eq(usuarioId), any());
+        verify(enviarDocumentoUseCase).executar(eq(solicitacaoId), eq(usuarioId), eq(false), any());
     }
 
     @Test
@@ -180,19 +180,46 @@ class OnboardingPessoaControllerTest {
                         .file(vazio)
                         .param("tipo", "RG"))
                 .andExpect(status().isBadRequest());
-        verify(enviarDocumentoUseCase, never()).executar(any(), any(), any());
+        verify(enviarDocumentoUseCase, never()).executar(any(), any(), anyBoolean(), any());
+    }
+
+    @Test
+    @WithMockUser
+    void enviarDocumentoComoAdminPassaIsAdminTrue() throws Exception {
+        autenticar(UUID.randomUUID(), Role.ADMIN);
+        MockMultipartFile arquivo = new MockMultipartFile("arquivo", "rg.jpg", "image/jpeg", new byte[] {1, 2, 3});
+
+        mockMvc.perform(multipart("/api/v1/onboarding/pessoa/{id}/documentos", solicitacaoId)
+                        .file(arquivo)
+                        .param("tipo", "RG"))
+                .andExpect(status().isNoContent());
+
+        verify(enviarDocumentoUseCase).executar(eq(solicitacaoId), any(), eq(true), any());
     }
 
     @Test
     @WithMockUser
     void verificarRetorna202() throws Exception {
-        when(iniciarVerificacaoUseCase.executar(eq(solicitacaoId), eq(usuarioId), any()))
+        when(iniciarVerificacaoUseCase.executar(eq(solicitacaoId), eq(usuarioId), eq(false), any()))
                 .thenReturn(solicitacao);
 
         mockMvc.perform(post("/api/v1/onboarding/pessoa/{id}/verificar", solicitacaoId))
                 .andExpect(status().isAccepted());
 
-        verify(iniciarVerificacaoUseCase).executar(eq(solicitacaoId), eq(usuarioId), any());
+        verify(iniciarVerificacaoUseCase).executar(eq(solicitacaoId), eq(usuarioId), eq(false), any());
+    }
+
+    @Test
+    @WithMockUser
+    void verificarComoAdminPassaIsAdminTrue() throws Exception {
+        autenticar(UUID.randomUUID(), Role.ADMIN);
+        when(iniciarVerificacaoUseCase.executar(eq(solicitacaoId), any(), eq(true), any()))
+                .thenReturn(solicitacao);
+
+        mockMvc.perform(post("/api/v1/onboarding/pessoa/{id}/verificar", solicitacaoId))
+                .andExpect(status().isAccepted());
+
+        verify(iniciarVerificacaoUseCase).executar(eq(solicitacaoId), any(), eq(true), any());
     }
 
     @Test

@@ -124,7 +124,8 @@ public class OnboardingPessoaController {
         } catch (IOException ex) {
             throw new ValidacaoException(CODIGO_ARQUIVO_INVALIDO, "Falha ao ler bytes do arquivo");
         }
-        enviarDocumentoUseCase.executar(id, principal.id(), cmd);
+        boolean isAdmin = principal.role() == Role.ADMIN;
+        enviarDocumentoUseCase.executar(id, principal.id(), isAdmin, cmd);
         return ResponseEntity.noContent().build();
     }
 
@@ -143,7 +144,8 @@ public class OnboardingPessoaController {
     })
     public ResponseEntity<Void> disparar(@PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
         String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
-        iniciarVerificacaoUseCase.executar(id, principal.id(), correlationId);
+        boolean isAdmin = principal.role() == Role.ADMIN;
+        iniciarVerificacaoUseCase.executar(id, principal.id(), isAdmin, correlationId);
         return ResponseEntity.accepted().build();
     }
 

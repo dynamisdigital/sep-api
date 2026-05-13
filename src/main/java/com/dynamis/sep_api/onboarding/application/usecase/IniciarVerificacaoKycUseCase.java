@@ -54,11 +54,12 @@ public class IniciarVerificacaoKycUseCase {
     }
 
     @Transactional
-    public SolicitacaoOnboarding executar(UUID solicitacaoId, UUID usuarioAutenticadoId, String correlationId) {
+    public SolicitacaoOnboarding executar(
+            UUID solicitacaoId, UUID usuarioAutenticadoId, boolean isAdmin, String correlationId) {
         SolicitacaoOnboarding solicitacao = solicitacaoRepository
                 .findById(solicitacaoId)
                 .orElseThrow(() -> new OnboardingNaoEncontradoException(solicitacaoId));
-        if (!solicitacao.getUsuarioId().equals(usuarioAutenticadoId)) {
+        if (!isAdmin && !solicitacao.getUsuarioId().equals(usuarioAutenticadoId)) {
             throw new AccessDeniedException("Solicitacao nao pertence ao usuario autenticado");
         }
 
@@ -93,8 +94,9 @@ public class IniciarVerificacaoKycUseCase {
                     correlationId);
             solicitacao.marcarEmVerificacao(resposta.idVerificacaoExterna());
             solicitacaoRepository.save(solicitacao);
+            // Evento de dominio carrega o dono da solicitacao (audit trail), nao quem disparou.
             eventPublisher.publishEvent(new VerificacaoKycDisparadaEvent(
-                    solicitacaoId, usuarioAutenticadoId, resposta.idVerificacaoExterna()));
+                    solicitacaoId, solicitacao.getUsuarioId(), resposta.idVerificacaoExterna()));
             return solicitacao;
         } finally {
             if (mdcPrevio == null) {

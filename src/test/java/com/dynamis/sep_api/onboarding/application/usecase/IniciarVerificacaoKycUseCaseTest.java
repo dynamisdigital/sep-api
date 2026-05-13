@@ -72,7 +72,7 @@ class IniciarVerificacaoKycUseCaseTest {
         when(documentoRepository.findBySolicitacaoId(any()))
                 .thenReturn(List.of(doc(TipoDocumento.RG), doc(TipoDocumento.SELFIE)));
 
-        SolicitacaoOnboarding resultado = useCase.executar(solicitacao.getId(), usuarioId, "corr-1");
+        SolicitacaoOnboarding resultado = useCase.executar(solicitacao.getId(), usuarioId, false, "corr-1");
 
         assertThat(resultado.getStatus()).isEqualTo(StatusOnboarding.EM_VERIFICACAO);
         assertThat(resultado.getIdVerificacaoExterna()).isEqualTo("ext-1");
@@ -84,7 +84,7 @@ class IniciarVerificacaoKycUseCaseTest {
         when(documentoRepository.findBySolicitacaoId(any()))
                 .thenReturn(List.of(doc(TipoDocumento.RG), doc(TipoDocumento.SELFIE)));
 
-        useCase.executar(solicitacao.getId(), usuarioId, "corr-1");
+        useCase.executar(solicitacao.getId(), usuarioId, false, "corr-1");
 
         ArgumentCaptor<RequisicaoVerificacaoKyc> captor = ArgumentCaptor.forClass(RequisicaoVerificacaoKyc.class);
         verify(kycProvider).iniciarVerificacao(captor.capture(), anyString());
@@ -96,7 +96,7 @@ class IniciarVerificacaoKycUseCaseTest {
     void rejeitaSemSelfie() {
         when(documentoRepository.findBySolicitacaoId(any())).thenReturn(List.of(doc(TipoDocumento.RG)));
 
-        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, "corr-1"))
+        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, false, "corr-1"))
                 .isInstanceOf(ValidacaoException.class)
                 .hasMessageContaining("SELFIE");
     }
@@ -105,7 +105,7 @@ class IniciarVerificacaoKycUseCaseTest {
     void rejeitaSemDocumentoIdentidade() {
         when(documentoRepository.findBySolicitacaoId(any())).thenReturn(List.of(doc(TipoDocumento.SELFIE)));
 
-        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, "corr-1"))
+        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, false, "corr-1"))
                 .isInstanceOf(ValidacaoException.class);
     }
 
@@ -114,7 +114,7 @@ class IniciarVerificacaoKycUseCaseTest {
         when(documentoRepository.findBySolicitacaoId(any()))
                 .thenReturn(List.of(doc(TipoDocumento.RG), doc(TipoDocumento.SELFIE)));
 
-        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), UUID.randomUUID(), "corr-1"))
+        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), UUID.randomUUID(), false, "corr-1"))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
@@ -122,7 +122,7 @@ class IniciarVerificacaoKycUseCaseTest {
     void rejeitaSolicitacaoInexistente() {
         when(solicitacaoRepository.findById(any())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> useCase.executar(UUID.randomUUID(), usuarioId, "corr-1"))
+        assertThatThrownBy(() -> useCase.executar(UUID.randomUUID(), usuarioId, false, "corr-1"))
                 .isInstanceOf(OnboardingNaoEncontradoException.class);
     }
 
@@ -132,10 +132,22 @@ class IniciarVerificacaoKycUseCaseTest {
         when(documentoRepository.findBySolicitacaoId(any()))
                 .thenReturn(List.of(doc(TipoDocumento.RG), doc(TipoDocumento.SELFIE)));
 
-        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, "corr-1"))
+        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, false, "corr-1"))
                 .isInstanceOf(com.dynamis.sep_api.onboarding.domain.exception.StatusOnboardingInvalidoException.class);
 
         // KycProvider NAO deve ter sido chamado — guard de dominio dispara antes.
         verify(kycProvider, never()).iniciarVerificacao(any(), anyString());
+    }
+
+    @Test
+    void adminDisparaVerificacaoEmSolicitacaoDeTerceiro() {
+        UUID adminId = UUID.randomUUID();
+        when(documentoRepository.findBySolicitacaoId(any()))
+                .thenReturn(List.of(doc(TipoDocumento.RG), doc(TipoDocumento.SELFIE)));
+
+        SolicitacaoOnboarding resultado = useCase.executar(solicitacao.getId(), adminId, true, "corr-admin");
+
+        assertThat(resultado.getStatus()).isEqualTo(StatusOnboarding.EM_VERIFICACAO);
+        verify(eventPublisher).publishEvent(any(VerificacaoKycDisparadaEvent.class));
     }
 }
