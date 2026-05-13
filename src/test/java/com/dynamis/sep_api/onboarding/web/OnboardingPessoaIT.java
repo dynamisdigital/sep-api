@@ -4,9 +4,11 @@ import com.dynamis.sep_api.onboarding.infrastructure.persistence.DocumentoCadast
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.ResultadoVerificacaoRepository;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.SolicitacaoOnboardingRepository;
 import com.dynamis.sep_api.shared.infrastructure.persistence.WebhookEventLogRepository;
+import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,13 +64,28 @@ class OnboardingPessoaIT {
     @Autowired
     WebhookEventLogRepository webhookEventLogRepository;
 
+    @Autowired
+    UsuarioRepository usuarioRepository;
+
     @BeforeEach
     void setup() {
         RestAssured.port = port;
+        limpar();
+    }
+
+    @AfterEach
+    void cleanup() {
+        // Sem CASCADE na FK (LGPD/regulatorio), limpamos filhas antes da tabela usuario para
+        // nao quebrar testes legacy que rodam depois e fazem usuarioRepository.deleteAll().
+        limpar();
+    }
+
+    private void limpar() {
         documentoRepository.deleteAll();
         resultadoRepository.deleteAll();
         solicitacaoRepository.deleteAll();
         webhookEventLogRepository.deleteAll();
+        usuarioRepository.deleteAll();
     }
 
     private record ClienteCriado(UUID id, String email, String token) {}
@@ -193,6 +210,22 @@ class OnboardingPessoaIT {
                 .post("/api/v1/onboarding/pessoa")
                 .then()
                 .statusCode(409);
+    }
+
+    @Test
+    void arquivoMaiorQue10MBRetorna400() {
+        ClienteCriado cliente = criarClienteELogar();
+        String solicitacaoId = iniciarOnboarding(cliente.token(), CPF_VALIDO_1);
+        byte[] grande = new byte[10 * 1024 * 1024 + 1]; // 10MB + 1 byte
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + cliente.token())
+                .multiPart("arquivo", "grande.jpg", grande, "image/jpeg")
+                .multiPart("tipo", "RG")
+                .when()
+                .post("/api/v1/onboarding/pessoa/" + solicitacaoId + "/documentos")
+                .then()
+                .statusCode(400);
     }
 
     @Test

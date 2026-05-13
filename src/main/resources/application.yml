@@ -27,6 +27,14 @@ spring:
     locations: classpath:db/migration
     validate-on-migrate: true
 
+  servlet:
+    multipart:
+      # Documentos KYC tem limite de 10MB por regra de dominio
+      # (EnviarDocumentoUseCase). Permite 12MB no transporte para que o use case
+      # rejeite com 400 (ONB-400-004) em vez do parser multipart estourar 413/500.
+      max-file-size: 12MB
+      max-request-size: 12MB
+
   mvc:
     throw-exception-if-no-handler-found: true
     # spring.web.resources.add-mappings fica DEFAULT (true) para servir webjars
