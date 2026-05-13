@@ -8,6 +8,8 @@ import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.TipoDocumento;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -24,6 +26,7 @@ class OnboardingAuditListenerTest {
 
     private AuditLogSegurancaService auditService;
     private OnboardingAuditListener listener;
+    private ObjectMapper objectMapper;
 
     private UUID solicitacaoId;
     private UUID usuarioId;
@@ -31,88 +34,96 @@ class OnboardingAuditListenerTest {
     @BeforeEach
     void setup() {
         auditService = mock(AuditLogSegurancaService.class);
-        listener = new OnboardingAuditListener(auditService);
+        objectMapper = new ObjectMapper();
+        listener = new OnboardingAuditListener(auditService, objectMapper);
         solicitacaoId = UUID.randomUUID();
         usuarioId = UUID.randomUUID();
     }
 
-    @Test
-    void onboardingIniciadoGravaKycIniciadoComSolicitacaoId() {
-        listener.aoIniciar(new OnboardingIniciadoEvent(solicitacaoId, usuarioId));
-
+    private String capturarDetalhes(TipoEventoSeguranca tipo) {
         ArgumentCaptor<String> detalhes = ArgumentCaptor.forClass(String.class);
-        verify(auditService).gravar(eq(TipoEventoSeguranca.KYC_INICIADO), eq(usuarioId), detalhes.capture());
-        assertThat(detalhes.getValue()).contains(solicitacaoId.toString());
+        verify(auditService).gravar(eq(tipo), eq(usuarioId), detalhes.capture());
+        return detalhes.getValue();
+    }
+
+    private JsonNode parsear(String json) throws Exception {
+        return objectMapper.readTree(json);
     }
 
     @Test
-    void documentoEnviadoGravaKycDocumentoEnviadoComMetadados() {
+    void onboardingIniciadoGravaKycIniciadoComSolicitacaoId() throws Exception {
+        listener.aoIniciar(new OnboardingIniciadoEvent(solicitacaoId, usuarioId));
+
+        JsonNode json = parsear(capturarDetalhes(TipoEventoSeguranca.KYC_INICIADO));
+        assertThat(json.get("solicitacaoId").asText()).isEqualTo(solicitacaoId.toString());
+    }
+
+    @Test
+    void documentoEnviadoGravaKycDocumentoEnviadoComMetadados() throws Exception {
         UUID documentoId = UUID.randomUUID();
         listener.aoEnviarDocumento(
                 new DocumentoCadastralEnviadoEvent(solicitacaoId, usuarioId, documentoId, TipoDocumento.RG, "sha-abc"));
 
-        ArgumentCaptor<String> detalhes = ArgumentCaptor.forClass(String.class);
-        verify(auditService).gravar(eq(TipoEventoSeguranca.KYC_DOCUMENTO_ENVIADO), eq(usuarioId), detalhes.capture());
-        assertThat(detalhes.getValue())
-                .contains(solicitacaoId.toString())
-                .contains(documentoId.toString())
-                .contains("RG")
-                .contains("sha-abc");
+        JsonNode json = parsear(capturarDetalhes(TipoEventoSeguranca.KYC_DOCUMENTO_ENVIADO));
+        assertThat(json.get("solicitacaoId").asText()).isEqualTo(solicitacaoId.toString());
+        assertThat(json.get("documentoId").asText()).isEqualTo(documentoId.toString());
+        assertThat(json.get("tipoDocumento").asText()).isEqualTo("RG");
+        assertThat(json.get("sha256").asText()).isEqualTo("sha-abc");
     }
 
     @Test
-    void verificacaoDisparadaGravaKycVerificacaoDisparadaComIdExterno() {
+    void verificacaoDisparadaGravaKycVerificacaoDisparadaComIdExterno() throws Exception {
         listener.aoDispararVerificacao(new VerificacaoKycDisparadaEvent(solicitacaoId, usuarioId, "ext-1"));
 
-        ArgumentCaptor<String> detalhes = ArgumentCaptor.forClass(String.class);
-        verify(auditService)
-                .gravar(eq(TipoEventoSeguranca.KYC_VERIFICACAO_DISPARADA), eq(usuarioId), detalhes.capture());
-        assertThat(detalhes.getValue()).contains(solicitacaoId.toString()).contains("ext-1");
+        JsonNode json = parsear(capturarDetalhes(TipoEventoSeguranca.KYC_VERIFICACAO_DISPARADA));
+        assertThat(json.get("solicitacaoId").asText()).isEqualTo(solicitacaoId.toString());
+        assertThat(json.get("idVerificacaoExterna").asText()).isEqualTo("ext-1");
     }
 
     @Test
-    void finalizadoAprovadoMapeiaParaKycFinalizadoAprovado() {
+    void finalizadoAprovadoMapeiaParaKycFinalizadoAprovado() throws Exception {
         listener.aoFinalizar(
                 new OnboardingFinalizadoEvent(solicitacaoId, usuarioId, StatusOnboarding.APROVADO, "ext-1"));
 
-        verify(auditService)
-                .gravar(
-                        eq(TipoEventoSeguranca.KYC_FINALIZADO_APROVADO),
-                        eq(usuarioId),
-                        org.mockito.ArgumentMatchers.contains("APROVADO"));
+        JsonNode json = parsear(capturarDetalhes(TipoEventoSeguranca.KYC_FINALIZADO_APROVADO));
+        assertThat(json.get("statusFinal").asText()).isEqualTo("APROVADO");
     }
 
     @Test
-    void finalizadoReprovadoMapeiaParaKycFinalizadoReprovado() {
+    void finalizadoReprovadoMapeiaParaKycFinalizadoReprovado() throws Exception {
         listener.aoFinalizar(
                 new OnboardingFinalizadoEvent(solicitacaoId, usuarioId, StatusOnboarding.REPROVADO, "ext-2"));
 
-        verify(auditService)
-                .gravar(
-                        eq(TipoEventoSeguranca.KYC_FINALIZADO_REPROVADO),
-                        eq(usuarioId),
-                        org.mockito.ArgumentMatchers.contains("REPROVADO"));
+        JsonNode json = parsear(capturarDetalhes(TipoEventoSeguranca.KYC_FINALIZADO_REPROVADO));
+        assertThat(json.get("statusFinal").asText()).isEqualTo("REPROVADO");
     }
 
     @Test
-    void finalizadoPendenciaMapeiaParaKycFinalizadoPendencia() {
+    void finalizadoPendenciaMapeiaParaKycFinalizadoPendencia() throws Exception {
         listener.aoFinalizar(
                 new OnboardingFinalizadoEvent(solicitacaoId, usuarioId, StatusOnboarding.PENDENCIA, "ext-3"));
 
-        verify(auditService)
-                .gravar(
-                        eq(TipoEventoSeguranca.KYC_FINALIZADO_PENDENCIA),
-                        eq(usuarioId),
-                        org.mockito.ArgumentMatchers.contains("PENDENCIA"));
+        JsonNode json = parsear(capturarDetalhes(TipoEventoSeguranca.KYC_FINALIZADO_PENDENCIA));
+        assertThat(json.get("statusFinal").asText()).isEqualTo("PENDENCIA");
     }
 
     @Test
     void finalizadoComStatusNaoFinalRejeitadoSemGravarAuditLog() {
-        // OnboardingFinalizadoEvent NUNCA deve carregar status nao-final (Task 6.4
-        // garante via ResultadoVerificacao.registrar guard); este teste protege contra regressao.
         OnboardingFinalizadoEvent invalido =
                 new OnboardingFinalizadoEvent(solicitacaoId, usuarioId, StatusOnboarding.INICIADO, "ext-bad");
 
         assertThatThrownBy(() -> listener.aoFinalizar(invalido)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void valoresExternosComAspasEBarrasSaoEscapadosNoJson() throws Exception {
+        // idVerificacaoExterna vem do provider — deve ser escapado mesmo com aspas/barras.
+        String idMalicioso = "ext\"with\\backslash\nand-control";
+        listener.aoDispararVerificacao(new VerificacaoKycDisparadaEvent(solicitacaoId, usuarioId, idMalicioso));
+
+        String raw = capturarDetalhes(TipoEventoSeguranca.KYC_VERIFICACAO_DISPARADA);
+        // JSON ainda parseavel + valor preservado apos escape.
+        JsonNode json = parsear(raw);
+        assertThat(json.get("idVerificacaoExterna").asText()).isEqualTo(idMalicioso);
     }
 }
