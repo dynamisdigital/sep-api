@@ -136,6 +136,55 @@ Detalhamento: [docs-SEP/specs/](../docs-SEP/specs/) e [docs-SEP/steps-fase-1/](.
 - **`shared`** — `ApiExceptionHandler`, `EntidadeAuditavel`, `RestClientFactory`,
   Resilience4j, `WebhookEventLog` outbox (Sprint 4).
 
+## Rodar Onboarding KYC localmente (Sprint 6)
+
+Detalhamento completo em [docs/ONBOARDING.md](docs/ONBOARDING.md). Resumo:
+
+### Provider Fake (default — dev sem credenciais)
+
+```bash
+docker compose up -d postgres
+./gradlew bootRun
+```
+
+`app.kyc.provider=fake` ja vem no `application.yml`. `FakeKycProvider` retorna
+`Finalizado(APROVADO)` quando o callback simulado e enviado com
+`verification_id="fake-<solicitacaoId>"`. Smoke manual com curl em
+[docs/ONBOARDING.md#smoke-manual](docs/ONBOARDING.md).
+
+### Provider Celcoin (sandbox)
+
+```bash
+export APP_KYC_PROVIDER=celcoin
+export APP_CELCOIN_KYC_BASE_URL=https://sandbox.openfinance.celcoin.dev/onboarding/v1
+export APP_CELCOIN_KYC_CLIENT_ID=...
+export APP_CELCOIN_KYC_CLIENT_SECRET=...
+export APP_WEBHOOK_SECRET_CELCOIN_KYC=...
+./gradlew bootRun
+```
+
+OAuth2 client-credentials cacheado (`CelcoinOAuthTokenProvider`); cada chamada KYC
+inclui `Authorization: Bearer <token>`. Resilience4j: retry 3x em 5xx +
+IOException/ResourceAccessException, circuit breaker, timeout 30s.
+
+### Profile `local-wiremock` (dev sem credenciais reais)
+
+Cobre o caminho do `CelcoinKycProvider` (HTTP real + OAuth + Resilience4j) sem precisar
+do sandbox Celcoin. Sobe um WireMock standalone em `localhost:8089`, stubs minimos para
+`/token` e `/verifications`, e aponta o backend para ele via
+`SPRING_PROFILES_ACTIVE=dev,local-wiremock` + `APP_CELCOIN_KYC_BASE_URL=http://localhost:8089/onboarding/v1`.
+Passo a passo (incluindo comandos de stub via `__admin/mappings`) em
+[docs/ONBOARDING.md#profile-local-wiremock](docs/ONBOARDING.md).
+
+### Testes WireMock (suite IT)
+
+```bash
+./gradlew test --tests '*CelcoinKycProviderIT' --tests '*CelcoinOAuthTokenProviderIT'
+```
+
+Cobre Bearer OAuth, retry 5xx, propagacao X-Correlation-Id, preservacao da
+Idempotency-Key do caller no MDC e cache de token.
+
 
 // Teste
 teste de esteira

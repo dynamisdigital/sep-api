@@ -133,6 +133,65 @@ export APP_WEBHOOK_SECRET_CELCOIN_KYC=...
 `CelcoinOAuthTokenProvider` cacheia o `access_token` (refresh 30s antes de expirar).
 Cada chamada KYC inclui `Authorization: Bearer <token>` automaticamente.
 
+### Profile `local-wiremock` (dev sem credenciais Celcoin)
+
+Cenario: voce quer exercitar o `CelcoinKycProvider` (HTTP real + Resilience4j + OAuth)
+sem ter credenciais sandbox. Sobe um WireMock standalone e aponta o `sep-api` para ele.
+
+1. Baixar e rodar WireMock standalone na porta 8089:
+
+```bash
+docker run --rm -p 8089:8080 wiremock/wiremock:3.9.2
+```
+
+2. Stub minimo para o token + verifications (via REST API do WireMock):
+
+```bash
+# Token endpoint
+curl -X POST localhost:8089/__admin/mappings -H "Content-Type: application/json" -d '{
+  "request": {"method": "POST", "url": "/onboarding/v1/token"},
+  "response": {"status": 200, "headers": {"Content-Type":"application/json"},
+               "body": "{\"access_token\":\"wm-token\",\"token_type\":\"Bearer\",\"expires_in\":3600}"}
+}'
+
+# POST /verifications
+curl -X POST localhost:8089/__admin/mappings -H "Content-Type: application/json" -d '{
+  "request": {"method": "POST", "url": "/onboarding/v1/verifications"},
+  "response": {"status": 200, "headers": {"Content-Type":"application/json"},
+               "body": "{\"verification_id\":\"wm-123\",\"status\":\"PROCESSING\"}"}
+}'
+```
+
+3. Subir o `sep-api` com profile `local-wiremock`:
+
+```bash
+export SPRING_PROFILES_ACTIVE=dev,local-wiremock
+export APP_KYC_PROVIDER=celcoin
+export APP_CELCOIN_KYC_BASE_URL=http://localhost:8089/onboarding/v1
+export APP_CELCOIN_KYC_CLIENT_ID=wm-client
+export APP_CELCOIN_KYC_CLIENT_SECRET=wm-secret
+./gradlew bootRun
+```
+
+Resultado: `CelcoinKycProvider` ativo, mas todas chamadas saem para WireMock local. Util
+para validar wiring HTTP/headers/MDC/Resilience4j sem dependencia externa. O webhook
+KYC ainda e simulado por POST direto (ver "Smoke manual" abaixo) usando o mesmo
+`APP_WEBHOOK_SECRET_CELCOIN_KYC` que configurar.
+
+### Testes WireMock (suite de IT)
+
+Os ITs `CelcoinKycProviderIT` e `CelcoinOAuthTokenProviderIT` usam
+`WireMockExtension` programaticamente (porta dinamica por classe, sem container). Rodar
+isolado:
+
+```bash
+./gradlew test --tests '*CelcoinKycProviderIT' --tests '*CelcoinOAuthTokenProviderIT'
+```
+
+Cobertura: Bearer OAuth real, retry 3x em 5xx, propagacao X-Correlation-Id,
+preservacao de Idempotency-Key gravada pelo caller no MDC, cache de token (1 chamada
+`/token` para N chamadas `accessToken()`).
+
 ### Smoke manual
 
 ```bash
