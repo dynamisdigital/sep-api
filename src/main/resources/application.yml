@@ -27,6 +27,14 @@ spring:
     locations: classpath:db/migration
     validate-on-migrate: true
 
+  servlet:
+    multipart:
+      # Documentos KYC tem limite de 10MB por regra de dominio
+      # (EnviarDocumentoUseCase). Permite 12MB no transporte para que o use case
+      # rejeite com 400 (ONB-400-004) em vez do parser multipart estourar 413/500.
+      max-file-size: 12MB
+      max-request-size: 12MB
+
   mvc:
     throw-exception-if-no-handler-found: true
     # spring.web.resources.add-mappings fica DEFAULT (true) para servir webjars
@@ -89,6 +97,14 @@ app:
   webhooks:
     secrets:
       celcoin: ${APP_WEBHOOK_SECRET_CELCOIN:dev-webhook-secret-change-me}
+      celcoin-kyc: ${APP_WEBHOOK_SECRET_CELCOIN_KYC:dev-kyc-webhook-secret-change-me}
+  kyc:
+    provider: ${APP_KYC_PROVIDER:fake}
+  celcoin:
+    kyc:
+      base-url: ${APP_CELCOIN_KYC_BASE_URL:https://sandbox.openfinance.celcoin.dev/onboarding/v1}
+      client-id: ${APP_CELCOIN_KYC_CLIENT_ID:}
+      client-secret: ${APP_CELCOIN_KYC_CLIENT_SECRET:}
   security:
     totp:
       issuer: ${APP_TOTP_ISSUER:SEP}
@@ -112,14 +128,28 @@ resilience4j:
         slidingWindowSize: 10
         minimumNumberOfCalls: 5
         permittedNumberOfCallsInHalfOpenState: 3
+    instances:
+      celcoin-kyc:
+        baseConfig: default
   retry:
     configs:
       default:
         maxAttempts: 3
         waitDuration: 500ms
+    instances:
+      celcoin-kyc:
+        maxAttempts: 3
+        waitDuration: 500ms
+        retryExceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
   timelimiter:
     configs:
       default:
+        timeoutDuration: 30s
+    instances:
+      celcoin-kyc:
         timeoutDuration: 30s
   ratelimiter:
     configs:

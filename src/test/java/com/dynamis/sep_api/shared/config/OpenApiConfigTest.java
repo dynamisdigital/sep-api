@@ -36,10 +36,22 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.paths['/api/v1/usuarios']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/usuarios/{id}']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/usuarios/{id}/senha']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/onboarding/pessoa']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/onboarding/pessoa/{id}']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/onboarding/pessoa/{id}/documentos']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/onboarding/pessoa/{id}/verificar']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/webhooks/celcoin/kyc']").exists())
                 .andExpect(jsonPath("$.components.schemas.UsuarioCreateDto").exists())
                 .andExpect(jsonPath("$.components.schemas.UsuarioResponseDto").exists())
                 .andExpect(jsonPath("$.components.schemas.LoginRequestDto").exists())
                 .andExpect(jsonPath("$.components.schemas.TokenResponseDto").exists())
-                .andExpect(jsonPath("$.components.schemas.ErrorResponseDto").exists());
+                .andExpect(jsonPath("$.components.schemas.ErrorResponseDto").exists())
+                .andExpect(jsonPath("$.components.schemas.IniciarOnboardingRequest")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.OnboardingResponse").exists())
+                .andExpect(jsonPath("$.components.schemas.StatusOnboardingResponse")
+                        .exists());
     }
 }
