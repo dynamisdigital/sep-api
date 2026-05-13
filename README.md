@@ -115,13 +115,26 @@ SEP opera sob a Resolucao CMN 4.656/2018. Implicacoes desde a Sprint 1: KYC/KYB 
 
 ## Sprints
 
-- Sprint 0 — Hygiene & Foundation (este branch)
+- Sprint 0 — Hygiene & Foundation
 - Sprint 1 — Fundacao Tecnica (Spring Boot, Postgres, Flyway)
 - Sprint 2 — Gestao de Usuarios
 - Sprint 3 — Seguranca/Auth JWT
 - Sprint 4 — Erros, Documentacao, Testes, Webhook Receiver
+- Sprint 5 — Endurecimento de Seguranca (refresh token, MFA, audit log)
+- Sprint 6 — Onboarding KYC Pessoa Fisica (modulo `onboarding`, Provider Celcoin, webhook KYC)
 
-Detalhamento: [docs-SEP/specs/fase-1/](../docs-SEP/specs/fase-1/) e [docs-SEP/steps/backend/](../docs-SEP/steps/backend/).
+Detalhamento: [docs-SEP/specs/](../docs-SEP/specs/) e [docs-SEP/steps-fase-1/](../docs-SEP/steps-fase-1/), [docs-SEP/steps-fase-2/](../docs-SEP/steps-fase-2/).
+
+## Modulos
+
+- **`identity`** — JWT, refresh token, MFA, lockout, audit log seguranca (Sprint 5).
+- **`usuarios`** — cadastro, perfis, ownership.
+- **`onboarding`** — KYC Pessoa Fisica via Celcoin Provider Pattern (Sprint 6). Ver
+  [docs/ONBOARDING.md](docs/ONBOARDING.md): contratos REST, fluxo do webhook, como
+  selecionar provider (`app.kyc.provider=fake|celcoin`), smoke manual, cuidados LGPD.
+- **`escrow`** — segregacao patrimonial (CMN 4.656/2018), modelado desde Sprint 1.
+- **`shared`** — `ApiExceptionHandler`, `EntidadeAuditavel`, `RestClientFactory`,
+  Resilience4j, `WebhookEventLog` outbox (Sprint 4).
 
 
 // Teste
