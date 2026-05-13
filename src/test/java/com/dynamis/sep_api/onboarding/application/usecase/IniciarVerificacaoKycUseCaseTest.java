@@ -29,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -123,5 +124,18 @@ class IniciarVerificacaoKycUseCaseTest {
 
         assertThatThrownBy(() -> useCase.executar(UUID.randomUUID(), usuarioId, "corr-1"))
                 .isInstanceOf(OnboardingNaoEncontradoException.class);
+    }
+
+    @Test
+    void rejeitaQuandoStatusJaEmVerificacaoAntesDeChamarProvider() {
+        solicitacao.marcarEmVerificacao("ext-existente");
+        when(documentoRepository.findBySolicitacaoId(any()))
+                .thenReturn(List.of(doc(TipoDocumento.RG), doc(TipoDocumento.SELFIE)));
+
+        assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, "corr-1"))
+                .isInstanceOf(com.dynamis.sep_api.onboarding.domain.exception.StatusOnboardingInvalidoException.class);
+
+        // KycProvider NAO deve ter sido chamado — guard de dominio dispara antes.
+        verify(kycProvider, never()).iniciarVerificacao(any(), anyString());
     }
 }

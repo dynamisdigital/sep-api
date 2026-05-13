@@ -7,7 +7,6 @@ import com.dynamis.sep_api.onboarding.application.port.out.dto.ResultadoKycProvi
 import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.dto.CelcoinKycRequest;
 import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.dto.CelcoinKycResponse;
 import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.dto.CelcoinKycResultadoResponse;
-import com.dynamis.sep_api.shared.integration.IdempotencyKeyInterceptor;
 import com.dynamis.sep_api.shared.integration.RestClientFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -64,8 +63,9 @@ public class CelcoinKycProvider implements KycProvider {
     @Retry(name = RESILIENCE_INSTANCE)
     public RespostaInicioVerificacao iniciarVerificacao(RequisicaoVerificacaoKyc requisicao, String correlationId) {
         CelcoinKycRequest payload = mapper.toCelcoinRequest(requisicao);
-        try (MDCBridge ignored =
-                MDCBridge.set(correlationId, requisicao.solicitacaoId().toString())) {
+        // Idempotency-Key e responsabilidade do caller (Task 6.3 grava chave deterministica
+        // 'solicitacaoId:revisaoDocumentos' no MDC antes desta chamada). Adapter NAO sobrescreve.
+        try (MDCBridge ignored = MDCBridge.set(correlationId)) {
             CelcoinKycResponse response = restClient
                     .post()
                     .uri("/verifications")
@@ -91,7 +91,7 @@ public class CelcoinKycProvider implements KycProvider {
     @CircuitBreaker(name = RESILIENCE_INSTANCE)
     @Retry(name = RESILIENCE_INSTANCE)
     public ResultadoKycProvider consultarResultado(String idVerificacaoExterna, String correlationId) {
-        try (MDCBridge ignored = MDCBridge.set(correlationId, null)) {
+        try (MDCBridge ignored = MDCBridge.set(correlationId)) {
             CelcoinKycResultadoResponse response = restClient
                     .get()
                     .uri("/verifications/{id}", idVerificacaoExterna)
@@ -122,22 +122,34 @@ public class CelcoinKycProvider implements KycProvider {
         }
     }
 
-    /** AutoCloseable que popula MDC com correlation/idempotency e limpa ao fim. */
+    /**
+     * AutoCloseable que popula MDC apenas com {@code correlationId} e o restaura ao fim. NAO
+     * gerencia {@code idempotencyKey} — esse e responsabilidade do caller (use case), conforme
+     * Task 6.3.
+     */
     private static final class MDCBridge implements AutoCloseable {
-        static MDCBridge set(String correlationId, String idempotencyKey) {
+
+        private final String correlationAnterior;
+
+        private MDCBridge(String correlationAnterior) {
+            this.correlationAnterior = correlationAnterior;
+        }
+
+        static MDCBridge set(String correlationId) {
+            String anterior = MDC.get(com.dynamis.sep_api.shared.integration.CorrelationIdFilter.MDC_KEY);
             if (correlationId != null && !correlationId.isBlank()) {
                 MDC.put(com.dynamis.sep_api.shared.integration.CorrelationIdFilter.MDC_KEY, correlationId);
             }
-            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-                MDC.put(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY, idempotencyKey);
-            }
-            return new MDCBridge();
+            return new MDCBridge(anterior);
         }
 
         @Override
         public void close() {
-            MDC.remove(com.dynamis.sep_api.shared.integration.CorrelationIdFilter.MDC_KEY);
-            MDC.remove(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY);
+            if (correlationAnterior == null) {
+                MDC.remove(com.dynamis.sep_api.shared.integration.CorrelationIdFilter.MDC_KEY);
+            } else {
+                MDC.put(com.dynamis.sep_api.shared.integration.CorrelationIdFilter.MDC_KEY, correlationAnterior);
+            }
         }
     }
 }

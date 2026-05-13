@@ -62,6 +62,10 @@ public class IniciarVerificacaoKycUseCase {
             throw new AccessDeniedException("Solicitacao nao pertence ao usuario autenticado");
         }
 
+        // Valida status ANTES de qualquer side effect externo (chamada Celcoin).
+        // Evita re-disparo em solicitacao ja em verificacao ou ja finalizada.
+        solicitacao.validarPodeIniciarVerificacao();
+
         List<DocumentoCadastral> documentos = documentoRepository.findBySolicitacaoId(solicitacaoId);
         boolean temIdentidade = documentos.stream().anyMatch(d -> IDENTIDADE.contains(d.getTipo()));
         boolean temSelfie = documentos.stream().anyMatch(d -> d.getTipo() == TipoDocumento.SELFIE);

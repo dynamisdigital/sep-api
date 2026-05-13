@@ -67,4 +67,18 @@ class IniciarOnboardingPessoaUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(UUID.randomUUID(), "11111111111", "Joao", LocalDate.of(1990, 1, 1)))
                 .isInstanceOf(ValidacaoException.class);
     }
+
+    @Test
+    void rejeitaCpfNuloComoValidacaoException() {
+        assertThatThrownBy(() -> useCase.executar(UUID.randomUUID(), null, "Joao", LocalDate.of(1990, 1, 1)))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("obrigatorio");
+    }
+
+    @Test
+    void rejeitaCpfEmBrancoComoValidacaoException() {
+        assertThatThrownBy(() -> useCase.executar(UUID.randomUUID(), "   ", "Joao", LocalDate.of(1990, 1, 1)))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("obrigatorio");
+    }
 }

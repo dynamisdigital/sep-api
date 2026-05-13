@@ -54,6 +54,9 @@ public class IniciarOnboardingPessoaUseCase {
     }
 
     private static Cpf parsearCpf(String bruto) {
+        if (bruto == null || bruto.isBlank()) {
+            throw new ValidacaoException(CODIGO_CPF_INVALIDO, "CPF e obrigatorio");
+        }
         try {
             return new Cpf(bruto);
         } catch (IllegalArgumentException ex) {

@@ -178,4 +178,23 @@ class CelcoinKycProviderIT {
 
         assertThat(resp.idVerificacaoExterna()).isEqualTo("ext-c6");
     }
+
+    @Test
+    void adapterNaoSobrescreveIdempotencyKeyDoCallerNoMdc() {
+        wireMock.stubFor(post(urlEqualTo("/verifications"))
+                .withHeader("Idempotency-Key", equalTo("solicitacao-xyz:5"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"verification_id\":\"ext-idem\",\"status\":\"PROCESSING\"}")));
+
+        // Caller (use case) grava chave deterministica no MDC antes da chamada.
+        org.slf4j.MDC.put("idempotencyKey", "solicitacao-xyz:5");
+        try {
+            RespostaInicioVerificacao resp = provider.iniciarVerificacao(novaRequisicao(), "corr-7");
+            assertThat(resp.idVerificacaoExterna()).isEqualTo("ext-idem");
+        } finally {
+            org.slf4j.MDC.remove("idempotencyKey");
+        }
+    }
 }

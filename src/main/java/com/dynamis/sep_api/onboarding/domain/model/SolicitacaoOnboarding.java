@@ -88,11 +88,22 @@ public class SolicitacaoOnboarding extends EntidadeAuditavel {
         this.revisaoDocumentos++;
     }
 
-    /** Dispara verificacao KYC; transiciona para {@code EM_VERIFICACAO}. */
-    public void marcarEmVerificacao(String idVerificacaoExterna) {
+    /**
+     * Verifica se a solicitacao esta apta a iniciar verificacao no KycProvider. Deve ser chamado
+     * pelo use case ANTES de invocar o provider externo para evitar side effect (chamada Celcoin)
+     * em solicitacoes ja em estado terminal ou em verificacao.
+     *
+     * @throws StatusOnboardingInvalidoException se o status atual nao permite disparar verificacao.
+     */
+    public void validarPodeIniciarVerificacao() {
         if (status != StatusOnboarding.DOCUMENTOS_RECEBIDOS) {
             throw new StatusOnboardingInvalidoException("iniciarVerificacao", status);
         }
+    }
+
+    /** Dispara verificacao KYC; transiciona para {@code EM_VERIFICACAO}. */
+    public void marcarEmVerificacao(String idVerificacaoExterna) {
+        validarPodeIniciarVerificacao();
         this.idVerificacaoExterna = idVerificacaoExterna;
         this.status = StatusOnboarding.EM_VERIFICACAO;
     }
