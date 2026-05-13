@@ -133,4 +133,24 @@ public class WebhookEventLog extends EntidadeAuditavel {
     public OffsetDateTime getDataProcessamento() {
         return dataProcessamento;
     }
+
+    /**
+     * Marca o evento como processado com sucesso. Idempotente: chamadas repetidas mantem o estado
+     * PROCESSADO sem sobrescrever {@link #dataProcessamento}.
+     */
+    public void marcarProcessado() {
+        if (this.status == WebhookEventStatus.PROCESSADO) {
+            return;
+        }
+        this.status = WebhookEventStatus.PROCESSADO;
+        this.erro = null;
+        this.dataProcessamento = OffsetDateTime.now();
+    }
+
+    /** Marca o evento como falhou e registra a causa (mensagem sanitizada). */
+    public void marcarFalhou(String erro) {
+        this.status = WebhookEventStatus.FALHOU;
+        this.erro = erro;
+        this.dataProcessamento = OffsetDateTime.now();
+    }
 }
