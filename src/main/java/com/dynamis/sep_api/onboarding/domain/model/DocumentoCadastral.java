@@ -84,7 +84,8 @@ public class DocumentoCadastral {
             String nomeOriginal,
             String sha256) {
         UUID id = Generators.timeBasedReorderedGenerator().generate();
-        return new DocumentoCadastral(id, solicitacaoId, tipo, conteudo, mimeType, nomeOriginal, conteudo.length, sha256);
+        return new DocumentoCadastral(
+                id, solicitacaoId, tipo, conteudo, mimeType, nomeOriginal, conteudo.length, sha256);
     }
 
     public UUID getId() {

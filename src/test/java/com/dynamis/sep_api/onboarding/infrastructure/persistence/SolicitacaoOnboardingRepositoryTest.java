@@ -48,8 +48,8 @@ class SolicitacaoOnboardingRepositoryTest {
 
     @Test
     void persistirERecuperarSolicitacaoPreservaCampos() {
-        SolicitacaoOnboarding nova = SolicitacaoOnboarding.criar(
-                usuarioId, new Cpf(CPF_VALIDO), "Joao da Silva", LocalDate.of(1990, 1, 1));
+        SolicitacaoOnboarding nova =
+                SolicitacaoOnboarding.criar(usuarioId, new Cpf(CPF_VALIDO), "Joao da Silva", LocalDate.of(1990, 1, 1));
 
         SolicitacaoOnboarding salva = repository.saveAndFlush(nova);
         SolicitacaoOnboarding recarregada = repository.findById(salva.getId()).orElseThrow();
@@ -63,13 +63,11 @@ class SolicitacaoOnboardingRepositoryTest {
 
     @Test
     void existsByCpfAndStatusInIdentificaSolicitacaoAtiva() {
-        repository.saveAndFlush(SolicitacaoOnboarding.criar(
-                usuarioId, new Cpf(CPF_VALIDO), "Joao", LocalDate.of(1990, 1, 1)));
+        repository.saveAndFlush(
+                SolicitacaoOnboarding.criar(usuarioId, new Cpf(CPF_VALIDO), "Joao", LocalDate.of(1990, 1, 1)));
 
-        boolean ativo =
-                repository.existsByCpfAndStatusIn(CPF_VALIDO, List.of(StatusOnboarding.INICIADO));
-        boolean reprovado =
-                repository.existsByCpfAndStatusIn(CPF_VALIDO, List.of(StatusOnboarding.REPROVADO));
+        boolean ativo = repository.existsByCpfAndStatusIn(CPF_VALIDO, List.of(StatusOnboarding.INICIADO));
+        boolean reprovado = repository.existsByCpfAndStatusIn(CPF_VALIDO, List.of(StatusOnboarding.REPROVADO));
 
         assertThat(ativo).isTrue();
         assertThat(reprovado).isFalse();
@@ -77,17 +75,18 @@ class SolicitacaoOnboardingRepositoryTest {
 
     @Test
     void findByIdAndUsuarioIdRetornaSomenteParaOwner() {
-        SolicitacaoOnboarding salva = repository.saveAndFlush(SolicitacaoOnboarding.criar(
-                usuarioId, new Cpf(CPF_VALIDO), "Joao", LocalDate.of(1990, 1, 1)));
+        SolicitacaoOnboarding salva = repository.saveAndFlush(
+                SolicitacaoOnboarding.criar(usuarioId, new Cpf(CPF_VALIDO), "Joao", LocalDate.of(1990, 1, 1)));
 
         assertThat(repository.findByIdAndUsuarioId(salva.getId(), usuarioId)).isPresent();
-        assertThat(repository.findByIdAndUsuarioId(salva.getId(), UUID.randomUUID())).isEmpty();
+        assertThat(repository.findByIdAndUsuarioId(salva.getId(), UUID.randomUUID()))
+                .isEmpty();
     }
 
     @Test
     void findByIdVerificacaoExternaLocalizaPosDispatch() {
-        SolicitacaoOnboarding s = SolicitacaoOnboarding.criar(
-                usuarioId, new Cpf(CPF_VALIDO), "Joao", LocalDate.of(1990, 1, 1));
+        SolicitacaoOnboarding s =
+                SolicitacaoOnboarding.criar(usuarioId, new Cpf(CPF_VALIDO), "Joao", LocalDate.of(1990, 1, 1));
         s.registrarDocumentoEnviado();
         s.marcarEmVerificacao("ext-celcoin-001");
         repository.saveAndFlush(s);

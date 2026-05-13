@@ -67,8 +67,7 @@ class SolicitacaoOnboardingTest {
     void marcarEmVerificacaoFalhaSeAindaEmIniciado() {
         SolicitacaoOnboarding s = novaSolicitacao();
 
-        assertThatThrownBy(() -> s.marcarEmVerificacao("ext"))
-                .isInstanceOf(StatusOnboardingInvalidoException.class);
+        assertThatThrownBy(() -> s.marcarEmVerificacao("ext")).isInstanceOf(StatusOnboardingInvalidoException.class);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.onboarding.domain.model;
 
+import com.dynamis.sep_api.onboarding.domain.exception.StatusOnboardingInvalidoException;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
 import com.fasterxml.uuid.Generators;
 import jakarta.persistence.Column;
@@ -49,7 +50,8 @@ public class ResultadoVerificacao {
         // requerido pelo Hibernate
     }
 
-    private ResultadoVerificacao(UUID id, UUID solicitacaoId, StatusOnboarding statusFinal, String motivo, String payloadProvider) {
+    private ResultadoVerificacao(
+            UUID id, UUID solicitacaoId, StatusOnboarding statusFinal, String motivo, String payloadProvider) {
         this.id = id;
         this.solicitacaoId = solicitacaoId;
         this.statusFinal = statusFinal;
@@ -60,6 +62,12 @@ public class ResultadoVerificacao {
 
     public static ResultadoVerificacao registrar(
             UUID solicitacaoId, StatusOnboarding statusFinal, String motivo, String payloadProvider) {
+        if (statusFinal == null) {
+            throw new StatusOnboardingInvalidoException("statusFinal e obrigatorio em ResultadoVerificacao");
+        }
+        if (!statusFinal.isFinal()) {
+            throw new StatusOnboardingInvalidoException("registrarResultado", statusFinal);
+        }
         UUID id = Generators.timeBasedReorderedGenerator().generate();
         return new ResultadoVerificacao(id, solicitacaoId, statusFinal, motivo, payloadProvider);
     }

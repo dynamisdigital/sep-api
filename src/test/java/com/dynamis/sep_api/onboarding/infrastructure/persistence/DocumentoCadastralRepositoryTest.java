@@ -45,8 +45,8 @@ class DocumentoCadastralRepositoryTest {
         solicitacaoRepository.deleteAll();
         usuarioRepository.deleteAll();
         Usuario u = usuarioRepository.saveAndFlush(Usuario.criar("kyc@sep.test", "hash", Role.CLIENTE));
-        SolicitacaoOnboarding s = solicitacaoRepository.saveAndFlush(SolicitacaoOnboarding.criar(
-                u.getId(), new Cpf("52998224725"), "Joao", LocalDate.of(1990, 1, 1)));
+        SolicitacaoOnboarding s = solicitacaoRepository.saveAndFlush(
+                SolicitacaoOnboarding.criar(u.getId(), new Cpf("52998224725"), "Joao", LocalDate.of(1990, 1, 1)));
         solicitacaoId = s.getId();
     }
 
@@ -56,8 +56,10 @@ class DocumentoCadastralRepositoryTest {
                 solicitacaoId, TipoDocumento.RG, new byte[] {1, 2, 3}, "image/jpeg", "rg.jpg", "abc123");
         documentoRepository.saveAndFlush(doc);
 
-        assertThat(documentoRepository.existsBySolicitacaoIdAndTipo(solicitacaoId, TipoDocumento.RG)).isTrue();
-        assertThat(documentoRepository.existsBySolicitacaoIdAndTipo(solicitacaoId, TipoDocumento.SELFIE)).isFalse();
+        assertThat(documentoRepository.existsBySolicitacaoIdAndTipo(solicitacaoId, TipoDocumento.RG))
+                .isTrue();
+        assertThat(documentoRepository.existsBySolicitacaoIdAndTipo(solicitacaoId, TipoDocumento.SELFIE))
+                .isFalse();
     }
 
     @Test
