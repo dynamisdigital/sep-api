@@ -97,7 +97,6 @@ app:
       base-url: ${APP_CELCOIN_KYC_BASE_URL:https://sandbox.openfinance.celcoin.dev/onboarding/v1}
       client-id: ${APP_CELCOIN_KYC_CLIENT_ID:}
       client-secret: ${APP_CELCOIN_KYC_CLIENT_SECRET:}
-      webhook-secret: ${APP_CELCOIN_KYC_WEBHOOK_SECRET:dev-kyc-webhook-secret-change-me}
   security:
     totp:
       issuer: ${APP_TOTP_ISSUER:SEP}

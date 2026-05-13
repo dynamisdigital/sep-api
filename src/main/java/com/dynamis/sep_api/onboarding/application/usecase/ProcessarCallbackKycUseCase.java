@@ -4,6 +4,7 @@ import com.dynamis.sep_api.onboarding.application.port.out.dto.ResultadoKycProvi
 import com.dynamis.sep_api.onboarding.domain.event.OnboardingFinalizadoEvent;
 import com.dynamis.sep_api.onboarding.domain.model.ResultadoVerificacao;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
+import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
 import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.CelcoinKycMapper;
 import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.dto.CelcoinKycResultadoResponse;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.ResultadoVerificacaoRepository;
@@ -115,6 +116,35 @@ public class ProcessarCallbackKycUseCase {
         }
 
         ResultadoKycProvider.Finalizado finalizado = (ResultadoKycProvider.Finalizado) resultado;
+
+        // Idempotencia tardia: callback final reenviado apos a solicitacao ja ter sido
+        // finalizada (mesma key da Sprint 4 nao volta aqui; chave diferente sim). Webhook
+        // externo deve aceitar essas duplicatas como 202 sem reescrever resultado nem
+        // re-finalizar.
+        Optional<ResultadoVerificacao> resultadoExistente =
+                resultadoRepository.findBySolicitacaoId(solicitacao.getId());
+        if (resultadoExistente.isPresent() || solicitacao.getStatus().isFinal()) {
+            StatusOnboarding statusExistente =
+                    resultadoExistente.map(ResultadoVerificacao::getStatusFinal).orElse(solicitacao.getStatus());
+            if (statusExistente == finalizado.statusFinal()) {
+                evento.marcarProcessado();
+                log.info(
+                        "Webhook KYC duplicado tardio idempotencyKey={} solicitacao={} status={} — sem reescrita",
+                        idempotencyKey,
+                        solicitacao.getId(),
+                        statusExistente);
+            } else {
+                evento.marcarFalhou("resultado conflitante com finalizacao previa");
+                log.warn(
+                        "Webhook KYC conflitante idempotencyKey={} solicitacao={} statusExistente={} statusNovo={}",
+                        idempotencyKey,
+                        solicitacao.getId(),
+                        statusExistente,
+                        finalizado.statusFinal());
+            }
+            return new Resultado(true, false);
+        }
+
         ResultadoVerificacao novoResultado = ResultadoVerificacao.registrar(
                 solicitacao.getId(), finalizado.statusFinal(), finalizado.motivo(), finalizado.payloadProvider());
         resultadoRepository.save(novoResultado);

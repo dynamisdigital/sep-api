@@ -151,6 +151,44 @@ class ProcessarCallbackKycUseCaseTest {
     }
 
     @Test
+    void callbackTardioMesmoStatusFinalMarcaProcessadoSemReescrever() {
+        when(registrarWebhookEventUseCase.executar(anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(true);
+        // Solicitacao ja finalizada (status final + ResultadoVerificacao existente)
+        solicitacao.finalizar(StatusOnboarding.APROVADO);
+        when(resultadoRepository.findBySolicitacaoId(any()))
+                .thenReturn(Optional.of(
+                        ResultadoVerificacao.registrar(solicitacao.getId(), StatusOnboarding.APROVADO, null, "{}")));
+        var callback = new ProcessarCallbackKycUseCase.CelcoinKycCallback("ext-1", "APPROVED", null);
+
+        var resultado = useCase.executar("idem-tardio", "sig", "{}", callback);
+
+        assertThat(resultado.aceito()).isTrue();
+        assertThat(evento.getStatus()).isEqualTo(WebhookEventStatus.PROCESSADO);
+        // NAO chama save novamente — resultado existente preservado.
+        verify(resultadoRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any(OnboardingFinalizadoEvent.class));
+    }
+
+    @Test
+    void callbackConflitanteComResultadoExistenteMarcaFalhouSem500() {
+        when(registrarWebhookEventUseCase.executar(anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(true);
+        solicitacao.finalizar(StatusOnboarding.APROVADO);
+        when(resultadoRepository.findBySolicitacaoId(any()))
+                .thenReturn(Optional.of(
+                        ResultadoVerificacao.registrar(solicitacao.getId(), StatusOnboarding.APROVADO, null, "{}")));
+        // Celcoin envia REJECTED quando ja havia APROVADO — conflito.
+        var callback = new ProcessarCallbackKycUseCase.CelcoinKycCallback("ext-1", "REJECTED", "conflito");
+
+        var resultado = useCase.executar("idem-conflito", "sig", "{}", callback);
+
+        assertThat(resultado.aceito()).isTrue();
+        assertThat(evento.getStatus()).isEqualTo(WebhookEventStatus.FALHOU);
+        verify(resultadoRepository, never()).save(any());
+    }
+
+    @Test
     void payloadSemVerificationIdMarcaEventoFalhou() {
         when(registrarWebhookEventUseCase.executar(anyString(), anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(true);
