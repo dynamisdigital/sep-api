@@ -41,6 +41,6 @@ public class FakeKycProvider implements KycProvider {
                 idVerificacaoExterna,
                 correlationId);
         String payload = "{\"verification_id\":\"" + idVerificacaoExterna + "\",\"status\":\"APPROVED\"}";
-        return new ResultadoKycProvider(StatusOnboarding.APROVADO, null, payload);
+        return new ResultadoKycProvider.Finalizado(StatusOnboarding.APROVADO, null, payload);
     }
 }

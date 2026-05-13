@@ -25,12 +25,15 @@ import org.springframework.web.client.RestClientResponseException;
  * Adapter HTTP real para o Celcoin Onboarding KYC PF. Selecionado quando {@code
  * app.kyc.provider=celcoin}.
  *
- * <p>Resilience4j (instance {@code celcoin-kyc}): retry 3x backoff exponencial + circuit breaker.
- * Timeout via {@link RestClientFactory} ({@code app.integration.read-timeout-seconds=30}).
+ * <p>Autenticacao: OAuth2 client-credentials via {@link CelcoinOAuthTokenProvider} (cache de
+ * token + refresh automatico). Header {@code Authorization: Bearer <token>}.
  *
- * <p>Autenticacao OAuth2 client-credentials NAO esta implementada nesta sprint — pendente quando
- * credenciais reais Celcoin estiverem disponiveis (TODO Sprint 7+). Por enquanto usa basic
- * client-id/secret como header static, util pra WireMock IT.
+ * <p>Resilience4j (instance {@code celcoin-kyc}): retry em falhas transitorias (5xx +
+ * IOException/ResourceAccessException) com circuit breaker. Timeout via {@link RestClientFactory}
+ * ({@code app.integration.read-timeout-seconds=30}).
+ *
+ * <p>LGPD: logs nunca incluem payload de resposta nem body de erro do provider — apenas status
+ * HTTP, correlationId e identificadores tecnicos sao logados.
  */
 @Component
 @ConditionalOnProperty(name = "app.kyc.provider", havingValue = "celcoin")
@@ -41,17 +44,18 @@ public class CelcoinKycProvider implements KycProvider {
 
     private final RestClient restClient;
     private final CelcoinKycMapper mapper;
-    private final CelcoinKycProperties properties;
+    private final CelcoinOAuthTokenProvider tokenProvider;
     private final ObjectMapper objectMapper;
 
     public CelcoinKycProvider(
             RestClientFactory factory,
             CelcoinKycMapper mapper,
             CelcoinKycProperties properties,
+            CelcoinOAuthTokenProvider tokenProvider,
             ObjectMapper objectMapper) {
         this.restClient = factory.forProvider(RESILIENCE_INSTANCE, properties.baseUrl());
         this.mapper = mapper;
-        this.properties = properties;
+        this.tokenProvider = tokenProvider;
         this.objectMapper = objectMapper;
     }
 
@@ -75,7 +79,10 @@ public class CelcoinKycProvider implements KycProvider {
                     response != null ? response.idVerificacao() : "null");
             return mapper.toRespostaInicio(response);
         } catch (RestClientResponseException ex) {
-            log.warn("Celcoin KYC iniciar falhou status={} body={}", ex.getStatusCode(), ex.getResponseBodyAsString());
+            log.warn(
+                    "Celcoin KYC iniciar falhou status={} correlationId={}",
+                    ex.getStatusCode().value(),
+                    correlationId);
             throw ex;
         }
     }
@@ -95,25 +102,22 @@ public class CelcoinKycProvider implements KycProvider {
             return mapper.toResultadoKyc(response, payloadCru);
         } catch (RestClientResponseException ex) {
             log.warn(
-                    "Celcoin KYC consultar falhou status={} body={}", ex.getStatusCode(), ex.getResponseBodyAsString());
+                    "Celcoin KYC consultar falhou status={} correlationId={}",
+                    ex.getStatusCode().value(),
+                    correlationId);
             throw ex;
         }
     }
 
     private void headersAutenticacao(HttpHeaders headers) {
-        if (properties.clientId() != null && !properties.clientId().isBlank()) {
-            headers.add("X-Celcoin-Client-Id", properties.clientId());
-        }
-        if (properties.clientSecret() != null && !properties.clientSecret().isBlank()) {
-            headers.add("X-Celcoin-Client-Secret", properties.clientSecret());
-        }
+        headers.setBearerAuth(tokenProvider.accessToken());
     }
 
     private String serializar(Object obj) {
         try {
             return objectMapper.writeValueAsString(obj);
         } catch (Exception e) {
-            log.warn("Falha ao serializar payload Celcoin: {}", e.getMessage());
+            log.warn("Falha ao serializar payload Celcoin para persistencia");
             return "{}";
         }
     }

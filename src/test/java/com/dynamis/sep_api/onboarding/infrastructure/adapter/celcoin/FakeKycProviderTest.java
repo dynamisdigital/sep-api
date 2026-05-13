@@ -35,10 +35,12 @@ class FakeKycProviderTest {
     }
 
     @Test
-    void consultarResultadoSempreAPROVADOComPayloadValido() {
+    void consultarResultadoSempreFinalizadoAPROVADO() {
         ResultadoKycProvider resultado = provider.consultarResultado("fake-123", "corr-2");
 
-        assertThat(resultado.statusFinal()).isEqualTo(StatusOnboarding.APROVADO);
-        assertThat(resultado.payloadProvider()).contains("\"status\":\"APPROVED\"");
+        assertThat(resultado).isInstanceOf(ResultadoKycProvider.Finalizado.class);
+        ResultadoKycProvider.Finalizado fin = (ResultadoKycProvider.Finalizado) resultado;
+        assertThat(fin.statusFinal()).isEqualTo(StatusOnboarding.APROVADO);
+        assertThat(fin.payloadProvider()).contains("\"status\":\"APPROVED\"");
     }
 }

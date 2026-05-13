@@ -7,6 +7,7 @@ import com.dynamis.sep_api.onboarding.application.port.out.dto.ResultadoKycProvi
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.TipoDocumento;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,12 +16,14 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.matching;
@@ -35,7 +38,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Integration test do {@link CelcoinKycProvider} com WireMock (ADR 0008). Valida wiring HTTP real:
- * URL, headers de autenticacao, parsing de resposta e comportamento de retry em 5xx.
+ * OAuth2 client-credentials, headers de autenticacao Bearer, parsing de resposta, retry em 5xx e
+ * propagacao de X-Correlation-Id.
  *
  * <p>{@code app.kyc.provider=celcoin} forca o adapter Celcoin (em vez do Fake default).
  */
@@ -54,13 +58,36 @@ class CelcoinKycProviderIT {
         registry.add("app.celcoin.kyc.base-url", () -> wireMock.baseUrl());
         registry.add("app.celcoin.kyc.client-id", () -> "test-client");
         registry.add("app.celcoin.kyc.client-secret", () -> "test-secret");
-        // Acelerar o teste de retry — sem isso o waitDuration default torna o run lento
+        // Acelerar retry no teste de 5xx
         registry.add("resilience4j.retry.instances.celcoin-kyc.waitDuration", () -> "10ms");
-        registry.add("resilience4j.retry.instances.celcoin-kyc.enableExponentialBackoff", () -> "false");
+        // Evitar que o CB abra durante a suite (teste de 5xx propositalmente falha varias vezes).
+        registry.add("resilience4j.circuitbreaker.instances.celcoin-kyc.slidingWindowSize", () -> "100");
+        registry.add("resilience4j.circuitbreaker.instances.celcoin-kyc.minimumNumberOfCalls", () -> "100");
     }
 
     @Autowired
     private KycProvider provider;
+
+    @Autowired
+    private io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry circuitBreakerRegistry;
+
+    @BeforeEach
+    void stubOAuth() {
+        wireMock.resetAll();
+        circuitBreakerRegistry.circuitBreaker("celcoin-kyc").reset();
+        // Token endpoint: POST /token retorna access_token valido por 1h
+        wireMock.stubFor(
+                post(urlEqualTo("/token"))
+                        .withRequestBody(containing("grant_type=client_credentials"))
+                        .withRequestBody(containing("client_id=test-client"))
+                        .withRequestBody(containing("client_secret=test-secret"))
+                        .willReturn(
+                                aResponse()
+                                        .withStatus(200)
+                                        .withHeader("Content-Type", "application/json")
+                                        .withBody(
+                                                "{\"access_token\":\"oauth-token-xyz\",\"token_type\":\"Bearer\",\"expires_in\":3600}")));
+    }
 
     private RequisicaoVerificacaoKyc novaRequisicao() {
         return new RequisicaoVerificacaoKyc(
@@ -73,10 +100,9 @@ class CelcoinKycProviderIT {
     }
 
     @Test
-    void iniciarVerificacaoChamaPostComHeadersAutenticacaoEDevolveIdExterno() {
+    void iniciarVerificacaoUsaBearerOAuthEDevolveIdExterno() {
         wireMock.stubFor(post(urlEqualTo("/verifications"))
-                .withHeader("X-Celcoin-Client-Id", equalTo("test-client"))
-                .withHeader("X-Celcoin-Client-Secret", equalTo("test-secret"))
+                .withHeader("Authorization", equalTo("Bearer oauth-token-xyz"))
                 .withRequestBody(matchingJsonPath("$.document_number", equalTo("52998224725")))
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -90,8 +116,9 @@ class CelcoinKycProviderIT {
     }
 
     @Test
-    void consultarResultadoConsultaGETEDevolveStatusFinalMapeado() {
+    void consultarResultadoAPPROVEDDevolveFinalizado() {
         wireMock.stubFor(get(urlEqualTo("/verifications/ext-celcoin-002"))
+                .withHeader("Authorization", equalTo("Bearer oauth-token-xyz"))
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
@@ -99,8 +126,21 @@ class CelcoinKycProviderIT {
 
         ResultadoKycProvider r = provider.consultarResultado("ext-celcoin-002", "corr-2");
 
-        assertThat(r.statusFinal()).isEqualTo(StatusOnboarding.APROVADO);
-        assertThat(r.payloadProvider()).contains("ext-celcoin-002");
+        assertThat(r).isInstanceOf(ResultadoKycProvider.Finalizado.class);
+        assertThat(((ResultadoKycProvider.Finalizado) r).statusFinal()).isEqualTo(StatusOnboarding.APROVADO);
+    }
+
+    @Test
+    void consultarResultadoPROCESSINGDevolveEmAndamento() {
+        wireMock.stubFor(get(urlEqualTo("/verifications/ext-celcoin-003"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"verification_id\":\"ext-celcoin-003\",\"status\":\"PROCESSING\"}")));
+
+        ResultadoKycProvider r = provider.consultarResultado("ext-celcoin-003", "corr-3");
+
+        assertThat(r).isInstanceOf(ResultadoKycProvider.EmAndamento.class);
     }
 
     @Test
@@ -108,38 +148,34 @@ class CelcoinKycProviderIT {
         wireMock.stubFor(post(urlEqualTo("/verifications"))
                 .willReturn(aResponse().withStatus(400).withBody("{\"error\":\"bad request\"}")));
 
-        assertThatThrownBy(() -> provider.iniciarVerificacao(novaRequisicao(), "corr-3"))
+        assertThatThrownBy(() -> provider.iniciarVerificacao(novaRequisicao(), "corr-4"))
                 .isInstanceOf(HttpClientErrorException.class);
 
         wireMock.verify(1, postRequestedFor(urlEqualTo("/verifications")));
     }
 
     @Test
-    void erro5xxAcionaRetryNoMaximoConfigurado() {
-        // 5xx vira ResourceAccessException? Nao — vira HttpServerErrorException.
-        // Para acionar o retry configurado em retryExceptions=[ResourceAccessException, IOException]
-        // precisamos simular socket failure. Usamos connection reset via Fault.
+    void erro5xxAcionaRetryAteMaxAttempts() {
         wireMock.stubFor(post(urlEqualTo("/verifications")).willReturn(serverError()));
 
-        // 5xx puro NAO esta na lista retryExceptions desta sprint (apenas IOException/ResourceAccessException);
-        // logo o provider tambem nao deve retentar — comportamento documentado.
-        assertThatThrownBy(() -> provider.iniciarVerificacao(novaRequisicao(), "corr-4"))
-                .hasMessageContaining("500");
+        assertThatThrownBy(() -> provider.iniciarVerificacao(novaRequisicao(), "corr-5"))
+                .isInstanceOf(HttpServerErrorException.class);
 
-        wireMock.verify(1, postRequestedFor(urlEqualTo("/verifications")));
+        // maxAttempts = 3 → 3 chamadas ao total
+        wireMock.verify(3, postRequestedFor(urlEqualTo("/verifications")));
     }
 
     @Test
     void correlationIdHeaderEncaminhadoQuandoFornecido() {
         wireMock.stubFor(post(urlEqualTo("/verifications"))
-                .withHeader("X-Correlation-Id", matching("corr-5"))
+                .withHeader("X-Correlation-Id", matching("corr-6"))
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("{\"verification_id\":\"ext-c5\",\"status\":\"PROCESSING\"}")));
+                        .withBody("{\"verification_id\":\"ext-c6\",\"status\":\"PROCESSING\"}")));
 
-        RespostaInicioVerificacao resp = provider.iniciarVerificacao(novaRequisicao(), "corr-5");
+        RespostaInicioVerificacao resp = provider.iniciarVerificacao(novaRequisicao(), "corr-6");
 
-        assertThat(resp.idVerificacaoExterna()).isEqualTo("ext-c5");
+        assertThat(resp.idVerificacaoExterna()).isEqualTo("ext-c6");
     }
 }

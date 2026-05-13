@@ -51,34 +51,47 @@ class CelcoinKycMapperTest {
     }
 
     @Test
-    void mapearStatusFinalConverteAPPROVEDParaAPROVADO() {
-        assertThat(CelcoinKycMapper.mapearStatusFinal("APPROVED")).isEqualTo(StatusOnboarding.APROVADO);
-        assertThat(CelcoinKycMapper.mapearStatusFinal("approved")).isEqualTo(StatusOnboarding.APROVADO);
-    }
-
-    @Test
-    void mapearStatusFinalConverteREJECTEDParaREPROVADO() {
-        assertThat(CelcoinKycMapper.mapearStatusFinal("REJECTED")).isEqualTo(StatusOnboarding.REPROVADO);
-    }
-
-    @Test
-    void mapearStatusFinalConvertePENDINGEPROCESSINGParaPENDENCIA() {
-        assertThat(CelcoinKycMapper.mapearStatusFinal("PENDING")).isEqualTo(StatusOnboarding.PENDENCIA);
-        assertThat(CelcoinKycMapper.mapearStatusFinal("PROCESSING")).isEqualTo(StatusOnboarding.PENDENCIA);
-    }
-
-    @Test
-    void mapearStatusFinalConverteStatusDesconhecidoParaPENDENCIA() {
-        assertThat(CelcoinKycMapper.mapearStatusFinal("FOO")).isEqualTo(StatusOnboarding.PENDENCIA);
-        assertThat(CelcoinKycMapper.mapearStatusFinal(null)).isEqualTo(StatusOnboarding.PENDENCIA);
-    }
-
-    @Test
-    void toResultadoKycMantemPayloadCru() {
+    void approvedViraFinalizadoAPROVADO() {
         ResultadoKycProvider r =
-                mapper.toResultadoKyc(new CelcoinKycResultadoResponse("ext-1", "APPROVED", null), "{\"raw\":true}");
+                mapper.toResultadoKyc(new CelcoinKycResultadoResponse("ext", "APPROVED", null), "{\"raw\":1}");
 
-        assertThat(r.statusFinal()).isEqualTo(StatusOnboarding.APROVADO);
-        assertThat(r.payloadProvider()).isEqualTo("{\"raw\":true}");
+        assertThat(r).isInstanceOf(ResultadoKycProvider.Finalizado.class);
+        assertThat(((ResultadoKycProvider.Finalizado) r).statusFinal()).isEqualTo(StatusOnboarding.APROVADO);
+        assertThat(r.payloadProvider()).isEqualTo("{\"raw\":1}");
+    }
+
+    @Test
+    void rejectedViraFinalizadoREPROVADO() {
+        ResultadoKycProvider r = mapper.toResultadoKyc(
+                new CelcoinKycResultadoResponse("ext", "REJECTED", "documentos inconsistentes"), "{}");
+
+        assertThat(((ResultadoKycProvider.Finalizado) r).statusFinal()).isEqualTo(StatusOnboarding.REPROVADO);
+        assertThat(((ResultadoKycProvider.Finalizado) r).motivo()).isEqualTo("documentos inconsistentes");
+    }
+
+    @Test
+    void pendingViraFinalizadoPENDENCIA() {
+        ResultadoKycProvider r = mapper.toResultadoKyc(new CelcoinKycResultadoResponse("ext", "PENDING", null), "{}");
+
+        assertThat(((ResultadoKycProvider.Finalizado) r).statusFinal()).isEqualTo(StatusOnboarding.PENDENCIA);
+    }
+
+    @Test
+    void processingViraEmAndamentoNaoFinaliza() {
+        ResultadoKycProvider r =
+                mapper.toResultadoKyc(new CelcoinKycResultadoResponse("ext", "PROCESSING", null), "{}");
+
+        assertThat(r).isInstanceOf(ResultadoKycProvider.EmAndamento.class);
+    }
+
+    @Test
+    void desconhecidoViraEmAndamentoSeguroNaoFinaliza() {
+        ResultadoKycProvider r1 = mapper.toResultadoKyc(new CelcoinKycResultadoResponse("ext", "FOO", null), "{}");
+        ResultadoKycProvider r2 = mapper.toResultadoKyc(new CelcoinKycResultadoResponse("ext", null, null), "{}");
+        ResultadoKycProvider r3 = mapper.toResultadoKyc(null, "{}");
+
+        assertThat(r1).isInstanceOf(ResultadoKycProvider.EmAndamento.class);
+        assertThat(r2).isInstanceOf(ResultadoKycProvider.EmAndamento.class);
+        assertThat(r3).isInstanceOf(ResultadoKycProvider.EmAndamento.class);
     }
 }
