@@ -104,8 +104,11 @@ CREATE TABLE consulta_pld (
     payload_provider JSONB,
     data_consulta TIMESTAMP WITH TIME ZONE NOT NULL,
     retencao_ate DATE NOT NULL,
+    -- Sem ON DELETE CASCADE: trilha PLD precisa sobreviver a exclusoes operacionais da
+    -- solicitacao (retencao minima 5 anos / LGPD Art. 16). Purge dedicado virara rotina
+    -- explicita na Sprint 14+ (job de retencao), respeitando `retencao_ate`.
     CONSTRAINT fk_consulta_pld_solicitacao
-        FOREIGN KEY (solicitacao_id) REFERENCES solicitacao_onboarding (id) ON DELETE CASCADE,
+        FOREIGN KEY (solicitacao_id) REFERENCES solicitacao_onboarding (id),
     CONSTRAINT chk_consulta_pld_alvo CHECK (alvo_tipo IN ('PESSOA', 'EMPRESA', 'REPRESENTANTE')),
     CONSTRAINT chk_consulta_pld_base CHECK (base IN ('COAF', 'OFAC', 'INTERPOL', 'MTE')),
     CONSTRAINT chk_consulta_pld_severidade CHECK (
