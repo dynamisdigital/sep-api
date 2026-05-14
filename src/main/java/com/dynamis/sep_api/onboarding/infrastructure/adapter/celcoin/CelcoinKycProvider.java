@@ -110,7 +110,7 @@ public class CelcoinKycProvider implements KycProvider {
     }
 
     private void headersAutenticacao(HttpHeaders headers) {
-        headers.setBearerAuth(tokenProvider.accessToken());
+        headers.setBearerAuth(tokenProvider.accessToken(CelcoinOAuthTokenProvider.ProviderKey.KYC));
     }
 
     private String serializar(Object obj) {

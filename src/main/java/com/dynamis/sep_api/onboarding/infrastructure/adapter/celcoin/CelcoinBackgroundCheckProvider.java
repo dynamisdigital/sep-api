@@ -98,7 +98,7 @@ public class CelcoinBackgroundCheckProvider implements BackgroundCheckProvider {
     }
 
     private void headersAutenticacao(HttpHeaders headers) {
-        headers.setBearerAuth(tokenProvider.accessToken());
+        headers.setBearerAuth(tokenProvider.accessToken(CelcoinOAuthTokenProvider.ProviderKey.PLD));
     }
 
     private String serializar(Object obj) {

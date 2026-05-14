@@ -24,6 +24,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.matching;
+import static com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.serverError;
@@ -95,6 +96,11 @@ class CelcoinBackgroundCheckProviderIT {
         wireMock.stubFor(
                 post(urlEqualTo("/background-check"))
                         .withHeader("Authorization", equalTo("Bearer oauth-token-xyz"))
+                        // DoD 7.4: as 4 bases obrigatorias devem estar no payload.
+                        .withRequestBody(matchingJsonPath("$.databases[?(@ == 'COAF')]"))
+                        .withRequestBody(matchingJsonPath("$.databases[?(@ == 'OFAC')]"))
+                        .withRequestBody(matchingJsonPath("$.databases[?(@ == 'INTERPOL')]"))
+                        .withRequestBody(matchingJsonPath("$.databases[?(@ == 'MTE')]"))
                         .willReturn(
                                 aResponse()
                                         .withStatus(200)

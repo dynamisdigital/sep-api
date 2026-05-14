@@ -87,7 +87,7 @@ public class CelcoinKybProvider implements KybProvider {
     }
 
     private void headersAutenticacao(HttpHeaders headers) {
-        headers.setBearerAuth(tokenProvider.accessToken());
+        headers.setBearerAuth(tokenProvider.accessToken(CelcoinOAuthTokenProvider.ProviderKey.KYB));
     }
 
     private String serializar(Object obj) {
