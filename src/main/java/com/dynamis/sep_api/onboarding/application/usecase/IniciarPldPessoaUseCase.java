@@ -61,6 +61,12 @@ public class IniciarPldPessoaUseCase {
         if (solicitacao.getTipo() != TipoSolicitante.PESSOA) {
             throw new ValidacaoException("ONB-400-009", "PLD pessoa fisica exige solicitacao PESSOA");
         }
+        // Idempotente: re-execucao apos consolidacao retorna status ja persistido sem novo side
+        // effect (provider, persistencia, eventos).
+        if (solicitacao.getStatus() == StatusOnboarding.APROVADO_FINAL
+                || solicitacao.getStatus() == StatusOnboarding.REPROVADO_PLD) {
+            return solicitacao.getStatus();
+        }
         if (solicitacao.getStatus() != StatusOnboarding.APROVADO) {
             throw new ValidacaoException(
                     "ONB-400-010", "PLD so dispara a partir de APROVADO; atual=" + solicitacao.getStatus());

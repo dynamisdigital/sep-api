@@ -84,6 +84,23 @@ class IniciarPldPessoaUseCaseTest {
     }
 
     @Test
+    void reexecucaoEmStatusJaFinalizadoNaoDisparaProvider() {
+        SolicitacaoOnboarding ja = SolicitacaoOnboarding.criarPessoa(
+                UUID.randomUUID(), new Cpf("52998224725"), "Joao", LocalDate.of(1990, 1, 1));
+        ja.registrarDocumentoEnviado();
+        ja.marcarEmVerificacao("ext");
+        ja.finalizar(StatusOnboarding.APROVADO);
+        ja.marcarAprovadoFinal();
+        when(solicitacaoRepository.findById(ja.getId())).thenReturn(Optional.of(ja));
+
+        StatusOnboarding s = useCase.executar(ja.getId(), "corr-reexec");
+
+        assertThat(s).isEqualTo(StatusOnboarding.APROVADO_FINAL);
+        verify(provider, org.mockito.Mockito.never()).consultarPessoa(any(), anyString());
+        verify(consultaPldRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
     void rejeitaSolicitacaoEmpresa() {
         SolicitacaoOnboarding pj = SolicitacaoOnboarding.criarEmpresa(UUID.randomUUID(), "11222333000181", "ACME");
         when(solicitacaoRepository.findById(pj.getId())).thenReturn(Optional.of(pj));

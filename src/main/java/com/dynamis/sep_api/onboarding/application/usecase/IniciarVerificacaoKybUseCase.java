@@ -8,13 +8,16 @@ import com.dynamis.sep_api.onboarding.domain.event.KybFinalizadoEvent;
 import com.dynamis.sep_api.onboarding.domain.exception.KybNaoEncontradoException;
 import com.dynamis.sep_api.onboarding.domain.exception.OnboardingNaoEncontradoException;
 import com.dynamis.sep_api.onboarding.domain.model.ConsultaCNPJ;
+import com.dynamis.sep_api.onboarding.domain.model.DocumentoCadastral;
 import com.dynamis.sep_api.onboarding.domain.model.KybEmpresa;
 import com.dynamis.sep_api.onboarding.domain.model.RepresentanteLegal;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.Cpf;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
+import com.dynamis.sep_api.onboarding.domain.vo.TipoDocumento;
 import com.dynamis.sep_api.onboarding.domain.vo.TipoSolicitante;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.ConsultaCNPJRepository;
+import com.dynamis.sep_api.onboarding.infrastructure.persistence.DocumentoCadastralRepository;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.KybEmpresaRepository;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.RepresentanteLegalRepository;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.SolicitacaoOnboardingRepository;
@@ -27,27 +30,36 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * Dispara verificacao KYB no provider externo. Aceita apenas solicitacao tipo {@code EMPRESA}.
  *
+ * <p>Documentos minimos PJ: 1 de identificacao societaria ({@code CONTRATO_SOCIAL} ou
+ * {@code CCMEI}) + 1 {@code COMPROVANTE_ENDERECO}. Metadados (tipo + sha256 + tamanho + mime)
+ * sao enviados ao provider; binarios ficam no banco.
+ *
  * <p>Idempotency-Key deterministica: {@code solicitacaoId + ":kyb:" + revisaoDocumentos}.
  *
- * <p>Persiste {@link ConsultaCNPJ} (1:1 com KybEmpresa) e {@link RepresentanteLegal} (N:1) com base
- * no retorno do provider. Situacao diferente de {@code ATIVA} reprova KYB e NAO dispara PLD.
- * Situacao {@code ATIVA} finaliza KYB como {@code APROVADO} (pre-PLD); orquestracao do PLD acontece
- * em {@code PldOrchestrationListener} via {@link KybFinalizadoEvent}.
+ * <p>Situacao diferente de {@code ATIVA} reprova KYB e NAO dispara PLD. Situacao {@code ATIVA}
+ * finaliza KYB como {@code APROVADO} (pre-PLD); orquestracao do PLD acontece em
+ * {@code PldOrchestrationListener} via {@link KybFinalizadoEvent}.
  */
 @Service
 public class IniciarVerificacaoKybUseCase {
 
     private static final String CODIGO_TIPO_INVALIDO = "ONB-400-008";
+    private static final String CODIGO_DOCUMENTO_FALTANDO = "ONB-400-013";
+
+    private static final Set<TipoDocumento> IDENTIFICACAO_SOCIETARIA =
+            Set.of(TipoDocumento.CONTRATO_SOCIAL, TipoDocumento.CCMEI);
 
     private final SolicitacaoOnboardingRepository solicitacaoRepository;
     private final KybEmpresaRepository kybRepository;
     private final ConsultaCNPJRepository consultaCnpjRepository;
     private final RepresentanteLegalRepository representanteRepository;
+    private final DocumentoCadastralRepository documentoRepository;
     private final KybProvider kybProvider;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -56,12 +68,14 @@ public class IniciarVerificacaoKybUseCase {
             KybEmpresaRepository kybRepository,
             ConsultaCNPJRepository consultaCnpjRepository,
             RepresentanteLegalRepository representanteRepository,
+            DocumentoCadastralRepository documentoRepository,
             KybProvider kybProvider,
             ApplicationEventPublisher eventPublisher) {
         this.solicitacaoRepository = solicitacaoRepository;
         this.kybRepository = kybRepository;
         this.consultaCnpjRepository = consultaCnpjRepository;
         this.representanteRepository = representanteRepository;
+        this.documentoRepository = documentoRepository;
         this.kybProvider = kybProvider;
         this.eventPublisher = eventPublisher;
     }
@@ -84,16 +98,28 @@ public class IniciarVerificacaoKybUseCase {
                 .findBySolicitacaoId(solicitacaoId)
                 .orElseThrow(() -> new KybNaoEncontradoException(solicitacaoId));
 
+        List<DocumentoCadastral> documentos = documentoRepository.findBySolicitacaoId(solicitacaoId);
+        boolean temSocietario = documentos.stream().anyMatch(d -> IDENTIFICACAO_SOCIETARIA.contains(d.getTipo()));
+        boolean temComprovante = documentos.stream().anyMatch(d -> d.getTipo() == TipoDocumento.COMPROVANTE_ENDERECO);
+        if (!temSocietario || !temComprovante) {
+            throw new ValidacaoException(
+                    CODIGO_DOCUMENTO_FALTANDO,
+                    "Documentos minimos PJ ausentes: 1 CONTRATO_SOCIAL ou CCMEI + 1 COMPROVANTE_ENDERECO");
+        }
+
         String idempotencyKey = solicitacaoId + ":kyb:" + solicitacao.getRevisaoDocumentos();
         String mdcPrevio = MDC.get(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY);
         MDC.put(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY, idempotencyKey);
         try {
+            List<RequisicaoKyb.DocumentoMetadadosKyb> metadados = documentos.stream()
+                    .map(d -> new RequisicaoKyb.DocumentoMetadadosKyb(
+                            d.getTipo().name(), d.getSha256(), d.getTamanhoBytes(), d.getMimeType()))
+                    .toList();
             RespostaKyb resposta = kybProvider.consultarCnpj(
                     new RequisicaoKyb(
-                            solicitacaoId, solicitacao.getUsuarioId(), kyb.getCnpj(), kyb.getRazaoSocial(), List.of()),
+                            solicitacaoId, solicitacao.getUsuarioId(), kyb.getCnpj(), kyb.getRazaoSocial(), metadados),
                     correlationId);
 
-            // Marca em verificacao apenas pra registrar trilha; verificacao KYB e sincrona.
             solicitacao.marcarEmVerificacao("kyb-sync-" + solicitacaoId);
 
             persistirConsultaCnpj(kyb.getId(), resposta);
@@ -143,8 +169,8 @@ public class IniciarVerificacaoKybUseCase {
                 Cpf cpfVo = new Cpf(r.cpf());
                 representanteRepository.save(RepresentanteLegal.criar(kybEmpresaId, r.nome(), cpfVo, r.cargo()));
             } catch (IllegalArgumentException ignored) {
-                // CPF invalido vindo do provider: descartar silenciosamente — payload bruto ja persistido
-                // em consulta_cnpj.payload_provider para trilha auditavel.
+                // CPF invalido do provider: descartar silenciosamente — payload bruto fica em
+                // consulta_cnpj.payload_provider para trilha auditavel.
             }
         }
     }

@@ -121,4 +121,20 @@ class IniciarPldEmpresaUseCaseTest {
         assertThat(s).isEqualTo(StatusOnboarding.REPROVADO_PLD);
         assertThat(rep1.getStatusPld()).isEqualTo(StatusPldRepresentante.HIT);
     }
+
+    @Test
+    void reexecucaoEmStatusJaFinalizadoNaoDisparaProvider() {
+        SolicitacaoOnboarding ja = SolicitacaoOnboarding.criarEmpresa(UUID.randomUUID(), CNPJ, "ACME LTDA");
+        ja.registrarDocumentoEnviado();
+        ja.marcarEmVerificacao("ext");
+        ja.finalizar(StatusOnboarding.APROVADO);
+        ja.reprovarPorPld();
+        when(solicitacaoRepository.findById(ja.getId())).thenReturn(Optional.of(ja));
+
+        StatusOnboarding s = useCase.executar(ja.getId(), "corr-reexec");
+
+        assertThat(s).isEqualTo(StatusOnboarding.REPROVADO_PLD);
+        verify(provider, org.mockito.Mockito.never()).consultarEmpresa(any(), anyString());
+        verify(provider, org.mockito.Mockito.never()).consultarPessoa(any(), anyString());
+    }
 }

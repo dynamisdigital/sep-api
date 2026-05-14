@@ -74,6 +74,11 @@ public class IniciarPldEmpresaUseCase {
         if (solicitacao.getTipo() != TipoSolicitante.EMPRESA) {
             throw new ValidacaoException("ONB-400-011", "PLD empresa exige solicitacao EMPRESA");
         }
+        // Idempotente: re-execucao apos consolidacao retorna status ja persistido.
+        if (solicitacao.getStatus() == StatusOnboarding.APROVADO_FINAL
+                || solicitacao.getStatus() == StatusOnboarding.REPROVADO_PLD) {
+            return solicitacao.getStatus();
+        }
         if (solicitacao.getStatus() != StatusOnboarding.APROVADO) {
             throw new ValidacaoException(
                     "ONB-400-012", "PLD so dispara a partir de APROVADO; atual=" + solicitacao.getStatus());
