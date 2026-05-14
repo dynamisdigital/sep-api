@@ -28,7 +28,7 @@ class ResultadoVerificacaoTest {
     @EnumSource(
             value = StatusOnboarding.class,
             mode = Mode.EXCLUDE,
-            names = {"APROVADO", "REPROVADO", "PENDENCIA"})
+            names = {"APROVADO", "REPROVADO", "PENDENCIA", "APROVADO_FINAL", "REPROVADO_PLD"})
     void registrarRejeitaStatusNaoFinal(StatusOnboarding statusInvalido) {
         assertThatThrownBy(() -> ResultadoVerificacao.registrar(UUID.randomUUID(), statusInvalido, null, "{}"))
                 .isInstanceOf(StatusOnboardingInvalidoException.class);

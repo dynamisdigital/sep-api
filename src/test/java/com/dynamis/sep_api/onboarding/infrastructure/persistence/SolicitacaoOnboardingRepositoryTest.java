@@ -3,6 +3,7 @@ package com.dynamis.sep_api.onboarding.infrastructure.persistence;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.Cpf;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
+import com.dynamis.sep_api.onboarding.domain.vo.TipoSolicitante;
 import com.dynamis.sep_api.shared.audit.AuditorAwareImpl;
 import com.dynamis.sep_api.shared.audit.JpaAuditingConfig;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
@@ -81,6 +82,39 @@ class SolicitacaoOnboardingRepositoryTest {
         assertThat(repository.findByIdAndUsuarioId(salva.getId(), usuarioId)).isPresent();
         assertThat(repository.findByIdAndUsuarioId(salva.getId(), UUID.randomUUID()))
                 .isEmpty();
+    }
+
+    @Test
+    void existsByDocumentoAndStatusInIdentificaPfEPj() {
+        repository.saveAndFlush(
+                SolicitacaoOnboarding.criarPessoa(usuarioId, new Cpf(CPF_VALIDO), "Joao", LocalDate.of(1990, 1, 1)));
+
+        String cnpj = "11222333000181";
+        Usuario u2 = usuarioRepository.saveAndFlush(Usuario.criar("kyb-pj@sep.test", "hash", Role.CLIENTE));
+        repository.saveAndFlush(SolicitacaoOnboarding.criarEmpresa(u2.getId(), cnpj, "ACME Industria LTDA"));
+
+        assertThat(repository.existsByDocumentoAndStatusIn(CPF_VALIDO, List.of(StatusOnboarding.INICIADO)))
+                .isTrue();
+        assertThat(repository.existsByDocumentoAndStatusIn(cnpj, List.of(StatusOnboarding.INICIADO)))
+                .isTrue();
+        assertThat(repository.existsByDocumentoAndStatusIn("00000000000000", List.of(StatusOnboarding.INICIADO)))
+                .isFalse();
+    }
+
+    @Test
+    void criarEmpresaPersistidaPreservaTipoEDocumento() {
+        String cnpj = "11222333000181";
+        SolicitacaoOnboarding nova =
+                SolicitacaoOnboarding.criarEmpresa(usuarioId, cnpj, "ACME Industria LTDA");
+
+        SolicitacaoOnboarding salva = repository.saveAndFlush(nova);
+        SolicitacaoOnboarding recarregada = repository.findById(salva.getId()).orElseThrow();
+
+        assertThat(recarregada.getTipo()).isEqualTo(TipoSolicitante.EMPRESA);
+        assertThat(recarregada.getDocumento()).isEqualTo(cnpj);
+        assertThat(recarregada.getCpf()).isNull();
+        assertThat(recarregada.getDataNascimento()).isNull();
+        assertThat(recarregada.getNomeCompleto()).isEqualTo("ACME Industria LTDA");
     }
 
     @Test
