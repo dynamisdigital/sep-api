@@ -3,7 +3,7 @@ package com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
@@ -26,7 +26,7 @@ import java.time.Instant;
  * <p>Concurrente: sincronizado em {@code this} — chamadas simultaneas reusam o token cacheado.
  */
 @Component
-@ConditionalOnProperty(name = "app.kyc.provider", havingValue = "celcoin")
+@ConditionalOnExpression("'${app.kyc.provider:fake}'.equals('celcoin') or '${app.kyb.provider:fake}'.equals('celcoin')")
 public class CelcoinOAuthTokenProvider {
 
     private static final Logger log = LoggerFactory.getLogger(CelcoinOAuthTokenProvider.class);
