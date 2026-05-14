@@ -121,7 +121,35 @@ public class ProcessarCallbackPldUseCase {
             return new Resultado(true, false);
         }
 
-        boolean houveHit = processarAlvos(solicitacaoId, solicitacao.getTipo(), callback, payloadCru);
+        List<RepresentanteLegal> representantes = kybRepository
+                .findBySolicitacaoId(solicitacaoId)
+                .map(k -> representanteRepository.findByKybEmpresaId(k.getId()))
+                .orElse(List.of());
+
+        // Valida completude do payload ANTES de qualquer transicao de status.
+        String erroValidacao = validarPayload(callback, solicitacao.getTipo(), representantes);
+        if (erroValidacao != null) {
+            evento.marcarFalhou(erroValidacao);
+            log.warn(
+                    "Webhook PLD payload incompleto idempotencyKey={} solicitacao={} motivo={}",
+                    idempotencyKey,
+                    solicitacaoId,
+                    erroValidacao);
+            return new Resultado(true, false);
+        }
+
+        boolean houveHit;
+        try {
+            houveHit = processarAlvos(solicitacaoId, solicitacao.getTipo(), callback, payloadCru, representantes);
+        } catch (RuntimeException ex) {
+            evento.marcarFalhou("falha ao processar alvos: " + ex.getClass().getSimpleName());
+            log.warn(
+                    "Webhook PLD processamento falhou idempotencyKey={} solicitacao={}: {}",
+                    idempotencyKey,
+                    solicitacaoId,
+                    ex.getMessage());
+            return new Resultado(true, false);
+        }
 
         StatusOnboarding statusFinal;
         if (houveHit) {
@@ -143,22 +171,83 @@ public class ProcessarCallbackPldUseCase {
         return new Resultado(true, false);
     }
 
-    private boolean processarAlvos(
-            UUID solicitacaoId, TipoSolicitante tipo, CelcoinPldCallbackRequest callback, String payloadCru) {
+    private static final java.util.Set<BasePld> BASES_OBRIGATORIAS =
+            java.util.Set.of(BasePld.COAF, BasePld.OFAC, BasePld.INTERPOL, BasePld.MTE);
+
+    /**
+     * Valida que o payload PLD cobre todos os alvos esperados com as 4 bases obrigatorias. Devolve
+     * {@code null} quando valido; mensagem de erro sanitizada caso contrario.
+     */
+    private String validarPayload(
+            CelcoinPldCallbackRequest callback, TipoSolicitante tipo, List<RepresentanteLegal> representantes) {
         if (callback.alvos() == null || callback.alvos().isEmpty()) {
-            return false;
+            return "PLD payload vazio: results obrigatorio";
         }
+
+        java.util.Map<String, java.util.Set<BasePld>> basesPorDocumento = new java.util.HashMap<>();
+        for (CelcoinPldCallbackRequest.AlvoResultado alvo : callback.alvos()) {
+            if (alvo == null) return "alvo nulo em results";
+            if (alvo.documento() == null || alvo.documento().isBlank()) {
+                return "alvo sem document_number";
+            }
+            if (alvo.bases() == null || alvo.bases().isEmpty()) {
+                return "alvo " + mascararDocumento(alvo.documento()) + " sem databases";
+            }
+            java.util.Set<BasePld> bases = new java.util.HashSet<>();
+            for (CelcoinPldCallbackRequest.BaseResultado base : alvo.bases()) {
+                if (base == null) return "base nula em databases";
+                BasePld basePld = mapearBase(base.base());
+                if (basePld != null) bases.add(basePld);
+            }
+            if (!bases.containsAll(BASES_OBRIGATORIAS)) {
+                java.util.Set<BasePld> faltando = new java.util.HashSet<>(BASES_OBRIGATORIAS);
+                faltando.removeAll(bases);
+                return "alvo " + mascararDocumento(alvo.documento()) + " sem bases obrigatorias: " + faltando;
+            }
+            basesPorDocumento.put(alvo.documento(), bases);
+        }
+
+        if (tipo == TipoSolicitante.PESSOA) {
+            if (basesPorDocumento.size() != 1) {
+                return "PF deve ter exatamente 1 alvo PESSOA; recebido=" + basesPorDocumento.size();
+            }
+            return null;
+        }
+
+        // PJ: precisa ter pelo menos 1 alvo EMPRESA + 1 alvo por representante esperado.
+        boolean temEmpresa = callback.alvos().stream()
+                .anyMatch(a -> "EMPRESA".equalsIgnoreCase(a.alvoTipo()) || "COMPANY".equalsIgnoreCase(a.alvoTipo()));
+        if (!temEmpresa) {
+            return "PJ sem alvo EMPRESA no callback";
+        }
+        for (RepresentanteLegal rep : representantes) {
+            if (!basesPorDocumento.containsKey(rep.getCpf())) {
+                return "representante " + mascararDocumento(rep.getCpf()) + " ausente no callback";
+            }
+        }
+        return null;
+    }
+
+    private static String mascararDocumento(String documento) {
+        if (documento == null || documento.length() < 6) return "***";
+        int len = documento.length();
+        return documento.substring(0, 3) + "*".repeat(len - 5) + documento.substring(len - 2);
+    }
+
+    private boolean processarAlvos(
+            UUID solicitacaoId,
+            TipoSolicitante tipo,
+            CelcoinPldCallbackRequest callback,
+            String payloadCru,
+            List<RepresentanteLegal> representantes) {
         boolean houveHit = false;
-        List<RepresentanteLegal> representantes = kybRepository
-                .findBySolicitacaoId(solicitacaoId)
-                .map(k -> representanteRepository.findByKybEmpresaId(k.getId()))
-                .orElse(List.of());
 
         for (CelcoinPldCallbackRequest.AlvoResultado alvo : callback.alvos()) {
             AlvoPld alvoTipo = mapearAlvo(alvo.alvoTipo(), tipo);
             String documento = alvo.documento();
             boolean alvoHit = false;
             for (CelcoinPldCallbackRequest.BaseResultado base : alvo.bases()) {
+                if (base == null) continue;
                 BasePld basePld = mapearBase(base.base());
                 if (basePld == null) continue;
                 if (base.hit()) {

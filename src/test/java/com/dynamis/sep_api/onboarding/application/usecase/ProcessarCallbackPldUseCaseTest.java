@@ -95,8 +95,12 @@ class ProcessarCallbackPldUseCaseTest {
                 List.of(new CelcoinPldCallbackRequest.AlvoResultado(
                         "PESSOA",
                         "52998224725",
-                        List.of(new CelcoinPldCallbackRequest.BaseResultado(
-                                "OFAC", true, "Sancao", "HIGH", LocalDate.of(2024, 1, 1))))));
+                        List.of(
+                                new CelcoinPldCallbackRequest.BaseResultado("COAF", false, null, null, null),
+                                new CelcoinPldCallbackRequest.BaseResultado(
+                                        "OFAC", true, "Sancao", "HIGH", LocalDate.of(2024, 1, 1)),
+                                new CelcoinPldCallbackRequest.BaseResultado("INTERPOL", false, null, null, null),
+                                new CelcoinPldCallbackRequest.BaseResultado("MTE", false, null, null, null)))));
     }
 
     @Test
@@ -126,6 +130,76 @@ class ProcessarCallbackPldUseCaseTest {
         useCase.executar("idem-2", "sig", "{}", payloadComHit());
 
         assertThat(pfAprovada.getStatus()).isEqualTo(StatusOnboarding.REPROVADO_PLD);
+    }
+
+    @Test
+    void payloadVazioMarcaFalhouSemTransicaoDeStatus() {
+        CelcoinPldCallbackRequest vazio =
+                new CelcoinPldCallbackRequest(pfAprovada.getId().toString(), List.of());
+
+        useCase.executar("idem-vazio", "sig", "{}", vazio);
+
+        assertThat(pfAprovada.getStatus()).isEqualTo(StatusOnboarding.APROVADO);
+        verify(eventPublisher, never()).publishEvent(any());
+        verify(consultaPldRepository, never()).save(any());
+    }
+
+    @Test
+    void payloadComBaseFaltandoMarcaFalhou() {
+        CelcoinPldCallbackRequest incompleto = new CelcoinPldCallbackRequest(
+                pfAprovada.getId().toString(),
+                List.of(new CelcoinPldCallbackRequest.AlvoResultado(
+                        "PESSOA",
+                        "52998224725",
+                        // Falta MTE
+                        List.of(
+                                new CelcoinPldCallbackRequest.BaseResultado("COAF", false, null, null, null),
+                                new CelcoinPldCallbackRequest.BaseResultado("OFAC", false, null, null, null),
+                                new CelcoinPldCallbackRequest.BaseResultado("INTERPOL", false, null, null, null)))));
+
+        useCase.executar("idem-base-faltando", "sig", "{}", incompleto);
+
+        assertThat(pfAprovada.getStatus()).isEqualTo(StatusOnboarding.APROVADO);
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void payloadComAlvoSemDatabasesMarcaFalhouSemNPE() {
+        CelcoinPldCallbackRequest semBases = new CelcoinPldCallbackRequest(
+                pfAprovada.getId().toString(),
+                List.of(new CelcoinPldCallbackRequest.AlvoResultado("PESSOA", "52998224725", null)));
+
+        useCase.executar("idem-sem-bases", "sig", "{}", semBases);
+
+        assertThat(pfAprovada.getStatus()).isEqualTo(StatusOnboarding.APROVADO);
+        verify(consultaPldRepository, never()).save(any());
+    }
+
+    @Test
+    void pjSemAlvoEmpresaMarcaFalhou() {
+        SolicitacaoOnboarding pj = SolicitacaoOnboarding.criarEmpresa(UUID.randomUUID(), "11222333000181", "ACME");
+        pj.registrarDocumentoEnviado();
+        pj.marcarEmVerificacao("ext");
+        pj.finalizar(StatusOnboarding.APROVADO);
+        when(solicitacaoRepository.findById(pj.getId())).thenReturn(Optional.of(pj));
+        when(kybRepository.findBySolicitacaoId(pj.getId())).thenReturn(Optional.empty());
+
+        // PJ payload sem EMPRESA — so um representante
+        CelcoinPldCallbackRequest payload = new CelcoinPldCallbackRequest(
+                pj.getId().toString(),
+                List.of(new CelcoinPldCallbackRequest.AlvoResultado(
+                        "REPRESENTANTE",
+                        "52998224725",
+                        List.of(
+                                new CelcoinPldCallbackRequest.BaseResultado("COAF", false, null, null, null),
+                                new CelcoinPldCallbackRequest.BaseResultado("OFAC", false, null, null, null),
+                                new CelcoinPldCallbackRequest.BaseResultado("INTERPOL", false, null, null, null),
+                                new CelcoinPldCallbackRequest.BaseResultado("MTE", false, null, null, null)))));
+
+        useCase.executar("idem-sem-empresa", "sig", "{}", payload);
+
+        assertThat(pj.getStatus()).isEqualTo(StatusOnboarding.APROVADO);
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
