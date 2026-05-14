@@ -26,7 +26,9 @@ import java.time.Instant;
  * <p>Concurrente: sincronizado em {@code this} — chamadas simultaneas reusam o token cacheado.
  */
 @Component
-@ConditionalOnExpression("'${app.kyc.provider:fake}'.equals('celcoin') or '${app.kyb.provider:fake}'.equals('celcoin')")
+@ConditionalOnExpression("'${app.kyc.provider:fake}'.equals('celcoin') "
+        + "or '${app.kyb.provider:fake}'.equals('celcoin') "
+        + "or '${app.pld.provider:fake}'.equals('celcoin')")
 public class CelcoinOAuthTokenProvider {
 
     private static final Logger log = LoggerFactory.getLogger(CelcoinOAuthTokenProvider.class);
@@ -34,14 +36,19 @@ public class CelcoinOAuthTokenProvider {
 
     private final CelcoinKycProperties kycProperties;
     private final CelcoinKybProperties kybProperties;
+    private final CelcoinBackgroundCheckProperties backgroundCheckProperties;
     private final RestClient tokenClient;
 
     private String cachedToken;
     private Instant expiresAt = Instant.EPOCH;
 
-    public CelcoinOAuthTokenProvider(CelcoinKycProperties kycProperties, CelcoinKybProperties kybProperties) {
+    public CelcoinOAuthTokenProvider(
+            CelcoinKycProperties kycProperties,
+            CelcoinKybProperties kybProperties,
+            CelcoinBackgroundCheckProperties backgroundCheckProperties) {
         this.kycProperties = kycProperties;
         this.kybProperties = kybProperties;
+        this.backgroundCheckProperties = backgroundCheckProperties;
         this.tokenClient = RestClient.builder().build();
     }
 
@@ -101,8 +108,8 @@ public class CelcoinOAuthTokenProvider {
 
     /**
      * Resolve credenciais OAuth + baseUrl como uma unica unidade. Prefere o bloco que tem
-     * client-id + client-secret preenchidos (KYC tem prioridade quando ambos estao). Retorna
-     * {@code null} quando nem KYC nem KYB tem credenciais — caller lanca IllegalState.
+     * client-id + client-secret preenchidos. Ordem de prioridade: KYC -> KYB -> Background Check.
+     * Retorna {@code null} quando nenhum bloco tem credenciais — caller lanca IllegalState.
      */
     private Creds resolverCreds() {
         if (!isBlank(kycProperties.clientId()) && !isBlank(kycProperties.clientSecret())) {
@@ -110,6 +117,14 @@ public class CelcoinOAuthTokenProvider {
         }
         if (kybProperties != null && !isBlank(kybProperties.clientId()) && !isBlank(kybProperties.clientSecret())) {
             return new Creds(kybProperties.clientId(), kybProperties.clientSecret(), kybProperties.baseUrl());
+        }
+        if (backgroundCheckProperties != null
+                && !isBlank(backgroundCheckProperties.clientId())
+                && !isBlank(backgroundCheckProperties.clientSecret())) {
+            return new Creds(
+                    backgroundCheckProperties.clientId(),
+                    backgroundCheckProperties.clientSecret(),
+                    backgroundCheckProperties.baseUrl());
         }
         return null;
     }
