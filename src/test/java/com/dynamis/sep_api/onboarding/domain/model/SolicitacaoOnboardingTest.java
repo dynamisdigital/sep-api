@@ -114,8 +114,7 @@ class SolicitacaoOnboardingTest {
     @Test
     void criarEmpresaUsaDocumentoCnpjESemCpfNemDataNascimento() {
         String cnpj = "11222333000181";
-        SolicitacaoOnboarding s =
-                SolicitacaoOnboarding.criarEmpresa(UUID.randomUUID(), cnpj, "ACME Industria LTDA");
+        SolicitacaoOnboarding s = SolicitacaoOnboarding.criarEmpresa(UUID.randomUUID(), cnpj, "ACME Industria LTDA");
 
         assertThat(s.getTipo()).isEqualTo(TipoSolicitante.EMPRESA);
         assertThat(s.getDocumento()).isEqualTo(cnpj);

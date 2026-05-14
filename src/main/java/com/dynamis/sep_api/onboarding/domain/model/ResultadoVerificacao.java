@@ -13,6 +13,8 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
+import java.util.EnumSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -24,6 +26,14 @@ import java.util.UUID;
 @Entity
 @Table(name = "resultado_verificacao")
 public class ResultadoVerificacao {
+
+    /**
+     * Status aceitos pelo ResultadoVerificacao: somente os finais de KYC/KYB
+     * (pre-PLD). Pos-PLD ({@code APROVADO_FINAL}, {@code REPROVADO_PLD}) vive em
+     * {@code ConsultaPld} + transicoes da {@code SolicitacaoOnboarding}, nao aqui.
+     */
+    private static final Set<StatusOnboarding> STATUS_RESULTADO_KYC_KYB =
+            EnumSet.of(StatusOnboarding.APROVADO, StatusOnboarding.REPROVADO, StatusOnboarding.PENDENCIA);
 
     @Id
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
@@ -65,7 +75,7 @@ public class ResultadoVerificacao {
         if (statusFinal == null) {
             throw new StatusOnboardingInvalidoException("statusFinal e obrigatorio em ResultadoVerificacao");
         }
-        if (!statusFinal.isFinal()) {
+        if (!STATUS_RESULTADO_KYC_KYB.contains(statusFinal)) {
             throw new StatusOnboardingInvalidoException("registrarResultado", statusFinal);
         }
         UUID id = Generators.timeBasedReorderedGenerator().generate();

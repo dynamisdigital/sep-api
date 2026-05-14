@@ -104,8 +104,7 @@ class SolicitacaoOnboardingRepositoryTest {
     @Test
     void criarEmpresaPersistidaPreservaTipoEDocumento() {
         String cnpj = "11222333000181";
-        SolicitacaoOnboarding nova =
-                SolicitacaoOnboarding.criarEmpresa(usuarioId, cnpj, "ACME Industria LTDA");
+        SolicitacaoOnboarding nova = SolicitacaoOnboarding.criarEmpresa(usuarioId, cnpj, "ACME Industria LTDA");
 
         SolicitacaoOnboarding salva = repository.saveAndFlush(nova);
         SolicitacaoOnboarding recarregada = repository.findById(salva.getId()).orElseThrow();

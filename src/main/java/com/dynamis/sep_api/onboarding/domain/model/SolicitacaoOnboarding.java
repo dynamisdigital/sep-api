@@ -100,16 +100,14 @@ public class SolicitacaoOnboarding extends EntidadeAuditavel {
      */
     public static SolicitacaoOnboarding criarEmpresa(UUID usuarioId, String cnpj, String razaoSocial) {
         UUID id = Generators.timeBasedReorderedGenerator().generate();
-        return new SolicitacaoOnboarding(
-                id, usuarioId, TipoSolicitante.EMPRESA, cnpj, null, razaoSocial, null);
+        return new SolicitacaoOnboarding(id, usuarioId, TipoSolicitante.EMPRESA, cnpj, null, razaoSocial, null);
     }
 
     /**
      * @deprecated usar {@link #criarPessoa(UUID, Cpf, String, LocalDate)}.
      */
     @Deprecated
-    public static SolicitacaoOnboarding criar(
-            UUID usuarioId, Cpf cpf, String nomeCompleto, LocalDate dataNascimento) {
+    public static SolicitacaoOnboarding criar(UUID usuarioId, Cpf cpf, String nomeCompleto, LocalDate dataNascimento) {
         return criarPessoa(usuarioId, cpf, nomeCompleto, dataNascimento);
     }
 

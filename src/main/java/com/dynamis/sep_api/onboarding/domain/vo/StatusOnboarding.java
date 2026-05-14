@@ -34,8 +34,8 @@ public enum StatusOnboarding {
     private static final Set<StatusOnboarding> FINAIS =
             Set.of(APROVADO, REPROVADO, PENDENCIA, APROVADO_FINAL, REPROVADO_PLD);
 
-    private static final Set<StatusOnboarding> ATIVOS = Set.of(
-            INICIADO, DOCUMENTOS_RECEBIDOS, EM_VERIFICACAO, APROVADO, PENDENCIA, APROVADO_FINAL);
+    private static final Set<StatusOnboarding> ATIVOS =
+            Set.of(INICIADO, DOCUMENTOS_RECEBIDOS, EM_VERIFICACAO, APROVADO, PENDENCIA, APROVADO_FINAL);
 
     public boolean isFinal() {
         return FINAIS.contains(this);
