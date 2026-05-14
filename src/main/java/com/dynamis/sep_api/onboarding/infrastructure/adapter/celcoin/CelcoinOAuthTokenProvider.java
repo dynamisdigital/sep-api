@@ -32,14 +32,16 @@ public class CelcoinOAuthTokenProvider {
     private static final Logger log = LoggerFactory.getLogger(CelcoinOAuthTokenProvider.class);
     private static final Duration CLOCK_SKEW = Duration.ofSeconds(30);
 
-    private final CelcoinKycProperties properties;
+    private final CelcoinKycProperties kycProperties;
+    private final CelcoinKybProperties kybProperties;
     private final RestClient tokenClient;
 
     private String cachedToken;
     private Instant expiresAt = Instant.EPOCH;
 
-    public CelcoinOAuthTokenProvider(CelcoinKycProperties properties) {
-        this.properties = properties;
+    public CelcoinOAuthTokenProvider(CelcoinKycProperties kycProperties, CelcoinKybProperties kybProperties) {
+        this.kycProperties = kycProperties;
+        this.kybProperties = kybProperties;
         this.tokenClient = RestClient.builder().build();
     }
 
@@ -56,19 +58,21 @@ public class CelcoinOAuthTokenProvider {
     }
 
     private void renovar() {
-        if (isBlank(properties.clientId()) || isBlank(properties.clientSecret())) {
+        Creds creds = resolverCreds();
+        if (creds == null) {
             throw new IllegalStateException(
-                    "Credenciais Celcoin ausentes: configure app.celcoin.kyc.client-id e client-secret");
+                    "Credenciais Celcoin ausentes: configure app.celcoin.kyc.* ou app.celcoin.kyb.* "
+                            + "(client-id e client-secret)");
         }
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "client_credentials");
-        form.add("client_id", properties.clientId());
-        form.add("client_secret", properties.clientSecret());
+        form.add("client_id", creds.clientId());
+        form.add("client_secret", creds.clientSecret());
 
         try {
             TokenResponse response = tokenClient
                     .post()
-                    .uri(tokenUrl())
+                    .uri(tokenUrl(creds))
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .body(form)
                     .retrieve()
@@ -89,11 +93,28 @@ public class CelcoinOAuthTokenProvider {
         }
     }
 
-    private String tokenUrl() {
-        String base = properties.baseUrl();
+    private String tokenUrl(Creds creds) {
+        String base = creds.baseUrl();
         if (base == null) base = "";
         return base.endsWith("/") ? base + "token" : base + "/token";
     }
+
+    /**
+     * Resolve credenciais OAuth + baseUrl como uma unica unidade. Prefere o bloco que tem
+     * client-id + client-secret preenchidos (KYC tem prioridade quando ambos estao). Retorna
+     * {@code null} quando nem KYC nem KYB tem credenciais — caller lanca IllegalState.
+     */
+    private Creds resolverCreds() {
+        if (!isBlank(kycProperties.clientId()) && !isBlank(kycProperties.clientSecret())) {
+            return new Creds(kycProperties.clientId(), kycProperties.clientSecret(), kycProperties.baseUrl());
+        }
+        if (kybProperties != null && !isBlank(kybProperties.clientId()) && !isBlank(kybProperties.clientSecret())) {
+            return new Creds(kybProperties.clientId(), kybProperties.clientSecret(), kybProperties.baseUrl());
+        }
+        return null;
+    }
+
+    private record Creds(String clientId, String clientSecret, String baseUrl) {}
 
     private static boolean isBlank(String v) {
         return v == null || v.isBlank();

@@ -20,8 +20,10 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.absent;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.matching;
 import static com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
@@ -50,10 +52,7 @@ class CelcoinKybProviderIT {
         registry.add("app.celcoin.kyb.base-url", wireMock::baseUrl);
         registry.add("app.celcoin.kyb.client-id", () -> "test-client");
         registry.add("app.celcoin.kyb.client-secret", () -> "test-secret");
-        // OAuth provider compartilhado consulta /token a partir de app.celcoin.kyc.base-url.
-        registry.add("app.celcoin.kyc.base-url", wireMock::baseUrl);
-        registry.add("app.celcoin.kyc.client-id", () -> "test-client");
-        registry.add("app.celcoin.kyc.client-secret", () -> "test-secret");
+        // KYC permanece fake: OAuth provider deve fazer fallback pra credenciais KYB.
         // Acelerar retry e evitar abrir CB durante a suite
         registry.add("resilience4j.retry.instances.celcoin-kyb.waitDuration", () -> "10ms");
         registry.add("resilience4j.circuitbreaker.instances.celcoin-kyb.slidingWindowSize", () -> "100");
@@ -135,6 +134,53 @@ class CelcoinKybProviderIT {
 
         assertThat(resp.situacaoCadastral()).isEqualTo(SituacaoCadastral.SUSPENSA);
         assertThat(resp.representantes()).isEmpty();
+    }
+
+    @Test
+    void correlationIdHeaderEncaminhadoQuandoFornecido() {
+        wireMock.stubFor(post(urlEqualTo("/companies"))
+                .withHeader("X-Correlation-Id", matching("corr-kyb-1"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"registration_status\":\"ACTIVE\",\"legal_representatives\":[]}")));
+
+        RespostaKyb resp = provider.consultarCnpj(novaRequisicao(), "corr-kyb-1");
+
+        assertThat(resp.situacaoCadastral()).isEqualTo(SituacaoCadastral.ATIVA);
+    }
+
+    @Test
+    void idempotencyKeyDoCallerNoMdcEPropagadaParaProvider() {
+        wireMock.stubFor(post(urlEqualTo("/companies"))
+                .withHeader("Idempotency-Key", equalTo("solicitacao-xyz:kyb:7"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"registration_status\":\"ACTIVE\",\"legal_representatives\":[]}")));
+
+        // Caller (use case) grava chave deterministica no MDC antes da chamada (Task 7.5).
+        org.slf4j.MDC.put("idempotencyKey", "solicitacao-xyz:kyb:7");
+        try {
+            RespostaKyb resp = provider.consultarCnpj(novaRequisicao(), "corr-kyb-2");
+            assertThat(resp.situacaoCadastral()).isEqualTo(SituacaoCadastral.ATIVA);
+        } finally {
+            org.slf4j.MDC.remove("idempotencyKey");
+        }
+    }
+
+    @Test
+    void semIdempotencyKeyNoMdcHeaderNaoEEnviado() {
+        wireMock.stubFor(post(urlEqualTo("/companies"))
+                .withHeader("Idempotency-Key", absent())
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"registration_status\":\"ACTIVE\",\"legal_representatives\":[]}")));
+
+        RespostaKyb resp = provider.consultarCnpj(novaRequisicao(), "corr-kyb-3");
+
+        assertThat(resp.situacaoCadastral()).isEqualTo(SituacaoCadastral.ATIVA);
     }
 
     @Test
