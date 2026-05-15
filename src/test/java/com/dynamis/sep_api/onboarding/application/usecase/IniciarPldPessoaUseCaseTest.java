@@ -17,8 +17,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,6 +33,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class IniciarPldPessoaUseCaseTest {
+
+    private static final Set<BasePld> BASES_OBRIGATORIAS =
+            EnumSet.of(BasePld.COAF, BasePld.OFAC, BasePld.INTERPOL, BasePld.MTE);
+
+    private static RespostaPld respostaLimpaCompleta() {
+        return new RespostaPld(List.of(), BASES_OBRIGATORIAS, "{}");
+    }
 
     private SolicitacaoOnboardingRepository solicitacaoRepository;
     private ConsultaPldRepository consultaPldRepository;
@@ -59,7 +68,7 @@ class IniciarPldPessoaUseCaseTest {
 
     @Test
     void pldLimpoEm4BasesMovePraAprovadoFinal() {
-        when(provider.consultarPessoa(any(), anyString())).thenReturn(new RespostaPld(List.of(), "{}"));
+        when(provider.consultarPessoa(any(), anyString())).thenReturn(respostaLimpaCompleta());
 
         StatusOnboarding s = useCase.executar(pfAprovada.getId(), "corr-1");
 
@@ -73,7 +82,9 @@ class IniciarPldPessoaUseCaseTest {
     void hitEmQualquerBaseReprovaPorPld() {
         when(provider.consultarPessoa(any(), anyString()))
                 .thenReturn(new RespostaPld(
-                        List.of(new HitPld(BasePld.OFAC, "Sancao", SeveridadePld.ALTA, LocalDate.now(), "{}")), "{}"));
+                        List.of(new HitPld(BasePld.OFAC, "Sancao", SeveridadePld.ALTA, LocalDate.now(), "{}")),
+                        BASES_OBRIGATORIAS,
+                        "{}"));
 
         StatusOnboarding s = useCase.executar(pfAprovada.getId(), "corr-2");
 
@@ -115,5 +126,18 @@ class IniciarPldPessoaUseCaseTest {
         when(solicitacaoRepository.findById(pfIniciada.getId())).thenReturn(Optional.of(pfIniciada));
 
         assertThatThrownBy(() -> useCase.executar(pfIniciada.getId(), "corr-4")).isInstanceOf(ValidacaoException.class);
+    }
+
+    @Test
+    void rejeitaRespostaProviderComCoberturaParcial() {
+        // Provider devolve apenas 2 das 4 bases — nao pode consolidar como limpo.
+        when(provider.consultarPessoa(any(), anyString()))
+                .thenReturn(new RespostaPld(List.of(), EnumSet.of(BasePld.COAF, BasePld.OFAC), "{}"));
+
+        assertThatThrownBy(() -> useCase.executar(pfAprovada.getId(), "corr-parcial"))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("cobertura parcial");
+        assertThat(pfAprovada.getStatus()).isEqualTo(StatusOnboarding.APROVADO);
+        verify(consultaPldRepository, org.mockito.Mockito.never()).save(any());
     }
 }

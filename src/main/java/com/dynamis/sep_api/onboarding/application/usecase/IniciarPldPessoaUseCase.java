@@ -85,6 +85,7 @@ public class IniciarPldPessoaUseCase {
                     RequisicaoPld.comBasesObrigatorias(
                             solicitacaoId, AlvoPld.PESSOA, solicitacao.getNomeCompleto(), solicitacao.getDocumento()),
                     correlationId);
+            exigirCoberturaCompleta(resposta);
 
             persistirResultados(solicitacaoId, AlvoPld.PESSOA, solicitacao.getDocumento(), resposta);
 
@@ -146,6 +147,26 @@ public class IniciarPldPessoaUseCase {
         for (HitPld hit : resposta.hits()) {
             eventPublisher.publishEvent(
                     new PldHitDetectadoEvent(solicitacaoId, alvoTipo, hit.base(), hit.severidade(), hit.motivo()));
+        }
+    }
+
+    private static final Set<BasePld> BASES_OBRIGATORIAS =
+            Set.of(BasePld.COAF, BasePld.OFAC, BasePld.INTERPOL, BasePld.MTE);
+
+    /**
+     * Rejeita resposta PLD com cobertura parcial. Resposta sem alguma das 4 bases obrigatorias NAO
+     * pode ser consolidada como limpa — provider precisa responder explicitamente.
+     */
+    static void exigirCoberturaCompleta(RespostaPld resposta) {
+        if (resposta == null
+                || resposta.basesConsultadas() == null
+                || !resposta.basesConsultadas().containsAll(BASES_OBRIGATORIAS)) {
+            Set<BasePld> faltando = new HashSet<>(BASES_OBRIGATORIAS);
+            if (resposta != null && resposta.basesConsultadas() != null) {
+                faltando.removeAll(resposta.basesConsultadas());
+            }
+            throw new ValidacaoException(
+                    "ONB-400-018", "PLD provider devolveu cobertura parcial; bases ausentes=" + faltando);
         }
     }
 

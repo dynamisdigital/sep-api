@@ -22,7 +22,7 @@ class FakeBackgroundCheckProviderTest {
     }
 
     @Test
-    void consultarPessoaDefaultRetornaLimpo() {
+    void consultarPessoaDefaultRetornaLimpoCobrindoAs4BasesObrigatorias() {
         RequisicaoPld req =
                 RequisicaoPld.comBasesObrigatorias(UUID.randomUUID(), AlvoPld.PESSOA, "Joao", "52998224725");
 
@@ -30,16 +30,20 @@ class FakeBackgroundCheckProviderTest {
 
         assertThat(resp.limpo()).isTrue();
         assertThat(resp.hits()).isEmpty();
+        assertThat(resp.basesConsultadas())
+                .containsExactlyInAnyOrder(BasePld.COAF, BasePld.OFAC, BasePld.INTERPOL, BasePld.MTE);
     }
 
     @Test
-    void consultarEmpresaDefaultRetornaLimpo() {
+    void consultarEmpresaDefaultRetornaLimpoCobrindoAs4BasesObrigatorias() {
         RequisicaoPld req =
                 RequisicaoPld.comBasesObrigatorias(UUID.randomUUID(), AlvoPld.EMPRESA, "ACME LTDA", "11222333000181");
 
         RespostaPld resp = provider.consultarEmpresa(req, "corr-2");
 
         assertThat(resp.limpo()).isTrue();
+        assertThat(resp.basesConsultadas())
+                .containsExactlyInAnyOrder(BasePld.COAF, BasePld.OFAC, BasePld.INTERPOL, BasePld.MTE);
     }
 
     @Test
@@ -54,6 +58,8 @@ class FakeBackgroundCheckProviderTest {
         assertThat(resp.hits()).hasSize(4);
         assertThat(resp.hits())
                 .extracting(h -> h.base())
+                .containsExactlyInAnyOrder(BasePld.COAF, BasePld.OFAC, BasePld.INTERPOL, BasePld.MTE);
+        assertThat(resp.basesConsultadas())
                 .containsExactlyInAnyOrder(BasePld.COAF, BasePld.OFAC, BasePld.INTERPOL, BasePld.MTE);
         assertThat(resp.hits().get(0).severidade()).isEqualTo(SeveridadePld.ALTA);
     }
