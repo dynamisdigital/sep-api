@@ -178,6 +178,18 @@ class OnboardingEmpresaControllerTest {
 
     @Test
     @WithMockUser
+    void enviarDocumentoRetorna400QuandoTipoEhDePF() throws Exception {
+        MockMultipartFile arquivo = new MockMultipartFile("arquivo", "rg.jpg", "image/jpeg", new byte[] {1, 2, 3});
+
+        mockMvc.perform(multipart("/api/v1/onboarding/empresa/{id}/documentos", solicitacaoId)
+                        .file(arquivo)
+                        .param("tipo", "RG"))
+                .andExpect(status().isBadRequest());
+        verify(enviarDocumentoUseCase, never()).executar(any(), any(), anyBoolean(), any());
+    }
+
+    @Test
+    @WithMockUser
     void enviarDocumentoRetorna204ComMultipart() throws Exception {
         MockMultipartFile arquivo =
                 new MockMultipartFile("arquivo", "contrato.pdf", "application/pdf", new byte[] {1, 2, 3});
@@ -301,6 +313,26 @@ class OnboardingEmpresaControllerTest {
         mockMvc.perform(get("/api/v1/onboarding/empresa/{id}", solicitacaoId)).andExpect(status().isOk());
 
         verify(consultarStatusUseCase).executar(eq(solicitacaoId), any(), eq(true));
+    }
+
+    @Test
+    @WithMockUser
+    void consultarRetorna403QuandoUseCaseLancaAccessDenied() throws Exception {
+        when(consultarStatusUseCase.executar(any(), any(), anyBoolean()))
+                .thenThrow(new org.springframework.security.access.AccessDeniedException(
+                        "Solicitacao nao pertence ao usuario autenticado"));
+
+        mockMvc.perform(get("/api/v1/onboarding/empresa/{id}", solicitacaoId)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser
+    void listarRepresentantesRetorna403QuandoUseCaseLancaAccessDenied() throws Exception {
+        when(consultarRepresentantesUseCase.executar(any(), any(), anyBoolean()))
+                .thenThrow(new org.springframework.security.access.AccessDeniedException("Solicitacao alheia"));
+
+        mockMvc.perform(get("/api/v1/onboarding/empresa/{id}/representantes", solicitacaoId))
+                .andExpect(status().isForbidden());
     }
 
     @Test

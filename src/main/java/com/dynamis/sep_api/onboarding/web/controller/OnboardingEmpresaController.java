@@ -44,6 +44,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.net.URI;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -52,6 +53,10 @@ import java.util.UUID;
 public class OnboardingEmpresaController {
 
     private static final String CODIGO_ARQUIVO_INVALIDO = "ONB-400-007";
+    private static final String CODIGO_TIPO_DOCUMENTO_INVALIDO = "ONB-400-016";
+
+    private static final Set<TipoDocumento> TIPOS_PJ_ACEITOS =
+            Set.of(TipoDocumento.CONTRATO_SOCIAL, TipoDocumento.CCMEI, TipoDocumento.COMPROVANTE_ENDERECO);
 
     private final IniciarOnboardingEmpresaUseCase iniciarUseCase;
     private final EnviarDocumentoUseCase enviarDocumentoUseCase;
@@ -117,15 +122,29 @@ public class OnboardingEmpresaController {
                 responseCode = "400",
                 description = "MIME nao suportado, tamanho > 10MB ou status invalido",
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
-        @ApiResponse(responseCode = "401", description = "Token ausente"),
-        @ApiResponse(responseCode = "403", description = "Nao e dono da solicitacao"),
-        @ApiResponse(responseCode = "404", description = "Solicitacao nao encontrada")
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Nao e dono da solicitacao",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Solicitacao nao encontrada",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     public ResponseEntity<Void> enviarDocumento(
             @PathVariable UUID id,
             @Parameter(example = "CONTRATO_SOCIAL") @RequestParam("tipo") TipoDocumento tipo,
             @RequestParam("arquivo") MultipartFile arquivo,
             @AuthenticationPrincipal UsuarioAutenticado principal) {
+        if (!TIPOS_PJ_ACEITOS.contains(tipo)) {
+            throw new ValidacaoException(
+                    CODIGO_TIPO_DOCUMENTO_INVALIDO,
+                    "Tipo de documento nao aceito em onboarding PJ: " + tipo + ". Aceitos: " + TIPOS_PJ_ACEITOS);
+        }
         if (arquivo == null || arquivo.isEmpty()) {
             throw new ValidacaoException(CODIGO_ARQUIVO_INVALIDO, "Arquivo do documento e obrigatorio");
         }
@@ -150,9 +169,18 @@ public class OnboardingEmpresaController {
                 responseCode = "400",
                 description = "Documentos minimos PJ ausentes, tipo invalido ou status invalido",
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
-        @ApiResponse(responseCode = "401", description = "Token ausente"),
-        @ApiResponse(responseCode = "403", description = "Nao e dono"),
-        @ApiResponse(responseCode = "404", description = "Solicitacao ou KYB nao encontrado")
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Nao e dono",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Solicitacao ou KYB nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     public ResponseEntity<Void> disparar(@PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
         String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
@@ -166,9 +194,18 @@ public class OnboardingEmpresaController {
     @Operation(summary = "Consultar status de uma solicitacao PJ")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Status PJ retornado"),
-        @ApiResponse(responseCode = "401", description = "Token ausente"),
-        @ApiResponse(responseCode = "403", description = "Nao e dono nem ADMIN"),
-        @ApiResponse(responseCode = "404", description = "Solicitacao ou KYB nao encontrado")
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Nao e dono nem ADMIN",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Solicitacao ou KYB nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     public ResponseEntity<StatusOnboardingEmpresaResponse> consultar(
             @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
@@ -182,9 +219,18 @@ public class OnboardingEmpresaController {
     @Operation(summary = "Listar representantes legais da empresa")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Lista de representantes retornada"),
-        @ApiResponse(responseCode = "401", description = "Token ausente"),
-        @ApiResponse(responseCode = "403", description = "Nao e dono nem ADMIN"),
-        @ApiResponse(responseCode = "404", description = "Solicitacao ou KYB nao encontrado")
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Nao e dono nem ADMIN",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Solicitacao ou KYB nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     public ResponseEntity<List<RepresentanteLegalResponse>> listarRepresentantes(
             @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
