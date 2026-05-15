@@ -7,6 +7,7 @@ import com.dynamis.sep_api.onboarding.application.port.out.dto.RespostaPld;
 import com.dynamis.sep_api.onboarding.domain.event.PldFinalizadoEvent;
 import com.dynamis.sep_api.onboarding.domain.event.PldHitDetectadoEvent;
 import com.dynamis.sep_api.onboarding.domain.event.PldIniciadoEvent;
+import com.dynamis.sep_api.onboarding.domain.event.PldLimpoEvent;
 import com.dynamis.sep_api.onboarding.domain.exception.OnboardingNaoEncontradoException;
 import com.dynamis.sep_api.onboarding.domain.model.ConsultaPld;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
@@ -91,6 +92,8 @@ public class IniciarPldPessoaUseCase {
             if (resposta.limpo()) {
                 solicitacao.marcarAprovadoFinal();
                 statusFinal = StatusOnboarding.APROVADO_FINAL;
+                eventPublisher.publishEvent(new PldLimpoEvent(
+                        solicitacaoId, AlvoPld.PESSOA, mascararDocumento(solicitacao.getDocumento())));
             } else {
                 solicitacao.reprovarPorPld();
                 statusFinal = StatusOnboarding.REPROVADO_PLD;

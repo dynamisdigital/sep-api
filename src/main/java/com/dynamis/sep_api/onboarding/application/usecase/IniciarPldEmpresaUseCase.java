@@ -7,6 +7,7 @@ import com.dynamis.sep_api.onboarding.application.port.out.dto.RespostaPld;
 import com.dynamis.sep_api.onboarding.domain.event.PldFinalizadoEvent;
 import com.dynamis.sep_api.onboarding.domain.event.PldHitDetectadoEvent;
 import com.dynamis.sep_api.onboarding.domain.event.PldIniciadoEvent;
+import com.dynamis.sep_api.onboarding.domain.event.PldLimpoEvent;
 import com.dynamis.sep_api.onboarding.domain.exception.KybNaoEncontradoException;
 import com.dynamis.sep_api.onboarding.domain.exception.OnboardingNaoEncontradoException;
 import com.dynamis.sep_api.onboarding.domain.model.ConsultaPld;
@@ -164,6 +165,8 @@ public class IniciarPldEmpresaUseCase {
                 }
                 return true;
             }
+            eventPublisher.publishEvent(
+                    new PldLimpoEvent(solicitacaoId, alvoTipo, IniciarPldPessoaUseCase.mascararDocumento(documento)));
             return false;
         } finally {
             if (mdcPrevio == null) {
