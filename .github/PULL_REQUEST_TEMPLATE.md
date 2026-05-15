@@ -22,7 +22,7 @@ Closes #
 <!-- Cite o spec, ADR ou step que esta PR materializa -->
 
 - Spec: `specs/00X-...md`
-- Step: `steps/backend/00X-...md`
+- Step: `docs-SEP/steps-fase-1/backend/00X-...md` ou `docs-SEP/steps-fase-2/backend/00X-...md`
 - ADR (se aplicavel): `adr/000X-....md`
 
 ## Como testar
