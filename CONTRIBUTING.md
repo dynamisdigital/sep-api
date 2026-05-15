@@ -17,7 +17,7 @@
    # ou: fix/<modulo>/<descricao-curta>
    ```
 
-2. Implemente seguindo o spec/step correspondente em `docs-SEP/specs/` e `docs-SEP/steps/backend/`
+2. Implemente seguindo o spec/step correspondente em `docs-SEP/specs/`, `docs-SEP/steps-fase-1/backend/` ou `docs-SEP/steps-fase-2/backend/`
 3. Rode localmente:
    ```bash
    ./gradlew spotlessApply  # auto-formatar
@@ -144,5 +144,6 @@ Abra uma issue ou consulte (no repo `docs-SEP`):
 - [CONTEXT](../docs-SEP/docs-sep/CONTEXT.md) - historia das decisoes
 - [ADRs](../docs-SEP/adr/) - decisoes arquiteturais
 - [Specs](../docs-SEP/specs/) - especificacoes por sprint
-- [Steps](../docs-SEP/steps/backend/) - detalhamento granular por sprint
+- [Steps fase 1](../docs-SEP/steps-fase-1/backend/) e [steps fase 2](../docs-SEP/steps-fase-2/backend/) - detalhamento granular por sprint
+- [Docs sep-api](../docs-SEP/repos/sep-api/) - documentacao especifica do backend/API
 - [AGENT.md](../docs-SEP/AGENT.md) - orientacao para agentes IA

@@ -3,7 +3,7 @@
 Backend Java 21 + Spring Boot 3.5.x da plataforma SEP (Sociedade de Emprestimo entre Pessoas).
 
 > Documentacao consolidada do produto vive no repositorio [`docs-SEP`](../docs-SEP):
-> [PRD](../docs-SEP/docs-sep/PRD.md), [CONTEXT](../docs-SEP/docs-sep/CONTEXT.md), [AGENT.md](../docs-SEP/AGENT.md), [ADRs](../docs-SEP/adr/), [specs](../docs-SEP/specs/) e [steps](../docs-SEP/steps/backend/).
+> [PRD](../docs-SEP/docs-sep/PRD.md), [CONTEXT](../docs-SEP/docs-sep/CONTEXT.md), [AGENT.md](../docs-SEP/AGENT.md), [ADRs](../docs-SEP/adr/), [specs](../docs-SEP/specs/), [steps fase 1](../docs-SEP/steps-fase-1/backend/), [steps fase 2](../docs-SEP/steps-fase-2/backend/) e [docs especificos da API](../docs-SEP/repos/sep-api/).
 
 ## Setup do desenvolvedor
 
@@ -131,8 +131,8 @@ Detalhamento: [docs-SEP/specs/](../docs-SEP/specs/) e [docs-SEP/steps-fase-1/](.
 - **`identity`** — JWT, refresh token, MFA, lockout, audit log seguranca (Sprint 5).
 - **`usuarios`** — cadastro, perfis, ownership.
 - **`onboarding`** — KYC PF (Sprint 6) + KYB PJ + PLD orquestrado (Sprint 7) via Celcoin
-  Provider Pattern. Ver [docs/ONBOARDING.md](docs/ONBOARDING.md) (fluxo completo,
-  endpoints, webhooks, providers, smoke) e [docs/PLD.md](docs/PLD.md) (politica PLD,
+  Provider Pattern. Ver [ONBOARDING.md](../docs-SEP/repos/sep-api/ONBOARDING.md) (fluxo completo,
+  endpoints, webhooks, providers, smoke) e [PLD.md](../docs-SEP/repos/sep-api/PLD.md) (politica PLD,
   retencao LGPD, checklist juridico).
 - **`escrow`** — segregacao patrimonial (CMN 4.656/2018), modelado desde Sprint 1.
 - **`shared`** — `ApiExceptionHandler`, `EntidadeAuditavel`, `RestClientFactory`,
@@ -140,8 +140,8 @@ Detalhamento: [docs-SEP/specs/](../docs-SEP/specs/) e [docs-SEP/steps-fase-1/](.
 
 ## Rodar Onboarding (KYC PF + KYB PJ + PLD) localmente
 
-Detalhamento completo em [docs/ONBOARDING.md](docs/ONBOARDING.md). Politica PLD
-detalhada em [docs/PLD.md](docs/PLD.md). Resumo:
+Detalhamento completo em [ONBOARDING.md](../docs-SEP/repos/sep-api/ONBOARDING.md). Politica PLD
+detalhada em [PLD.md](../docs-SEP/repos/sep-api/PLD.md). Resumo:
 
 ### Providers Fake (default — dev sem credenciais)
 
@@ -160,7 +160,7 @@ Defaults do `application.yml`: `app.kyc.provider=fake`, `app.kyb.provider=fake`,
 - `FakeBackgroundCheckProvider` — devolve limpo nas 4 bases.
   `marcarDocumentoComoHit(documento)` em testes força hit.
 
-Smoke manual PF e PJ com curl em [docs/ONBOARDING.md](docs/ONBOARDING.md). Apos KYC/KYB
+Smoke manual PF e PJ com curl em [ONBOARDING.md](../docs-SEP/repos/sep-api/ONBOARDING.md). Apos KYC/KYB
 APROVADO, o `PldOrchestrationListener` dispara PLD automatico — status final consolida em
 `APROVADO_FINAL` (limpo) ou `REPROVADO_PLD` (hit).
 
@@ -201,7 +201,7 @@ usar credenciais distintas. Resilience4j (`celcoin-kyc`/`celcoin-kyb`/
 Cobre o caminho real (HTTP + OAuth + Resilience4j) dos 3 providers sem precisar de
 sandbox Celcoin. Stubs `/token`, `/verifications`, `/companies` e `/background-check`
 via `__admin/mappings` do WireMock standalone. Passo a passo em
-[docs/ONBOARDING.md#profile-local-wiremock](docs/ONBOARDING.md).
+[ONBOARDING.md#profile-local-wiremock](../docs-SEP/repos/sep-api/ONBOARDING.md#profile-local-wiremock).
 
 ### Testes WireMock (suite IT)
 
