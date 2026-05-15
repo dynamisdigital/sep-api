@@ -4,6 +4,7 @@ import com.dynamis.sep_api.onboarding.domain.event.PldFinalizadoEvent;
 import com.dynamis.sep_api.onboarding.domain.event.PldHitDetectadoEvent;
 import com.dynamis.sep_api.onboarding.domain.event.PldLimpoEvent;
 import com.dynamis.sep_api.onboarding.domain.model.ConsultaPld;
+import com.dynamis.sep_api.onboarding.domain.model.KybEmpresa;
 import com.dynamis.sep_api.onboarding.domain.model.RepresentanteLegal;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.AlvoPld;
@@ -122,13 +123,14 @@ public class ProcessarCallbackPldUseCase {
             return new Resultado(true, false);
         }
 
-        List<RepresentanteLegal> representantes = kybRepository
-                .findBySolicitacaoId(solicitacaoId)
-                .map(k -> representanteRepository.findByKybEmpresaId(k.getId()))
+        Optional<KybEmpresa> kybOpt = kybRepository.findBySolicitacaoId(solicitacaoId);
+        List<RepresentanteLegal> representantes = kybOpt.map(k -> representanteRepository.findByKybEmpresaId(k.getId()))
                 .orElse(List.of());
+        String cnpjEsperado = kybOpt.map(KybEmpresa::getCnpj).orElse(null);
 
-        // Valida completude do payload ANTES de qualquer transicao de status.
-        String erroValidacao = validarPayload(callback, solicitacao.getTipo(), representantes);
+        // Valida completude + identidade do payload ANTES de qualquer transicao de status.
+        String erroValidacao = validarPayload(
+                callback, solicitacao.getTipo(), solicitacao.getDocumento(), cnpjEsperado, representantes);
         if (erroValidacao != null) {
             evento.marcarFalhou(erroValidacao);
             log.warn(
@@ -176,16 +178,28 @@ public class ProcessarCallbackPldUseCase {
             java.util.Set.of(BasePld.COAF, BasePld.OFAC, BasePld.INTERPOL, BasePld.MTE);
 
     /**
-     * Valida que o payload PLD cobre todos os alvos esperados com as 4 bases obrigatorias. Devolve
-     * {@code null} quando valido; mensagem de erro sanitizada caso contrario.
+     * Valida que o payload PLD cobre todos os alvos esperados com as 4 bases obrigatorias E que os
+     * documentos do payload casam com a solicitacao em banco. Devolve {@code null} quando valido;
+     * mensagem de erro sanitizada caso contrario.
+     *
+     * <p>PF: payload deve ter exatamente 1 alvo cujo {@code document_number} == {@code
+     * solicitacao.documento}.
+     *
+     * <p>PJ: payload deve ter exatamente 1 alvo {@code EMPRESA} com {@code document_number} ==
+     * {@code kyb.cnpj} + 1 alvo {@code REPRESENTANTE} por representante registrado (mesmo CPF). Alvos
+     * com tipo desconhecido ou CPF/CNPJ alheios reprovam o callback.
      */
     private String validarPayload(
-            CelcoinPldCallbackRequest callback, TipoSolicitante tipo, List<RepresentanteLegal> representantes) {
+            CelcoinPldCallbackRequest callback,
+            TipoSolicitante tipo,
+            String documentoSolicitacao,
+            String cnpjKyb,
+            List<RepresentanteLegal> representantes) {
         if (callback.alvos() == null || callback.alvos().isEmpty()) {
             return "PLD payload vazio: results obrigatorio";
         }
 
-        java.util.Map<String, java.util.Set<BasePld>> basesPorDocumento = new java.util.HashMap<>();
+        java.util.Map<String, AlvoNoCallback> alvosPorDocumento = new java.util.HashMap<>();
         for (CelcoinPldCallbackRequest.AlvoResultado alvo : callback.alvos()) {
             if (alvo == null) return "alvo nulo em results";
             if (alvo.documento() == null || alvo.documento().isBlank()) {
@@ -193,6 +207,13 @@ public class ProcessarCallbackPldUseCase {
             }
             if (alvo.bases() == null || alvo.bases().isEmpty()) {
                 return "alvo " + mascararDocumento(alvo.documento()) + " sem databases";
+            }
+            AlvoPld tipoAlvo;
+            try {
+                tipoAlvo = mapearAlvo(alvo.alvoTipo(), tipo);
+            } catch (IllegalArgumentException ex) {
+                return "alvo " + mascararDocumento(alvo.documento()) + " com target_type desconhecido: "
+                        + alvo.alvoTipo();
             }
             java.util.Set<BasePld> bases = new java.util.HashSet<>();
             for (CelcoinPldCallbackRequest.BaseResultado base : alvo.bases()) {
@@ -205,29 +226,57 @@ public class ProcessarCallbackPldUseCase {
                 faltando.removeAll(bases);
                 return "alvo " + mascararDocumento(alvo.documento()) + " sem bases obrigatorias: " + faltando;
             }
-            basesPorDocumento.put(alvo.documento(), bases);
+            if (alvosPorDocumento.put(alvo.documento(), new AlvoNoCallback(tipoAlvo, bases)) != null) {
+                return "documento " + mascararDocumento(alvo.documento()) + " repetido em results";
+            }
         }
 
         if (tipo == TipoSolicitante.PESSOA) {
-            if (basesPorDocumento.size() != 1) {
-                return "PF deve ter exatamente 1 alvo PESSOA; recebido=" + basesPorDocumento.size();
+            if (alvosPorDocumento.size() != 1) {
+                return "PF deve ter exatamente 1 alvo; recebido=" + alvosPorDocumento.size();
+            }
+            AlvoNoCallback unico = alvosPorDocumento.get(documentoSolicitacao);
+            if (unico == null) {
+                return "alvo PF nao corresponde ao documento da solicitacao";
+            }
+            if (unico.tipo() != AlvoPld.PESSOA) {
+                return "alvo PF com tipo incorreto: " + unico.tipo();
             }
             return null;
         }
 
-        // PJ: precisa ter pelo menos 1 alvo EMPRESA + 1 alvo por representante esperado.
-        boolean temEmpresa = callback.alvos().stream()
-                .anyMatch(a -> "EMPRESA".equalsIgnoreCase(a.alvoTipo()) || "COMPANY".equalsIgnoreCase(a.alvoTipo()));
-        if (!temEmpresa) {
-            return "PJ sem alvo EMPRESA no callback";
+        // PJ
+        if (cnpjKyb == null) {
+            return "PJ sem KybEmpresa registrada — callback nao deveria chegar antes do KYB";
         }
+        AlvoNoCallback alvoEmpresa = alvosPorDocumento.get(cnpjKyb);
+        if (alvoEmpresa == null) {
+            return "callback PJ nao traz alvo EMPRESA com CNPJ da solicitacao";
+        }
+        if (alvoEmpresa.tipo() != AlvoPld.EMPRESA) {
+            return "alvo do CNPJ " + mascararDocumento(cnpjKyb) + " com tipo incorreto: " + alvoEmpresa.tipo();
+        }
+        java.util.Set<String> cpfsEsperados = new java.util.HashSet<>();
         for (RepresentanteLegal rep : representantes) {
-            if (!basesPorDocumento.containsKey(rep.getCpf())) {
+            cpfsEsperados.add(rep.getCpf());
+            AlvoNoCallback alvoRep = alvosPorDocumento.get(rep.getCpf());
+            if (alvoRep == null) {
                 return "representante " + mascararDocumento(rep.getCpf()) + " ausente no callback";
+            }
+            if (alvoRep.tipo() != AlvoPld.REPRESENTANTE) {
+                return "representante " + mascararDocumento(rep.getCpf()) + " com tipo incorreto: " + alvoRep.tipo();
+            }
+        }
+        // Qualquer outro documento alem do CNPJ + CPFs esperados e rejeitado.
+        for (String doc : alvosPorDocumento.keySet()) {
+            if (!doc.equals(cnpjKyb) && !cpfsEsperados.contains(doc)) {
+                return "callback PJ contem documento nao esperado: " + mascararDocumento(doc);
             }
         }
         return null;
     }
+
+    private record AlvoNoCallback(AlvoPld tipo, java.util.Set<BasePld> bases) {}
 
     private static String mascararDocumento(String documento) {
         if (documento == null || documento.length() < 6) return "***";
@@ -292,13 +341,14 @@ public class ProcessarCallbackPldUseCase {
 
     private AlvoPld mapearAlvo(String tipo, TipoSolicitante tipoSolicitante) {
         if (tipo == null) {
+            // Fallback explicito ao tipo da solicitacao — provider pode nao expor target_type.
             return tipoSolicitante == TipoSolicitante.PESSOA ? AlvoPld.PESSOA : AlvoPld.EMPRESA;
         }
         return switch (tipo.toUpperCase()) {
             case "PESSOA", "PERSON" -> AlvoPld.PESSOA;
             case "EMPRESA", "COMPANY" -> AlvoPld.EMPRESA;
             case "REPRESENTANTE", "REPRESENTATIVE" -> AlvoPld.REPRESENTANTE;
-            default -> AlvoPld.EMPRESA;
+            default -> throw new IllegalArgumentException("target_type desconhecido: " + tipo);
         };
     }
 

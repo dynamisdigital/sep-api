@@ -19,16 +19,20 @@ import com.dynamis.sep_api.onboarding.infrastructure.persistence.ConsultaPldRepo
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.KybEmpresaRepository;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.RepresentanteLegalRepository;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.SolicitacaoOnboardingRepository;
+import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -39,6 +43,16 @@ import static org.mockito.Mockito.when;
 class IniciarPldEmpresaUseCaseTest {
 
     private static final String CNPJ = "11222333000181";
+    private static final Set<BasePld> BASES_OBRIGATORIAS =
+            EnumSet.of(BasePld.COAF, BasePld.OFAC, BasePld.INTERPOL, BasePld.MTE);
+
+    private static RespostaPld respostaLimpa() {
+        return new RespostaPld(List.of(), BASES_OBRIGATORIAS, "{}");
+    }
+
+    private static RespostaPld respostaHit(HitPld... hits) {
+        return new RespostaPld(List.of(hits), BASES_OBRIGATORIAS, "{}");
+    }
 
     private SolicitacaoOnboardingRepository solicitacaoRepository;
     private KybEmpresaRepository kybRepository;
@@ -85,8 +99,8 @@ class IniciarPldEmpresaUseCaseTest {
 
     @Test
     void empresaLimpaERepresentanteLimpoMovePraAprovadoFinal() {
-        when(provider.consultarEmpresa(any(), anyString())).thenReturn(new RespostaPld(List.of(), "{}"));
-        when(provider.consultarPessoa(any(), anyString())).thenReturn(new RespostaPld(List.of(), "{}"));
+        when(provider.consultarEmpresa(any(), anyString())).thenReturn(respostaLimpa());
+        when(provider.consultarPessoa(any(), anyString())).thenReturn(respostaLimpa());
 
         StatusOnboarding s = useCase.executar(pjAprovada.getId(), "corr-1");
 
@@ -99,9 +113,8 @@ class IniciarPldEmpresaUseCaseTest {
     @Test
     void hitNaEmpresaReprovaPorPld() {
         when(provider.consultarEmpresa(any(), anyString()))
-                .thenReturn(new RespostaPld(
-                        List.of(new HitPld(BasePld.COAF, "Sancao", SeveridadePld.ALTA, LocalDate.now(), "{}")), "{}"));
-        when(provider.consultarPessoa(any(), anyString())).thenReturn(new RespostaPld(List.of(), "{}"));
+                .thenReturn(respostaHit(new HitPld(BasePld.COAF, "Sancao", SeveridadePld.ALTA, LocalDate.now(), "{}")));
+        when(provider.consultarPessoa(any(), anyString())).thenReturn(respostaLimpa());
 
         StatusOnboarding s = useCase.executar(pjAprovada.getId(), "corr-2");
 
@@ -110,11 +123,10 @@ class IniciarPldEmpresaUseCaseTest {
 
     @Test
     void hitNoRepresentanteReprovaPorPld() {
-        when(provider.consultarEmpresa(any(), anyString())).thenReturn(new RespostaPld(List.of(), "{}"));
+        when(provider.consultarEmpresa(any(), anyString())).thenReturn(respostaLimpa());
         when(provider.consultarPessoa(any(), anyString()))
-                .thenReturn(new RespostaPld(
-                        List.of(new HitPld(BasePld.OFAC, "Sancao internacional", SeveridadePld.MEDIA, null, "{}")),
-                        "{}"));
+                .thenReturn(
+                        respostaHit(new HitPld(BasePld.OFAC, "Sancao internacional", SeveridadePld.MEDIA, null, "{}")));
 
         StatusOnboarding s = useCase.executar(pjAprovada.getId(), "corr-3");
 
@@ -135,6 +147,20 @@ class IniciarPldEmpresaUseCaseTest {
 
         assertThat(s).isEqualTo(StatusOnboarding.REPROVADO_PLD);
         verify(provider, org.mockito.Mockito.never()).consultarEmpresa(any(), anyString());
+        verify(provider, org.mockito.Mockito.never()).consultarPessoa(any(), anyString());
+    }
+
+    @Test
+    void rejeitaRespostaProviderComCoberturaParcialNaEmpresa() {
+        // Provider responde so 2 das 4 bases pra empresa — bloqueia consolidacao.
+        when(provider.consultarEmpresa(any(), anyString()))
+                .thenReturn(new RespostaPld(List.of(), EnumSet.of(BasePld.COAF, BasePld.OFAC), "{}"));
+
+        assertThatThrownBy(() -> useCase.executar(pjAprovada.getId(), "corr-parcial"))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("cobertura parcial");
+        assertThat(pjAprovada.getStatus()).isEqualTo(StatusOnboarding.APROVADO);
+        verify(consultaPldRepository, org.mockito.Mockito.never()).save(any());
         verify(provider, org.mockito.Mockito.never()).consultarPessoa(any(), anyString());
     }
 }
