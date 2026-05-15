@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.onboarding.web;
 
+import com.dynamis.sep_api.onboarding.domain.vo.AlvoPld;
 import com.dynamis.sep_api.onboarding.domain.vo.SituacaoCadastral;
 import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.FakeBackgroundCheckProvider;
 import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.FakeKybProvider;
@@ -207,6 +208,21 @@ class OnboardingEmpresaIT {
         assertThat(status.path("dadosEmpresa.cnpj").toString()).isEqualTo("11.222.333/0001-81");
         assertThat(status.path("representantes[0].cpfMascarado").toString()).isEqualTo("529******25");
         assertThat(status.path("representantes[0].pld.statusPld").toString()).isEqualTo("LIMPO");
+
+        // PLD persiste 4 bases obrigatorias por alvo: 4 (EMPRESA) + 4 (REPRESENTANTE) = 8 limpas.
+        UUID solicitacaoUuid = UUID.fromString(solicitacaoId);
+        var consultas = consultaPldRepository.findBySolicitacaoId(solicitacaoUuid);
+        assertThat(consultas).hasSize(8).allSatisfy(c -> assertThat(c.isHit()).isFalse());
+        assertThat(consultas.stream()
+                        .filter(c -> c.getAlvoTipo() == AlvoPld.EMPRESA)
+                        .count())
+                .isEqualTo(4);
+        assertThat(consultas.stream()
+                        .filter(c -> c.getAlvoTipo() == AlvoPld.REPRESENTANTE)
+                        .count())
+                .isEqualTo(4);
+        // Sanity: nenhuma consulta PLD ficou marcada como PESSOA (cenario PJ).
+        assertThat(consultas).noneMatch(c -> c.getAlvoTipo() == AlvoPld.PESSOA);
     }
 
     // ============== Hit PLD em representante ==============

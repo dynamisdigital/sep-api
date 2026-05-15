@@ -99,6 +99,21 @@ class CelcoinPldWebhookControllerTest {
     }
 
     @Test
+    void aceita202QuandoUseCaseRetornaDuplicadoIdempotente() throws Exception {
+        when(processarCallbackUseCase.executar(anyString(), anyString(), anyString(), any()))
+                .thenReturn(new ProcessarCallbackPldUseCase.Resultado(true, true));
+
+        mockMvc.perform(post("/api/v1/webhooks/celcoin/pld")
+                        .header("Idempotency-Key", "idem-pld-dup")
+                        .header("X-Webhook-Signature", "abc")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(PAYLOAD))
+                .andExpect(status().isAccepted());
+
+        verify(processarCallbackUseCase).executar(eq("idem-pld-dup"), eq("abc"), eq(PAYLOAD), any());
+    }
+
+    @Test
     void retorna400SeBodyNaoEJsonValido() throws Exception {
         mockMvc.perform(post("/api/v1/webhooks/celcoin/pld")
                         .header("Idempotency-Key", "idem-pld-3")
