@@ -98,13 +98,27 @@ app:
     secrets:
       celcoin: ${APP_WEBHOOK_SECRET_CELCOIN:dev-webhook-secret-change-me}
       celcoin-kyc: ${APP_WEBHOOK_SECRET_CELCOIN_KYC:dev-kyc-webhook-secret-change-me}
+      celcoin-kyb: ${APP_WEBHOOK_SECRET_CELCOIN_KYB:dev-kyb-webhook-secret-change-me}
+      celcoin-pld: ${APP_WEBHOOK_SECRET_CELCOIN_PLD:dev-pld-webhook-secret-change-me}
   kyc:
     provider: ${APP_KYC_PROVIDER:fake}
+  kyb:
+    provider: ${APP_KYB_PROVIDER:fake}
+  pld:
+    provider: ${APP_PLD_PROVIDER:fake}
   celcoin:
     kyc:
       base-url: ${APP_CELCOIN_KYC_BASE_URL:https://sandbox.openfinance.celcoin.dev/onboarding/v1}
       client-id: ${APP_CELCOIN_KYC_CLIENT_ID:}
       client-secret: ${APP_CELCOIN_KYC_CLIENT_SECRET:}
+    kyb:
+      base-url: ${APP_CELCOIN_KYB_BASE_URL:https://sandbox.openfinance.celcoin.dev/onboarding/v1}
+      client-id: ${APP_CELCOIN_KYB_CLIENT_ID:${APP_CELCOIN_KYC_CLIENT_ID:}}
+      client-secret: ${APP_CELCOIN_KYB_CLIENT_SECRET:${APP_CELCOIN_KYC_CLIENT_SECRET:}}
+    background-check:
+      base-url: ${APP_CELCOIN_BACKGROUND_CHECK_BASE_URL:https://sandbox.openfinance.celcoin.dev/onboarding/v1}
+      client-id: ${APP_CELCOIN_BACKGROUND_CHECK_CLIENT_ID:${APP_CELCOIN_KYC_CLIENT_ID:}}
+      client-secret: ${APP_CELCOIN_BACKGROUND_CHECK_CLIENT_SECRET:${APP_CELCOIN_KYC_CLIENT_SECRET:}}
   security:
     totp:
       issuer: ${APP_TOTP_ISSUER:SEP}
@@ -131,6 +145,10 @@ resilience4j:
     instances:
       celcoin-kyc:
         baseConfig: default
+      celcoin-kyb:
+        baseConfig: default
+      celcoin-background-check:
+        baseConfig: default
   retry:
     configs:
       default:
@@ -144,12 +162,30 @@ resilience4j:
           - org.springframework.web.client.ResourceAccessException
           - org.springframework.web.client.HttpServerErrorException
           - java.io.IOException
+      celcoin-kyb:
+        maxAttempts: 3
+        waitDuration: 500ms
+        retryExceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
+      celcoin-background-check:
+        maxAttempts: 3
+        waitDuration: 500ms
+        retryExceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
   timelimiter:
     configs:
       default:
         timeoutDuration: 30s
     instances:
       celcoin-kyc:
+        timeoutDuration: 30s
+      celcoin-kyb:
+        timeoutDuration: 30s
+      celcoin-background-check:
         timeoutDuration: 30s
   ratelimiter:
     configs:

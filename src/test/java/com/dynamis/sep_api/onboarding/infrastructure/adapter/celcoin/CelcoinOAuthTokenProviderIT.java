@@ -57,9 +57,9 @@ class CelcoinOAuthTokenProviderIT {
                         .withHeader("Content-Type", "application/json")
                         .withBody("{\"access_token\":\"tk-1\",\"token_type\":\"Bearer\",\"expires_in\":3600}")));
 
-        String t1 = tokenProvider.accessToken();
-        String t2 = tokenProvider.accessToken();
-        String t3 = tokenProvider.accessToken();
+        String t1 = tokenProvider.accessToken(CelcoinOAuthTokenProvider.ProviderKey.KYC);
+        String t2 = tokenProvider.accessToken(CelcoinOAuthTokenProvider.ProviderKey.KYC);
+        String t3 = tokenProvider.accessToken(CelcoinOAuthTokenProvider.ProviderKey.KYC);
 
         assertThat(t1).isEqualTo("tk-1");
         assertThat(t2).isEqualTo(t1);

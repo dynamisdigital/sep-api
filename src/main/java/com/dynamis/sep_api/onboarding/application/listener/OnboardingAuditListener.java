@@ -1,8 +1,14 @@
 package com.dynamis.sep_api.onboarding.application.listener;
 
 import com.dynamis.sep_api.onboarding.domain.event.DocumentoCadastralEnviadoEvent;
+import com.dynamis.sep_api.onboarding.domain.event.KybFinalizadoEvent;
+import com.dynamis.sep_api.onboarding.domain.event.KybIniciadoEvent;
 import com.dynamis.sep_api.onboarding.domain.event.OnboardingFinalizadoEvent;
 import com.dynamis.sep_api.onboarding.domain.event.OnboardingIniciadoEvent;
+import com.dynamis.sep_api.onboarding.domain.event.PldFinalizadoEvent;
+import com.dynamis.sep_api.onboarding.domain.event.PldHitDetectadoEvent;
+import com.dynamis.sep_api.onboarding.domain.event.PldIniciadoEvent;
+import com.dynamis.sep_api.onboarding.domain.event.PldLimpoEvent;
 import com.dynamis.sep_api.onboarding.domain.event.VerificacaoKycDisparadaEvent;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
@@ -89,6 +95,68 @@ public class OnboardingAuditListener {
         auditLogService.gravar(tipo, event.usuarioId(), serializar(payload));
     }
 
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoIniciarKyb(KybIniciadoEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("solicitacaoId", event.solicitacaoId().toString());
+        payload.put("cnpjMascarado", mascararDocumento(event.cnpj()));
+        auditLogService.gravar(TipoEventoSeguranca.KYB_INICIADO, event.usuarioId(), serializar(payload));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoFinalizarKyb(KybFinalizadoEvent event) {
+        TipoEventoSeguranca tipo = mapearTipoFinalKyb(event.statusFinal());
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("solicitacaoId", event.solicitacaoId().toString());
+        payload.put("kybEmpresaId", event.kybEmpresaId().toString());
+        payload.put("statusFinal", event.statusFinal().name());
+        auditLogService.gravar(tipo, event.usuarioId(), serializar(payload));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoIniciarPld(PldIniciadoEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("solicitacaoId", event.solicitacaoId().toString());
+        payload.put("alvoTipo", event.alvoTipo().name());
+        payload.put("documentoMascarado", event.documentoMascarado());
+        auditLogService.gravar(TipoEventoSeguranca.PLD_INICIADO, null, serializar(payload));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoDetectarHitPld(PldHitDetectadoEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("solicitacaoId", event.solicitacaoId().toString());
+        payload.put("alvoTipo", event.alvoTipo().name());
+        payload.put("base", event.base().name());
+        payload.put(
+                "severidade", event.severidade() != null ? event.severidade().name() : SEVERIDADE_NAO_INFORMADA);
+        payload.put("motivo", sanitizarMotivo(event.motivo()));
+        auditLogService.gravar(TipoEventoSeguranca.PLD_HIT_DETECTADO, null, serializar(payload));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoLimparPld(PldLimpoEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("solicitacaoId", event.solicitacaoId().toString());
+        payload.put("alvoTipo", event.alvoTipo().name());
+        payload.put("documentoMascarado", event.documentoMascarado());
+        auditLogService.gravar(TipoEventoSeguranca.PLD_LIMPO, null, serializar(payload));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoFinalizarPld(PldFinalizadoEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("solicitacaoId", event.solicitacaoId().toString());
+        payload.put("statusFinal", event.statusFinal().name());
+        auditLogService.gravar(TipoEventoSeguranca.PLD_FINALIZADO, event.usuarioId(), serializar(payload));
+    }
+
     private String serializar(Map<String, Object> payload) {
         try {
             return objectMapper.writeValueAsString(payload);
@@ -108,5 +176,36 @@ public class OnboardingAuditListener {
             default -> throw new IllegalArgumentException(
                     "OnboardingFinalizadoEvent com status nao-final: " + statusFinal);
         };
+    }
+
+    private static TipoEventoSeguranca mapearTipoFinalKyb(StatusOnboarding statusFinal) {
+        return switch (statusFinal) {
+            case APROVADO -> TipoEventoSeguranca.KYB_FINALIZADO_APROVADO;
+            case REPROVADO -> TipoEventoSeguranca.KYB_FINALIZADO_REPROVADO;
+            default -> throw new IllegalArgumentException(
+                    "KybFinalizadoEvent com status nao-suportado: " + statusFinal);
+        };
+    }
+
+    private static final String SEVERIDADE_NAO_INFORMADA = "NAO_INFORMADA";
+    private static final String MOTIVO_NAO_INFORMADO = "NAO_INFORMADO";
+    private static final int MOTIVO_MAX_LEN = 200;
+
+    /**
+     * Trunca motivo a {@value #MOTIVO_MAX_LEN} caracteres e devolve sentinel quando ausente. Motivo
+     * nao costuma carregar dados pessoais (descreve a base e a razao do hit), mas o limite evita
+     * que payloads grandes/maliciosos inflem o audit log.
+     */
+    private static String sanitizarMotivo(String motivo) {
+        if (motivo == null || motivo.isBlank()) return MOTIVO_NAO_INFORMADO;
+        String trim = motivo.strip();
+        return trim.length() <= MOTIVO_MAX_LEN ? trim : trim.substring(0, MOTIVO_MAX_LEN);
+    }
+
+    /** Mantem primeiros 3 + ultimos 2 digitos; mascara os restantes. */
+    private static String mascararDocumento(String documento) {
+        if (documento == null || documento.length() < 6) return "***";
+        int len = documento.length();
+        return documento.substring(0, 3) + "*".repeat(len - 5) + documento.substring(len - 2);
     }
 }

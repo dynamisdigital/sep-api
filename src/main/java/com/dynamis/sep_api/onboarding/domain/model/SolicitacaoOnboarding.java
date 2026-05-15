@@ -3,6 +3,7 @@ package com.dynamis.sep_api.onboarding.domain.model;
 import com.dynamis.sep_api.onboarding.domain.exception.StatusOnboardingInvalidoException;
 import com.dynamis.sep_api.onboarding.domain.vo.Cpf;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
+import com.dynamis.sep_api.onboarding.domain.vo.TipoSolicitante;
 import com.dynamis.sep_api.shared.audit.EntidadeAuditavel;
 import com.fasterxml.uuid.Generators;
 import jakarta.persistence.Column;
@@ -16,12 +17,12 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * Agregado raiz do modulo {@code onboarding}. Representa uma solicitacao de verificacao KYC de
- * pessoa fisica.
+ * Agregado raiz do modulo {@code onboarding}. Representa uma solicitacao de verificacao
+ * cadastral — KYC PF (Sprint 6) ou KYB PJ (Sprint 7) — distinguidas pelo campo {@code tipo}.
  *
- * <p>UUID v6 gerado via {@code timeBasedReorderedGenerator()}. Construtor publico {@code
- * protected} para satisfazer Hibernate; entidades novas devem usar {@link #criar(UUID, Cpf,
- * String, LocalDate)}.
+ * <p>UUID v6 gerado via {@code timeBasedReorderedGenerator()}. Construtor publico
+ * {@code protected} pra Hibernate; entidades novas devem usar {@link #criarPessoa(UUID, Cpf,
+ * String, LocalDate)} ou {@link #criarEmpresa(UUID, String, String)}.
  *
  * <p>Maquina de estados em {@link StatusOnboarding}.
  */
@@ -36,13 +37,20 @@ public class SolicitacaoOnboarding extends EntidadeAuditavel {
     @Column(name = "usuario_id", columnDefinition = "uuid", nullable = false, updatable = false)
     private UUID usuarioId;
 
-    @Column(name = "cpf", nullable = false, length = 11, updatable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo", nullable = false, length = 20, updatable = false)
+    private TipoSolicitante tipo;
+
+    @Column(name = "documento", nullable = false, length = 14, updatable = false)
+    private String documento;
+
+    @Column(name = "cpf", length = 11, updatable = false)
     private String cpf;
 
     @Column(name = "nome_completo", nullable = false, length = 255)
     private String nomeCompleto;
 
-    @Column(name = "data_nascimento", nullable = false)
+    @Column(name = "data_nascimento")
     private LocalDate dataNascimento;
 
     @Enumerated(EnumType.STRING)
@@ -59,19 +67,48 @@ public class SolicitacaoOnboarding extends EntidadeAuditavel {
         // requerido pelo Hibernate
     }
 
-    private SolicitacaoOnboarding(UUID id, UUID usuarioId, Cpf cpf, String nomeCompleto, LocalDate dataNascimento) {
+    private SolicitacaoOnboarding(
+            UUID id,
+            UUID usuarioId,
+            TipoSolicitante tipo,
+            String documento,
+            String cpf,
+            String nomeCompleto,
+            LocalDate dataNascimento) {
         this.id = id;
         this.usuarioId = usuarioId;
-        this.cpf = cpf.valor();
+        this.tipo = tipo;
+        this.documento = documento;
+        this.cpf = cpf;
         this.nomeCompleto = nomeCompleto;
         this.dataNascimento = dataNascimento;
         this.status = StatusOnboarding.INICIADO;
         this.revisaoDocumentos = 0;
     }
 
-    public static SolicitacaoOnboarding criar(UUID usuarioId, Cpf cpf, String nomeCompleto, LocalDate dataNascimento) {
+    /** Factory PF: KYC pessoa fisica (Sprint 6). */
+    public static SolicitacaoOnboarding criarPessoa(
+            UUID usuarioId, Cpf cpf, String nomeCompleto, LocalDate dataNascimento) {
         UUID id = Generators.timeBasedReorderedGenerator().generate();
-        return new SolicitacaoOnboarding(id, usuarioId, cpf, nomeCompleto, dataNascimento);
+        return new SolicitacaoOnboarding(
+                id, usuarioId, TipoSolicitante.PESSOA, cpf.valor(), cpf.valor(), nomeCompleto, dataNascimento);
+    }
+
+    /**
+     * Factory PJ: KYB empresa (Sprint 7). {@code cnpj} deve vir normalizado (14 digitos) — o VO
+     * {@code Cnpj} sera plugado na Task 7.2; aqui aceitamos String pra desacoplar 7.1 de 7.2.
+     */
+    public static SolicitacaoOnboarding criarEmpresa(UUID usuarioId, String cnpj, String razaoSocial) {
+        UUID id = Generators.timeBasedReorderedGenerator().generate();
+        return new SolicitacaoOnboarding(id, usuarioId, TipoSolicitante.EMPRESA, cnpj, null, razaoSocial, null);
+    }
+
+    /**
+     * @deprecated usar {@link #criarPessoa(UUID, Cpf, String, LocalDate)}.
+     */
+    @Deprecated
+    public static SolicitacaoOnboarding criar(UUID usuarioId, Cpf cpf, String nomeCompleto, LocalDate dataNascimento) {
+        return criarPessoa(usuarioId, cpf, nomeCompleto, dataNascimento);
     }
 
     /** Registra um novo documento; transiciona para {@code DOCUMENTOS_RECEBIDOS} se ainda nao estava. */
@@ -101,14 +138,14 @@ public class SolicitacaoOnboarding extends EntidadeAuditavel {
         }
     }
 
-    /** Dispara verificacao KYC; transiciona para {@code EM_VERIFICACAO}. */
+    /** Dispara verificacao KYC/KYB; transiciona para {@code EM_VERIFICACAO}. */
     public void marcarEmVerificacao(String idVerificacaoExterna) {
         validarPodeIniciarVerificacao();
         this.idVerificacaoExterna = idVerificacaoExterna;
         this.status = StatusOnboarding.EM_VERIFICACAO;
     }
 
-    /** Finaliza com resultado do webhook KYC. */
+    /** Finaliza com resultado do webhook KYC/KYB (pre-PLD). */
     public void finalizar(StatusOnboarding statusFinal) {
         if (!statusFinal.isFinal()) {
             throw new StatusOnboardingInvalidoException("finalizar", statusFinal);
@@ -119,6 +156,28 @@ public class SolicitacaoOnboarding extends EntidadeAuditavel {
         this.status = statusFinal;
     }
 
+    /**
+     * Move {@code APROVADO} (pos-KYC/KYB) para {@code APROVADO_FINAL} (pos-PLD limpo). So aceita a
+     * partir de {@code APROVADO}.
+     */
+    public void marcarAprovadoFinal() {
+        if (status != StatusOnboarding.APROVADO) {
+            throw new StatusOnboardingInvalidoException("marcarAprovadoFinal", status);
+        }
+        this.status = StatusOnboarding.APROVADO_FINAL;
+    }
+
+    /**
+     * Move {@code APROVADO} para {@code REPROVADO_PLD} apos hit em base PLD. So aceita a partir de
+     * {@code APROVADO}.
+     */
+    public void reprovarPorPld() {
+        if (status != StatusOnboarding.APROVADO) {
+            throw new StatusOnboardingInvalidoException("reprovarPorPld", status);
+        }
+        this.status = StatusOnboarding.REPROVADO_PLD;
+    }
+
     public UUID getId() {
         return id;
     }
@@ -127,6 +186,15 @@ public class SolicitacaoOnboarding extends EntidadeAuditavel {
         return usuarioId;
     }
 
+    public TipoSolicitante getTipo() {
+        return tipo;
+    }
+
+    public String getDocumento() {
+        return documento;
+    }
+
+    /** CPF original — disponivel apenas para {@code PESSOA}; {@code null} para {@code EMPRESA}. */
     public String getCpf() {
         return cpf;
     }

@@ -8,6 +8,10 @@ package com.dynamis.sep_api.shared.audit;
  *
  * <p>Sprint 6 Task 6.1: adicionados 6 eventos {@code KYC_*} para a trilha auditavel reforcada do
  * modulo {@code onboarding}. Check constraint atualizado em V7.
+ *
+ * <p>Sprint 7 Task 7.8: adicionados 7 eventos {@code KYB_*} e {@code PLD_*} para a trilha
+ * regulatoria PJ + Prevencao a Lavagem de Dinheiro (Resolucao CMN 4.656/2018). Check constraint
+ * atualizado em V13.
  */
 public enum TipoEventoSeguranca {
     LOGIN_OK,
@@ -27,5 +31,12 @@ public enum TipoEventoSeguranca {
     KYC_VERIFICACAO_DISPARADA,
     KYC_FINALIZADO_APROVADO,
     KYC_FINALIZADO_REPROVADO,
-    KYC_FINALIZADO_PENDENCIA
+    KYC_FINALIZADO_PENDENCIA,
+    KYB_INICIADO,
+    KYB_FINALIZADO_APROVADO,
+    KYB_FINALIZADO_REPROVADO,
+    PLD_INICIADO,
+    PLD_HIT_DETECTADO,
+    PLD_LIMPO,
+    PLD_FINALIZADO
 }

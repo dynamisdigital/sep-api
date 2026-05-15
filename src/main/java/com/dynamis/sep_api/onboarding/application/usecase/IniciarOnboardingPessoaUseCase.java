@@ -38,7 +38,7 @@ public class IniciarOnboardingPessoaUseCase {
             UUID usuarioId, String cpfBruto, String nomeCompleto, LocalDate dataNascimento) {
         Cpf cpf = parsearCpf(cpfBruto);
 
-        boolean jaAtivo = repository.existsByCpfAndStatusIn(
+        boolean jaAtivo = repository.existsByDocumentoAndStatusIn(
                 cpf.valor(),
                 Arrays.stream(StatusOnboarding.values())
                         .filter(StatusOnboarding::isAtivo)
@@ -47,7 +47,8 @@ public class IniciarOnboardingPessoaUseCase {
             throw new CpfComOnboardingAtivoException();
         }
 
-        SolicitacaoOnboarding solicitacao = SolicitacaoOnboarding.criar(usuarioId, cpf, nomeCompleto, dataNascimento);
+        SolicitacaoOnboarding solicitacao =
+                SolicitacaoOnboarding.criarPessoa(usuarioId, cpf, nomeCompleto, dataNascimento);
         SolicitacaoOnboarding salva = repository.save(solicitacao);
         eventPublisher.publishEvent(new OnboardingIniciadoEvent(salva.getId(), usuarioId));
         return salva;

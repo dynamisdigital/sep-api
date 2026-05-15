@@ -39,7 +39,7 @@ class IniciarOnboardingPessoaUseCaseTest {
 
     @Test
     void criaSolicitacaoEPublicaEventoOnboardingIniciado() {
-        when(repository.existsByCpfAndStatusIn(anyString(), any(Collection.class)))
+        when(repository.existsByDocumentoAndStatusIn(anyString(), any(Collection.class)))
                 .thenReturn(false);
         UUID usuarioId = UUID.randomUUID();
 
@@ -55,7 +55,7 @@ class IniciarOnboardingPessoaUseCaseTest {
 
     @Test
     void rejeitaCpfDuplicadoEmStatusAtivo() {
-        when(repository.existsByCpfAndStatusIn(anyString(), any(Collection.class)))
+        when(repository.existsByDocumentoAndStatusIn(anyString(), any(Collection.class)))
                 .thenReturn(true);
 
         assertThatThrownBy(() -> useCase.executar(UUID.randomUUID(), "52998224725", "Joao", LocalDate.of(1990, 1, 1)))
