@@ -145,7 +145,7 @@ public class IniciarPldPessoaUseCase {
     private void publicarHits(UUID solicitacaoId, AlvoPld alvoTipo, RespostaPld resposta) {
         for (HitPld hit : resposta.hits()) {
             eventPublisher.publishEvent(
-                    new PldHitDetectadoEvent(solicitacaoId, alvoTipo, hit.base(), hit.severidade()));
+                    new PldHitDetectadoEvent(solicitacaoId, alvoTipo, hit.base(), hit.severidade(), hit.motivo()));
         }
     }
 

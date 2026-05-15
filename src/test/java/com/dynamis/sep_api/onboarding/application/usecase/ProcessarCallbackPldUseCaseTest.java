@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.onboarding.application.usecase;
 
 import com.dynamis.sep_api.onboarding.domain.event.PldFinalizadoEvent;
+import com.dynamis.sep_api.onboarding.domain.event.PldLimpoEvent;
 import com.dynamis.sep_api.onboarding.domain.model.ConsultaPld;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.Cpf;
@@ -115,14 +116,18 @@ class ProcessarCallbackPldUseCaseTest {
     }
 
     @Test
-    void pldLimpoMovePraAprovadoFinal() {
+    void pldLimpoMovePraAprovadoFinalEEmitePldLimpoEventPerAlvo() {
         useCase.executar("idem-1", "sig", "{}", payloadLimpo());
 
         assertThat(pfAprovada.getStatus()).isEqualTo(StatusOnboarding.APROVADO_FINAL);
         verify(consultaPldRepository, org.mockito.Mockito.times(4)).save(any(ConsultaPld.class));
-        ArgumentCaptor<PldFinalizadoEvent> evtCaptor = ArgumentCaptor.forClass(PldFinalizadoEvent.class);
-        verify(eventPublisher).publishEvent(evtCaptor.capture());
-        assertThat(evtCaptor.getValue().statusFinal()).isEqualTo(StatusOnboarding.APROVADO_FINAL);
+        ArgumentCaptor<Object> evtCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher, org.mockito.Mockito.times(2)).publishEvent(evtCaptor.capture());
+        List<Object> eventos = evtCaptor.getAllValues();
+        assertThat(eventos).anyMatch(e -> e instanceof PldLimpoEvent);
+        assertThat(eventos)
+                .anyMatch(
+                        e -> e instanceof PldFinalizadoEvent pf && pf.statusFinal() == StatusOnboarding.APROVADO_FINAL);
     }
 
     @Test

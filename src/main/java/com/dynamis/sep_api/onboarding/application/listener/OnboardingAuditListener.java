@@ -132,7 +132,9 @@ public class OnboardingAuditListener {
         payload.put("solicitacaoId", event.solicitacaoId().toString());
         payload.put("alvoTipo", event.alvoTipo().name());
         payload.put("base", event.base().name());
-        payload.put("severidade", event.severidade().name());
+        payload.put(
+                "severidade", event.severidade() != null ? event.severidade().name() : SEVERIDADE_NAO_INFORMADA);
+        payload.put("motivo", sanitizarMotivo(event.motivo()));
         auditLogService.gravar(TipoEventoSeguranca.PLD_HIT_DETECTADO, null, serializar(payload));
     }
 
@@ -183,6 +185,21 @@ public class OnboardingAuditListener {
             default -> throw new IllegalArgumentException(
                     "KybFinalizadoEvent com status nao-suportado: " + statusFinal);
         };
+    }
+
+    private static final String SEVERIDADE_NAO_INFORMADA = "NAO_INFORMADA";
+    private static final String MOTIVO_NAO_INFORMADO = "NAO_INFORMADO";
+    private static final int MOTIVO_MAX_LEN = 200;
+
+    /**
+     * Trunca motivo a {@value #MOTIVO_MAX_LEN} caracteres e devolve sentinel quando ausente. Motivo
+     * nao costuma carregar dados pessoais (descreve a base e a razao do hit), mas o limite evita
+     * que payloads grandes/maliciosos inflem o audit log.
+     */
+    private static String sanitizarMotivo(String motivo) {
+        if (motivo == null || motivo.isBlank()) return MOTIVO_NAO_INFORMADO;
+        String trim = motivo.strip();
+        return trim.length() <= MOTIVO_MAX_LEN ? trim : trim.substring(0, MOTIVO_MAX_LEN);
     }
 
     /** Mantem primeiros 3 + ultimos 2 digitos; mascara os restantes. */

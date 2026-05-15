@@ -2,6 +2,7 @@ package com.dynamis.sep_api.onboarding.application.usecase;
 
 import com.dynamis.sep_api.onboarding.domain.event.PldFinalizadoEvent;
 import com.dynamis.sep_api.onboarding.domain.event.PldHitDetectadoEvent;
+import com.dynamis.sep_api.onboarding.domain.event.PldLimpoEvent;
 import com.dynamis.sep_api.onboarding.domain.model.ConsultaPld;
 import com.dynamis.sep_api.onboarding.domain.model.RepresentanteLegal;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
@@ -261,7 +262,8 @@ public class ProcessarCallbackPldUseCase {
                             severidade,
                             base.dataInclusao(),
                             payloadCru));
-                    eventPublisher.publishEvent(new PldHitDetectadoEvent(solicitacaoId, alvoTipo, basePld, severidade));
+                    eventPublisher.publishEvent(
+                            new PldHitDetectadoEvent(solicitacaoId, alvoTipo, basePld, severidade, base.motivo()));
                     alvoHit = true;
                 } else {
                     consultaPldRepository.save(
@@ -279,6 +281,9 @@ public class ProcessarCallbackPldUseCase {
                         representanteRepository.save(rep);
                     }
                 }
+            }
+            if (!alvoHit) {
+                eventPublisher.publishEvent(new PldLimpoEvent(solicitacaoId, alvoTipo, mascararDocumento(documento)));
             }
             houveHit = houveHit || alvoHit;
         }

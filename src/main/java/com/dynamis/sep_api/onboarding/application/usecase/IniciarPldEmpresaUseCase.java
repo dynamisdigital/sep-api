@@ -160,8 +160,8 @@ public class IniciarPldEmpresaUseCase {
 
             if (!resposta.limpo()) {
                 for (HitPld hit : resposta.hits()) {
-                    eventPublisher.publishEvent(
-                            new PldHitDetectadoEvent(solicitacaoId, alvoTipo, hit.base(), hit.severidade()));
+                    eventPublisher.publishEvent(new PldHitDetectadoEvent(
+                            solicitacaoId, alvoTipo, hit.base(), hit.severidade(), hit.motivo()));
                 }
                 return true;
             }

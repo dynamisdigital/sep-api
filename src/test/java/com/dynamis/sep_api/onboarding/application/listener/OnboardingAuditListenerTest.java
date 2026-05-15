@@ -178,16 +178,45 @@ class OnboardingAuditListenerTest {
     }
 
     @Test
-    void pldHitDetectadoGravaPldHitDetectadoComBaseESeveridade() throws Exception {
-        listener.aoDetectarHitPld(
-                new PldHitDetectadoEvent(solicitacaoId, AlvoPld.REPRESENTANTE, BasePld.OFAC, SeveridadePld.ALTA));
+    void pldHitDetectadoGravaPldHitDetectadoComBaseSeveridadeEMotivo() throws Exception {
+        listener.aoDetectarHitPld(new PldHitDetectadoEvent(
+                solicitacaoId, AlvoPld.REPRESENTANTE, BasePld.OFAC, SeveridadePld.ALTA, "SDN list - terrorism"));
 
         JsonNode json = parsear(capturarDetalhesSemUsuario(TipoEventoSeguranca.PLD_HIT_DETECTADO));
         assertThat(json.get("alvoTipo").asText()).isEqualTo("REPRESENTANTE");
         assertThat(json.get("base").asText()).isEqualTo("OFAC");
         assertThat(json.get("severidade").asText()).isEqualTo("ALTA");
-        assertThat(json.has("motivo")).isFalse();
+        assertThat(json.get("motivo").asText()).isEqualTo("SDN list - terrorism");
         assertThat(json.has("payloadProvider")).isFalse();
+    }
+
+    @Test
+    void pldHitDetectadoComSeveridadeNullaGravaSentinelNaoInformada() throws Exception {
+        listener.aoDetectarHitPld(
+                new PldHitDetectadoEvent(solicitacaoId, AlvoPld.PESSOA, BasePld.COAF, null, "lista PEP"));
+
+        JsonNode json = parsear(capturarDetalhesSemUsuario(TipoEventoSeguranca.PLD_HIT_DETECTADO));
+        assertThat(json.get("severidade").asText()).isEqualTo("NAO_INFORMADA");
+        assertThat(json.get("motivo").asText()).isEqualTo("lista PEP");
+    }
+
+    @Test
+    void pldHitDetectadoComMotivoNullGravaSentinelNaoInformado() throws Exception {
+        listener.aoDetectarHitPld(
+                new PldHitDetectadoEvent(solicitacaoId, AlvoPld.PESSOA, BasePld.MTE, SeveridadePld.MEDIA, null));
+
+        JsonNode json = parsear(capturarDetalhesSemUsuario(TipoEventoSeguranca.PLD_HIT_DETECTADO));
+        assertThat(json.get("motivo").asText()).isEqualTo("NAO_INFORMADO");
+    }
+
+    @Test
+    void pldHitDetectadoComMotivoMuitoLongoEhTruncadoEm200Chars() throws Exception {
+        String motivoLongo = "x".repeat(500);
+        listener.aoDetectarHitPld(new PldHitDetectadoEvent(
+                solicitacaoId, AlvoPld.PESSOA, BasePld.INTERPOL, SeveridadePld.BAIXA, motivoLongo));
+
+        JsonNode json = parsear(capturarDetalhesSemUsuario(TipoEventoSeguranca.PLD_HIT_DETECTADO));
+        assertThat(json.get("motivo").asText()).hasSize(200);
     }
 
     @Test
