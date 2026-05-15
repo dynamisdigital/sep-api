@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.onboarding.web;
 
+import com.dynamis.sep_api.onboarding.infrastructure.persistence.ConsultaPldRepository;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.DocumentoCadastralRepository;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.ResultadoVerificacaoRepository;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.SolicitacaoOnboardingRepository;
@@ -62,6 +63,9 @@ class OnboardingPessoaIT {
     ResultadoVerificacaoRepository resultadoRepository;
 
     @Autowired
+    ConsultaPldRepository consultaPldRepository;
+
+    @Autowired
     WebhookEventLogRepository webhookEventLogRepository;
 
     @Autowired
@@ -81,6 +85,8 @@ class OnboardingPessoaIT {
     }
 
     private void limpar() {
+        // consulta_pld FK sem CASCADE (LGPD retencao 5 anos) — limpar antes de solicitacao
+        consultaPldRepository.deleteAll();
         documentoRepository.deleteAll();
         resultadoRepository.deleteAll();
         solicitacaoRepository.deleteAll();
@@ -191,7 +197,7 @@ class OnboardingPessoaIT {
                 .statusCode(200)
                 .extract()
                 .response();
-        assertThat(status.path("status").toString()).isEqualTo("APROVADO");
+        assertThat(status.path("status").toString()).isEqualTo("APROVADO_FINAL");
         assertThat(status.path("resultado.statusFinal").toString()).isEqualTo("APROVADO");
     }
 

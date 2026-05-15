@@ -8,6 +8,8 @@ import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
@@ -22,7 +24,12 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * </ul>
  *
  * <p>Listeners executam {@code AFTER_COMMIT} pra evitar disparar PLD sobre transacao revertida.
- * Falhas no PLD nao reabrem a transacao de KYC/KYB; ficam capturadas no log + audit.
+ * Os handlers sao anotados com {@link Transactional}({@link Propagation#REQUIRES_NEW}) porque
+ * AFTER_COMMIT roda fora da transacao original — sem novo escopo transacional explicito, o
+ * {@code @Transactional(REQUIRED)} dos use cases PLD junta-se a tx ja commitada e os saves nao
+ * sao flushados (consultas PLD e transicao para {@code APROVADO_FINAL}/{@code REPROVADO_PLD}
+ * perdidos silenciosamente). Falhas no PLD nao reabrem a transacao original de KYC/KYB; ficam
+ * capturadas no log.
  */
 @Component
 public class PldOrchestrationListener {
@@ -38,6 +45,7 @@ public class PldOrchestrationListener {
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onKycFinalizado(OnboardingFinalizadoEvent event) {
         if (event.statusFinal() != StatusOnboarding.APROVADO) {
             return;
@@ -50,6 +58,7 @@ public class PldOrchestrationListener {
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onKybFinalizado(KybFinalizadoEvent event) {
         if (event.statusFinal() != StatusOnboarding.APROVADO) {
             return;
