@@ -155,6 +155,7 @@ public class IniciarPldEmpresaUseCase {
             RespostaPld resposta = isEmpresa
                     ? provider.consultarEmpresa(requisicao, correlationId)
                     : provider.consultarPessoa(requisicao, correlationId);
+            IniciarPldPessoaUseCase.exigirCoberturaCompleta(resposta);
 
             persistirResultados(solicitacaoId, alvoTipo, documento, resposta);
 

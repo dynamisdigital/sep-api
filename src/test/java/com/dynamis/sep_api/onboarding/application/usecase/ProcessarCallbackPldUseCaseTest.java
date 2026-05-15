@@ -3,9 +3,14 @@ package com.dynamis.sep_api.onboarding.application.usecase;
 import com.dynamis.sep_api.onboarding.domain.event.PldFinalizadoEvent;
 import com.dynamis.sep_api.onboarding.domain.event.PldLimpoEvent;
 import com.dynamis.sep_api.onboarding.domain.model.ConsultaPld;
+import com.dynamis.sep_api.onboarding.domain.model.KybEmpresa;
+import com.dynamis.sep_api.onboarding.domain.model.RepresentanteLegal;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
+import com.dynamis.sep_api.onboarding.domain.vo.Cnpj;
 import com.dynamis.sep_api.onboarding.domain.vo.Cpf;
+import com.dynamis.sep_api.onboarding.domain.vo.PorteEmpresa;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
+import com.dynamis.sep_api.onboarding.domain.vo.TipoSocietario;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.ConsultaPldRepository;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.KybEmpresaRepository;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.RepresentanteLegalRepository;
@@ -205,6 +210,102 @@ class ProcessarCallbackPldUseCaseTest {
 
         assertThat(pj.getStatus()).isEqualTo(StatusOnboarding.APROVADO);
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void payloadComDocumentoDiferenteDaSolicitacaoPfMarcaFalhou() {
+        // CPF do alvo != CPF persistido na solicitacao (52998224725)
+        CelcoinPldCallbackRequest payload = new CelcoinPldCallbackRequest(
+                pfAprovada.getId().toString(),
+                List.of(new CelcoinPldCallbackRequest.AlvoResultado(
+                        "PESSOA",
+                        "11144477735", // CPF de outra pessoa
+                        List.of(
+                                new CelcoinPldCallbackRequest.BaseResultado("COAF", false, null, null, null),
+                                new CelcoinPldCallbackRequest.BaseResultado("OFAC", false, null, null, null),
+                                new CelcoinPldCallbackRequest.BaseResultado("INTERPOL", false, null, null, null),
+                                new CelcoinPldCallbackRequest.BaseResultado("MTE", false, null, null, null)))));
+
+        useCase.executar("idem-pf-doc-errado", "sig", "{}", payload);
+
+        assertThat(pfAprovada.getStatus()).isEqualTo(StatusOnboarding.APROVADO);
+        verify(consultaPldRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void payloadPjComCnpjErradoMarcaFalhou() {
+        SolicitacaoOnboarding pj = pjAprovadaComKyb("11222333000181", "52998224725");
+        // Payload PJ traz CNPJ diferente do KYB persistido
+        CelcoinPldCallbackRequest payload = new CelcoinPldCallbackRequest(
+                pj.getId().toString(),
+                List.of(
+                        new CelcoinPldCallbackRequest.AlvoResultado(
+                                "EMPRESA",
+                                "27865757000102", // CNPJ alheio
+                                quatroBasesLimpas()),
+                        new CelcoinPldCallbackRequest.AlvoResultado(
+                                "REPRESENTANTE", "52998224725", quatroBasesLimpas())));
+
+        useCase.executar("idem-pj-cnpj-errado", "sig", "{}", payload);
+
+        assertThat(pj.getStatus()).isEqualTo(StatusOnboarding.APROVADO);
+        verify(consultaPldRepository, never()).save(any());
+    }
+
+    @Test
+    void payloadComTargetTypeDesconhecidoMarcaFalhou() {
+        CelcoinPldCallbackRequest payload = new CelcoinPldCallbackRequest(
+                pfAprovada.getId().toString(),
+                List.of(new CelcoinPldCallbackRequest.AlvoResultado("ESTRANHO", "52998224725", quatroBasesLimpas())));
+
+        useCase.executar("idem-tipo-desconhecido", "sig", "{}", payload);
+
+        assertThat(pfAprovada.getStatus()).isEqualTo(StatusOnboarding.APROVADO);
+        verify(consultaPldRepository, never()).save(any());
+    }
+
+    @Test
+    void payloadPjComDocumentoExtraAlemDosEsperadosMarcaFalhou() {
+        SolicitacaoOnboarding pj = pjAprovadaComKyb("11222333000181", "52998224725");
+
+        CelcoinPldCallbackRequest payload = new CelcoinPldCallbackRequest(
+                pj.getId().toString(),
+                List.of(
+                        new CelcoinPldCallbackRequest.AlvoResultado("EMPRESA", "11222333000181", quatroBasesLimpas()),
+                        new CelcoinPldCallbackRequest.AlvoResultado(
+                                "REPRESENTANTE", "52998224725", quatroBasesLimpas()),
+                        // CPF de representante alheio nao deveria estar no payload
+                        new CelcoinPldCallbackRequest.AlvoResultado(
+                                "REPRESENTANTE", "11144477735", quatroBasesLimpas())));
+
+        useCase.executar("idem-pj-extra", "sig", "{}", payload);
+
+        assertThat(pj.getStatus()).isEqualTo(StatusOnboarding.APROVADO);
+        verify(consultaPldRepository, never()).save(any());
+    }
+
+    private List<CelcoinPldCallbackRequest.BaseResultado> quatroBasesLimpas() {
+        return List.of(
+                new CelcoinPldCallbackRequest.BaseResultado("COAF", false, null, null, null),
+                new CelcoinPldCallbackRequest.BaseResultado("OFAC", false, null, null, null),
+                new CelcoinPldCallbackRequest.BaseResultado("INTERPOL", false, null, null, null),
+                new CelcoinPldCallbackRequest.BaseResultado("MTE", false, null, null, null));
+    }
+
+    /** Cria PJ APROVADO + KybEmpresa + 1 representante e plugga nos mocks. */
+    private SolicitacaoOnboarding pjAprovadaComKyb(String cnpj, String cpfRepresentante) {
+        SolicitacaoOnboarding pj = SolicitacaoOnboarding.criarEmpresa(UUID.randomUUID(), cnpj, "ACME LTDA");
+        pj.registrarDocumentoEnviado();
+        pj.marcarEmVerificacao("ext");
+        pj.finalizar(StatusOnboarding.APROVADO);
+        KybEmpresa kyb =
+                KybEmpresa.criar(pj.getId(), new Cnpj(cnpj), "ACME", null, TipoSocietario.LTDA, PorteEmpresa.ME);
+        RepresentanteLegal rep = RepresentanteLegal.criar(kyb.getId(), "Joao", new Cpf(cpfRepresentante), "Diretor");
+        when(solicitacaoRepository.findById(pj.getId())).thenReturn(Optional.of(pj));
+        when(kybRepository.findBySolicitacaoId(pj.getId())).thenReturn(Optional.of(kyb));
+        when(representanteRepository.findByKybEmpresaId(kyb.getId())).thenReturn(List.of(rep));
+        return pj;
     }
 
     @Test

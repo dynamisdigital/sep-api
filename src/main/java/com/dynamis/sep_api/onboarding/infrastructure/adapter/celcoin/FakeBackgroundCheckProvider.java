@@ -60,13 +60,13 @@ public class FakeBackgroundCheckProvider implements BackgroundCheckProvider {
                 requisicao.solicitacaoId(),
                 correlationId,
                 hit);
-        if (!hit) {
-            return new RespostaPld(List.of(), "{\"hit\":false}");
-        }
         Set<BasePld> bases = requisicao.bases() == null ? Set.of() : requisicao.bases();
+        if (!hit) {
+            return new RespostaPld(List.of(), bases, "{\"hit\":false}");
+        }
         List<HitPld> hits = bases.stream()
                 .map(b -> new HitPld(b, "Fake hit", SeveridadePld.ALTA, LocalDate.now(), "{\"hit\":true}"))
                 .toList();
-        return new RespostaPld(hits, "{\"hit\":true}");
+        return new RespostaPld(hits, bases, "{\"hit\":true}");
     }
 }
