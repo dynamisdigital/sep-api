@@ -3,6 +3,7 @@ package com.dynamis.sep_api.onboarding.domain.model;
 import com.dynamis.sep_api.onboarding.domain.exception.StatusOnboardingInvalidoException;
 import com.dynamis.sep_api.onboarding.domain.vo.Cpf;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
+import com.dynamis.sep_api.onboarding.domain.vo.TipoSolicitante;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -99,5 +100,70 @@ class SolicitacaoOnboardingTest {
         s.finalizar(StatusOnboarding.REPROVADO);
 
         assertThatThrownBy(s::registrarDocumentoEnviado).isInstanceOf(StatusOnboardingInvalidoException.class);
+    }
+
+    @Test
+    void criarPessoaPreservaTipoEDocumentoIguaisAoCpf() {
+        SolicitacaoOnboarding s = novaSolicitacao();
+
+        assertThat(s.getTipo()).isEqualTo(TipoSolicitante.PESSOA);
+        assertThat(s.getDocumento()).isEqualTo(CPF_VALIDO);
+        assertThat(s.getCpf()).isEqualTo(CPF_VALIDO);
+    }
+
+    @Test
+    void criarEmpresaUsaDocumentoCnpjESemCpfNemDataNascimento() {
+        String cnpj = "11222333000181";
+        SolicitacaoOnboarding s = SolicitacaoOnboarding.criarEmpresa(UUID.randomUUID(), cnpj, "ACME Industria LTDA");
+
+        assertThat(s.getTipo()).isEqualTo(TipoSolicitante.EMPRESA);
+        assertThat(s.getDocumento()).isEqualTo(cnpj);
+        assertThat(s.getCpf()).isNull();
+        assertThat(s.getDataNascimento()).isNull();
+        assertThat(s.getNomeCompleto()).isEqualTo("ACME Industria LTDA");
+        assertThat(s.getStatus()).isEqualTo(StatusOnboarding.INICIADO);
+    }
+
+    @Test
+    void marcarAprovadoFinalSoSaiDeAprovado() {
+        SolicitacaoOnboarding s = novaSolicitacao();
+        s.registrarDocumentoEnviado();
+        s.marcarEmVerificacao("ext");
+        s.finalizar(StatusOnboarding.APROVADO);
+
+        s.marcarAprovadoFinal();
+
+        assertThat(s.getStatus()).isEqualTo(StatusOnboarding.APROVADO_FINAL);
+        assertThat(s.getStatus().isFinal()).isTrue();
+    }
+
+    @Test
+    void marcarAprovadoFinalFalhaSeStatusNaoEAprovado() {
+        SolicitacaoOnboarding s = novaSolicitacao();
+
+        assertThatThrownBy(s::marcarAprovadoFinal).isInstanceOf(StatusOnboardingInvalidoException.class);
+    }
+
+    @Test
+    void reprovarPorPldSoSaiDeAprovado() {
+        SolicitacaoOnboarding s = novaSolicitacao();
+        s.registrarDocumentoEnviado();
+        s.marcarEmVerificacao("ext");
+        s.finalizar(StatusOnboarding.APROVADO);
+
+        s.reprovarPorPld();
+
+        assertThat(s.getStatus()).isEqualTo(StatusOnboarding.REPROVADO_PLD);
+        assertThat(s.getStatus().isFinal()).isTrue();
+    }
+
+    @Test
+    void reprovarPorPldFalhaSeStatusNaoEAprovado() {
+        SolicitacaoOnboarding s = novaSolicitacao();
+        s.registrarDocumentoEnviado();
+        s.marcarEmVerificacao("ext");
+        s.finalizar(StatusOnboarding.REPROVADO);
+
+        assertThatThrownBy(s::reprovarPorPld).isInstanceOf(StatusOnboardingInvalidoException.class);
     }
 }

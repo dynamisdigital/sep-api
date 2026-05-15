@@ -122,6 +122,7 @@ SEP opera sob a Resolucao CMN 4.656/2018. Implicacoes desde a Sprint 1: KYC/KYB 
 - Sprint 4 — Erros, Documentacao, Testes, Webhook Receiver
 - Sprint 5 — Endurecimento de Seguranca (refresh token, MFA, audit log)
 - Sprint 6 — Onboarding KYC Pessoa Fisica (modulo `onboarding`, Provider Celcoin, webhook KYC)
+- Sprint 7 — Onboarding KYB PJ + PLD (KybProvider sync, BackgroundCheckProvider, 4 bases PLD, webhooks KYB/PLD, auditoria reforcada)
 
 Detalhamento: [docs-SEP/specs/](../docs-SEP/specs/) e [docs-SEP/steps-fase-1/](../docs-SEP/steps-fase-1/), [docs-SEP/steps-fase-2/](../docs-SEP/steps-fase-2/).
 
@@ -129,62 +130,89 @@ Detalhamento: [docs-SEP/specs/](../docs-SEP/specs/) e [docs-SEP/steps-fase-1/](.
 
 - **`identity`** — JWT, refresh token, MFA, lockout, audit log seguranca (Sprint 5).
 - **`usuarios`** — cadastro, perfis, ownership.
-- **`onboarding`** — KYC Pessoa Fisica via Celcoin Provider Pattern (Sprint 6). Ver
-  [docs/ONBOARDING.md](docs/ONBOARDING.md): contratos REST, fluxo do webhook, como
-  selecionar provider (`app.kyc.provider=fake|celcoin`), smoke manual, cuidados LGPD.
+- **`onboarding`** — KYC PF (Sprint 6) + KYB PJ + PLD orquestrado (Sprint 7) via Celcoin
+  Provider Pattern. Ver [docs/ONBOARDING.md](docs/ONBOARDING.md) (fluxo completo,
+  endpoints, webhooks, providers, smoke) e [docs/PLD.md](docs/PLD.md) (politica PLD,
+  retencao LGPD, checklist juridico).
 - **`escrow`** — segregacao patrimonial (CMN 4.656/2018), modelado desde Sprint 1.
 - **`shared`** — `ApiExceptionHandler`, `EntidadeAuditavel`, `RestClientFactory`,
   Resilience4j, `WebhookEventLog` outbox (Sprint 4).
 
-## Rodar Onboarding KYC localmente (Sprint 6)
+## Rodar Onboarding (KYC PF + KYB PJ + PLD) localmente
 
-Detalhamento completo em [docs/ONBOARDING.md](docs/ONBOARDING.md). Resumo:
+Detalhamento completo em [docs/ONBOARDING.md](docs/ONBOARDING.md). Politica PLD
+detalhada em [docs/PLD.md](docs/PLD.md). Resumo:
 
-### Provider Fake (default — dev sem credenciais)
+### Providers Fake (default — dev sem credenciais)
 
 ```bash
 docker compose up -d postgres
 ./gradlew bootRun
 ```
 
-`app.kyc.provider=fake` ja vem no `application.yml`. `FakeKycProvider` retorna
-`Finalizado(APROVADO)` quando o callback simulado e enviado com
-`verification_id="fake-<solicitacaoId>"`. Smoke manual com curl em
-[docs/ONBOARDING.md#smoke-manual](docs/ONBOARDING.md).
+Defaults do `application.yml`: `app.kyc.provider=fake`, `app.kyb.provider=fake`,
+`app.pld.provider=fake`.
 
-### Provider Celcoin (sandbox)
+- `FakeKycProvider` — devolve `Finalizado(APROVADO)` ao receber callback simulado.
+- `FakeKybProvider` — devolve situacao `ATIVA` + 1 representante deterministico (CPF
+  `52998224725`). `marcarCnpjComoSituacao(cnpj, SUSPENSA|...)` em testes força
+  reprovacao.
+- `FakeBackgroundCheckProvider` — devolve limpo nas 4 bases.
+  `marcarDocumentoComoHit(documento)` em testes força hit.
+
+Smoke manual PF e PJ com curl em [docs/ONBOARDING.md](docs/ONBOARDING.md). Apos KYC/KYB
+APROVADO, o `PldOrchestrationListener` dispara PLD automatico — status final consolida em
+`APROVADO_FINAL` (limpo) ou `REPROVADO_PLD` (hit).
+
+### Providers Celcoin (sandbox)
 
 ```bash
+# KYC PF
 export APP_KYC_PROVIDER=celcoin
 export APP_CELCOIN_KYC_BASE_URL=https://sandbox.openfinance.celcoin.dev/onboarding/v1
 export APP_CELCOIN_KYC_CLIENT_ID=...
 export APP_CELCOIN_KYC_CLIENT_SECRET=...
 export APP_WEBHOOK_SECRET_CELCOIN_KYC=...
+
+# KYB PJ
+export APP_KYB_PROVIDER=celcoin
+export APP_CELCOIN_KYB_BASE_URL=https://sandbox.openfinance.celcoin.dev/onboarding/v1
+export APP_CELCOIN_KYB_CLIENT_ID=...
+export APP_CELCOIN_KYB_CLIENT_SECRET=...
+export APP_WEBHOOK_SECRET_CELCOIN_KYB=...
+
+# PLD (background check)
+export APP_PLD_PROVIDER=celcoin
+export APP_CELCOIN_PLD_BASE_URL=https://sandbox.openfinance.celcoin.dev/background-check/v1
+export APP_CELCOIN_PLD_CLIENT_ID=...
+export APP_CELCOIN_PLD_CLIENT_SECRET=...
+export APP_WEBHOOK_SECRET_CELCOIN_PLD=...
+
 ./gradlew bootRun
 ```
 
-OAuth2 client-credentials cacheado (`CelcoinOAuthTokenProvider`); cada chamada KYC
-inclui `Authorization: Bearer <token>`. Resilience4j: retry 3x em 5xx +
-IOException/ResourceAccessException, circuit breaker, timeout 30s.
+`CelcoinOAuthTokenProvider` cacheia tokens por `(clientId@baseUrl)` — KYC/KYB/PLD podem
+usar credenciais distintas. Resilience4j (`celcoin-kyc`/`celcoin-kyb`/
+`celcoin-background-check`): retry 3x em 5xx + IOException, circuit breaker, timeout
+30s.
 
 ### Profile `local-wiremock` (dev sem credenciais reais)
 
-Cobre o caminho do `CelcoinKycProvider` (HTTP real + OAuth + Resilience4j) sem precisar
-do sandbox Celcoin. Sobe um WireMock standalone em `localhost:8089`, stubs minimos para
-`/token` e `/verifications`, e aponta o backend para ele via
-`SPRING_PROFILES_ACTIVE=dev,local-wiremock` + `APP_CELCOIN_KYC_BASE_URL=http://localhost:8089/onboarding/v1`.
-Passo a passo (incluindo comandos de stub via `__admin/mappings`) em
+Cobre o caminho real (HTTP + OAuth + Resilience4j) dos 3 providers sem precisar de
+sandbox Celcoin. Stubs `/token`, `/verifications`, `/companies` e `/background-check`
+via `__admin/mappings` do WireMock standalone. Passo a passo em
 [docs/ONBOARDING.md#profile-local-wiremock](docs/ONBOARDING.md).
 
 ### Testes WireMock (suite IT)
 
 ```bash
-./gradlew test --tests '*CelcoinKycProviderIT' --tests '*CelcoinOAuthTokenProviderIT'
+./gradlew test --tests '*CelcoinKycProviderIT' \
+               --tests '*CelcoinKybProviderIT' \
+               --tests '*CelcoinBackgroundCheckProviderIT' \
+               --tests '*CelcoinOAuthTokenProviderIT' \
+               --tests '*CelcoinOAuthCrossProviderIT'
 ```
 
-Cobre Bearer OAuth, retry 5xx, propagacao X-Correlation-Id, preservacao da
-Idempotency-Key do caller no MDC e cache de token.
-
-
-// Teste
-teste de esteira
+Cobre Bearer OAuth (por providerKey), retry 5xx, propagacao X-Correlation-Id,
+preservacao da Idempotency-Key do caller no MDC, cache de token e isolamento de
+credenciais entre KYC/KYB/PLD.

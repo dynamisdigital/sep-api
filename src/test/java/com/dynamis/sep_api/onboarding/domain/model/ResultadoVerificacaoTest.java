@@ -29,7 +29,7 @@ class ResultadoVerificacaoTest {
             value = StatusOnboarding.class,
             mode = Mode.EXCLUDE,
             names = {"APROVADO", "REPROVADO", "PENDENCIA"})
-    void registrarRejeitaStatusNaoFinal(StatusOnboarding statusInvalido) {
+    void registrarRejeitaStatusNaoFinalDeKycKyb(StatusOnboarding statusInvalido) {
         assertThatThrownBy(() -> ResultadoVerificacao.registrar(UUID.randomUUID(), statusInvalido, null, "{}"))
                 .isInstanceOf(StatusOnboardingInvalidoException.class);
     }
