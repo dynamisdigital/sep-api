@@ -2,7 +2,8 @@ package com.dynamis.sep_api.credito.application.usecase;
 
 import com.dynamis.sep_api.credito.application.dto.CriarPropostaCreditoCommand;
 import com.dynamis.sep_api.credito.domain.event.PropostaCriadaEvent;
-import com.dynamis.sep_api.credito.domain.exception.PropostaInvalidaException;
+import com.dynamis.sep_api.credito.domain.exception.OnboardingNaoAprovadoException;
+import com.dynamis.sep_api.credito.domain.exception.OwnershipPropostaException;
 import com.dynamis.sep_api.credito.domain.model.PropostaCredito;
 import com.dynamis.sep_api.credito.domain.vo.TipoOperacao;
 import com.dynamis.sep_api.credito.infrastructure.persistence.PropostaCreditoRepository;
@@ -11,7 +12,6 @@ import com.dynamis.sep_api.onboarding.application.query.OnboardingResumoCredito;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.TipoSolicitante;
 import com.dynamis.sep_api.shared.exception.RecursoNaoEncontradoException;
-import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -77,7 +77,7 @@ class CriarPropostaCreditoUseCaseTest {
     }
 
     @Test
-    void rejeitaQuandoOnboardingNaoEstaAprovadoFinal() {
+    void rejeitaComOnboardingNaoAprovadoException422() {
         UUID tomadorId = UUID.randomUUID();
         UUID onbId = UUID.randomUUID();
         when(onboardingQuery.consultarPorId(onbId))
@@ -91,12 +91,12 @@ class CriarPropostaCreditoUseCaseTest {
 
         assertThatThrownBy(() -> useCase.executar(new CriarPropostaCreditoCommand(
                         tomadorId, onbId, TipoOperacao.OUTROS, new BigDecimal("10000"), 12)))
-                .isInstanceOf(PropostaInvalidaException.class)
+                .isInstanceOf(OnboardingNaoAprovadoException.class)
                 .hasMessageContaining("APROVADO_FINAL");
     }
 
     @Test
-    void rejeitaQuandoOnboardingPertenceAOutroTomador() {
+    void rejeitaComOwnershipPropostaException403() {
         UUID outroDono = UUID.randomUUID();
         UUID onbId = UUID.randomUUID();
         when(onboardingQuery.consultarPorId(onbId))
@@ -110,7 +110,7 @@ class CriarPropostaCreditoUseCaseTest {
 
         assertThatThrownBy(() -> useCase.executar(new CriarPropostaCreditoCommand(
                         UUID.randomUUID(), onbId, TipoOperacao.OUTROS, new BigDecimal("10000"), 12)))
-                .isInstanceOf(ValidacaoException.class)
+                .isInstanceOf(OwnershipPropostaException.class)
                 .hasMessageContaining("outro tomador");
     }
 }
