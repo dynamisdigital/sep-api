@@ -1,0 +1,157 @@
+package com.dynamis.sep_api.credito.application.usecase;
+
+import com.dynamis.sep_api.credito.application.service.MotorRegrasCredito;
+import com.dynamis.sep_api.credito.application.service.dto.RegraResultado;
+import com.dynamis.sep_api.credito.application.service.dto.ResultadoAvaliacaoCredito;
+import com.dynamis.sep_api.credito.domain.event.PropostaAvaliadaPeloMotorEvent;
+import com.dynamis.sep_api.credito.domain.event.PropostaRejeitadaEvent;
+import com.dynamis.sep_api.credito.domain.model.DecisaoCredito;
+import com.dynamis.sep_api.credito.domain.model.PropostaCredito;
+import com.dynamis.sep_api.credito.domain.model.RegraCreditoAvaliada;
+import com.dynamis.sep_api.credito.domain.model.ScoreInterno;
+import com.dynamis.sep_api.credito.domain.vo.Money;
+import com.dynamis.sep_api.credito.domain.vo.ResultadoRegra;
+import com.dynamis.sep_api.credito.domain.vo.StatusProposta;
+import com.dynamis.sep_api.credito.domain.vo.TipoOperacao;
+import com.dynamis.sep_api.credito.infrastructure.persistence.DecisaoCreditoRepository;
+import com.dynamis.sep_api.credito.infrastructure.persistence.PropostaCreditoRepository;
+import com.dynamis.sep_api.credito.infrastructure.persistence.RegraCreditoAvaliadaRepository;
+import com.dynamis.sep_api.credito.infrastructure.persistence.ScoreInternoRepository;
+import com.dynamis.sep_api.onboarding.application.query.ConsultarOnboardingParaCreditoQuery;
+import com.dynamis.sep_api.onboarding.application.query.OnboardingResumoCredito;
+import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
+import com.dynamis.sep_api.onboarding.domain.vo.TipoSolicitante;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class AvaliarPropostaUseCaseTest {
+
+    private PropostaCreditoRepository propostaRepository;
+    private ScoreInternoRepository scoreRepository;
+    private RegraCreditoAvaliadaRepository regraRepository;
+    private DecisaoCreditoRepository decisaoRepository;
+    private ConsultarOnboardingParaCreditoQuery onboardingQuery;
+    private MotorRegrasCredito motor;
+    private ApplicationEventPublisher eventPublisher;
+    private AvaliarPropostaUseCase useCase;
+
+    @BeforeEach
+    void setup() {
+        propostaRepository = mock(PropostaCreditoRepository.class);
+        scoreRepository = mock(ScoreInternoRepository.class);
+        regraRepository = mock(RegraCreditoAvaliadaRepository.class);
+        decisaoRepository = mock(DecisaoCreditoRepository.class);
+        onboardingQuery = mock(ConsultarOnboardingParaCreditoQuery.class);
+        motor = mock(MotorRegrasCredito.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
+        useCase = new AvaliarPropostaUseCase(
+                propostaRepository,
+                scoreRepository,
+                regraRepository,
+                decisaoRepository,
+                onboardingQuery,
+                motor,
+                eventPublisher);
+        when(propostaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    @Test
+    void aplicaSugestaoPreAprovadaPersistindoScoreERegras() {
+        PropostaCredito proposta = propostaSimples();
+        when(propostaRepository.findById(proposta.getId())).thenReturn(Optional.of(proposta));
+        when(onboardingQuery.consultarPorId(proposta.getSolicitacaoOnboardingId()))
+                .thenReturn(Optional.of(resumoPfOk(proposta.getSolicitacaoOnboardingId(), proposta.getTomadorId())));
+        when(motor.avaliar(any()))
+                .thenReturn(new ResultadoAvaliacaoCredito(
+                        1000,
+                        StatusProposta.PRE_APROVADA,
+                        0,
+                        0,
+                        List.of(new RegraResultado("rg1", ResultadoRegra.PASSOU, null, false))));
+
+        useCase.executar(proposta.getId());
+
+        assertThat(proposta.getStatus()).isEqualTo(StatusProposta.PRE_APROVADA);
+        verify(scoreRepository).save(any(ScoreInterno.class));
+        verify(regraRepository).save(any(RegraCreditoAvaliada.class));
+        verify(propostaRepository).save(proposta);
+        verify(eventPublisher).publishEvent(any(PropostaAvaliadaPeloMotorEvent.class));
+        verify(decisaoRepository, never()).save(any());
+    }
+
+    @Test
+    void rejeicaoPorMotorGravaDecisaoCreditoEDispatchRejeitadaEvent() {
+        PropostaCredito proposta = propostaSimples();
+        when(propostaRepository.findById(proposta.getId())).thenReturn(Optional.of(proposta));
+        when(onboardingQuery.consultarPorId(any()))
+                .thenReturn(Optional.of(resumoPfOk(proposta.getSolicitacaoOnboardingId(), proposta.getTomadorId())));
+        when(motor.avaliar(any()))
+                .thenReturn(new ResultadoAvaliacaoCredito(
+                        100,
+                        StatusProposta.REJEITADA,
+                        3,
+                        0,
+                        List.of(new RegraResultado("rg1", ResultadoRegra.FALHOU, "x", true))));
+
+        useCase.executar(proposta.getId());
+
+        assertThat(proposta.getStatus()).isEqualTo(StatusProposta.REJEITADA);
+        verify(decisaoRepository).save(any(DecisaoCredito.class));
+        verify(eventPublisher).publishEvent(any(PropostaRejeitadaEvent.class));
+    }
+
+    @Test
+    void falhaAoPersistirTrilhaMovePropostaParaPendencia() {
+        PropostaCredito proposta = propostaSimples();
+        when(propostaRepository.findById(proposta.getId())).thenReturn(Optional.of(proposta));
+        when(onboardingQuery.consultarPorId(any()))
+                .thenReturn(Optional.of(resumoPfOk(proposta.getSolicitacaoOnboardingId(), proposta.getTomadorId())));
+        when(motor.avaliar(any()))
+                .thenReturn(new ResultadoAvaliacaoCredito(
+                        900,
+                        StatusProposta.PRE_APROVADA,
+                        0,
+                        0,
+                        List.of(new RegraResultado("rg1", ResultadoRegra.PASSOU, null, false))));
+        // Forca falha na primeira chamada de save do score:
+        when(scoreRepository.save(any())).thenThrow(new RuntimeException("db down"));
+
+        ResultadoAvaliacaoCredito r = useCase.executar(proposta.getId());
+
+        assertThat(proposta.getStatus()).isEqualTo(StatusProposta.PENDENCIA);
+        assertThat(r.statusSugerido()).isEqualTo(StatusProposta.PENDENCIA);
+    }
+
+    private PropostaCredito propostaSimples() {
+        return PropostaCredito.criar(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                TipoOperacao.OUTROS,
+                new Money(new BigDecimal("10000"), "BRL"),
+                12);
+    }
+
+    private OnboardingResumoCredito resumoPfOk(UUID solicitacaoId, UUID usuarioId) {
+        return new OnboardingResumoCredito(
+                solicitacaoId,
+                usuarioId,
+                TipoSolicitante.PESSOA,
+                StatusOnboarding.APROVADO_FINAL,
+                LocalDate.of(1990, 1, 1),
+                null);
+    }
+}
