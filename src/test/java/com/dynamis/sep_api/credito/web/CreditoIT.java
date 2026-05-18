@@ -61,12 +61,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code audit_log_seguranca}.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles("dev")
+@ActiveProfiles("test")
 class CreditoIT {
 
     @DynamicPropertySource
-    static void desligarRateLimitNoTeste(DynamicPropertyRegistry registry) {
+    static void configurarTest(DynamicPropertyRegistry registry) {
         registry.add("app.security.rate-limit.login-per-minute-per-ip", () -> 1000);
+        // Penalidades altas pra forcar EM_ANALISE quando 2 regras falham (1000 - 2*300 = 400)
+        registry.add("app.credito.motor.penalidade-falha", () -> 300);
     }
 
     @LocalServerPort
@@ -105,6 +107,12 @@ class CreditoIT {
     @Autowired
     PasswordEncoder passwordEncoder;
 
+    @Autowired
+    com.dynamis.sep_api.identity.application.service.StepUpTokenService stepUpTokenService;
+
+    @Autowired
+    org.springframework.core.env.Environment environment;
+
     @BeforeEach
     void setup() {
         RestAssured.port = port;
@@ -117,6 +125,12 @@ class CreditoIT {
     }
 
     private void limpar() {
+        // Safeguard: garante que IT nunca apaga banco dev/producao por engano.
+        String url = environment.getProperty("spring.datasource.url", "");
+        if (!url.contains("sep_test")) {
+            throw new IllegalStateException("CreditoIT deve rodar apenas no banco sep_test; URL atual: " + url + ". "
+                    + "Crie o banco com: createdb -h localhost -U sep sep_test");
+        }
         // decisao_credito.parecer_id REFERENCES parecer_credito — limpar decisao primeiro
         decisaoRepository.deleteAll();
         parecerRepository.deleteAll();
@@ -498,6 +512,92 @@ class CreditoIT {
                 .then()
                 .statusCode(403);
     }
+
+    // ============== Step-up real (mfa habilitado) ==============
+
+    @Test
+    void financeiroComMfaHabilitadoSemStepUpTokenRetorna403() {
+        Autenticado cliente = criarClienteELogar();
+        UUID onbId = criarOnboardingAprovadoFinal(cliente.id());
+        String propostaId = criarProposta(cliente.token(), onbId, "10000.00", 12, "OUTROS");
+        aguardarStatus(UUID.fromString(propostaId), StatusProposta.PRE_APROVADA);
+
+        Autenticado financeiro = criarELogar(Role.FINANCEIRO, true);
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + financeiro.token())
+                .contentType(ContentType.JSON)
+                .body("{\"decisao\":\"APROVAR\",\"justificativa\":\"Justificativa adequada do parecerista\"}")
+                .when()
+                .post("/api/v1/credito/propostas/" + propostaId + "/parecer")
+                .then()
+                .statusCode(403);
+    }
+
+    @Test
+    void financeiroComMfaHabilitadoComStepUpTokenValido200() {
+        Autenticado cliente = criarClienteELogar();
+        UUID onbId = criarOnboardingAprovadoFinal(cliente.id());
+        String propostaId = criarProposta(cliente.token(), onbId, "10000.00", 12, "OUTROS");
+        aguardarStatus(UUID.fromString(propostaId), StatusProposta.PRE_APROVADA);
+
+        Autenticado financeiro = criarELogar(Role.FINANCEIRO, true);
+        // Emite step-up token diretamente via service (bypass do fluxo TOTP — apenas testa o
+        // contrato do aspect contra um token genuinamente valido + consumivel).
+        String stepUpToken = stepUpTokenService.emitir(financeiro.id()).token();
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + financeiro.token())
+                .header("X-Step-Up-Token", stepUpToken)
+                .contentType(ContentType.JSON)
+                .body("{\"decisao\":\"APROVAR\",\"justificativa\":\"Cliente com bom historico interno\"}")
+                .when()
+                .post("/api/v1/credito/propostas/" + propostaId + "/parecer")
+                .then()
+                .statusCode(200);
+
+        assertThat(propostaRepository
+                        .findById(UUID.fromString(propostaId))
+                        .orElseThrow()
+                        .getStatus())
+                .isEqualTo(StatusProposta.APROVADA);
+    }
+
+    // ============== Valor acima do limite -> EM_ANALISE -> REJEITAR manual -> REJEITADA ==============
+
+    @Test
+    void valorAcimaDoLimiteVaiParaEmAnaliseEFinanceiroRejeita() {
+        // Penalidade-falha=300 (override em @DynamicPropertySource) + 2 regras falhas
+        // (valor + prazo PF acima do limite) -> score 1000-600=400 -> EM_ANALISE
+        Autenticado cliente = criarClienteELogar();
+        UUID onbId = criarOnboardingAprovadoFinal(cliente.id());
+        String propostaId = criarProposta(cliente.token(), onbId, "60000.00", 13, "OUTROS");
+
+        aguardarStatus(UUID.fromString(propostaId), StatusProposta.EM_ANALISE);
+
+        Autenticado financeiro = criarFinanceiroELogar();
+        RestAssured.given()
+                .header("Authorization", "Bearer " + financeiro.token())
+                .contentType(ContentType.JSON)
+                .body("{\"decisao\":\"REJEITAR\",\"justificativa\":\"Valor incompativel com perfil PF do tomador\"}")
+                .when()
+                .post("/api/v1/credito/propostas/" + propostaId + "/parecer")
+                .then()
+                .statusCode(200);
+
+        assertThat(propostaRepository
+                        .findById(UUID.fromString(propostaId))
+                        .orElseThrow()
+                        .getStatus())
+                .isEqualTo(StatusProposta.REJEITADA);
+        assertThat(decisaoRepository.findByPropostaId(UUID.fromString(propostaId)))
+                .isPresent();
+        pollUntilAsserted(() -> assertThat(auditLogRepository.findByUsuarioIdAndTipoOrderByDataEventoDesc(
+                        cliente.id(), TipoEventoSeguranca.PROPOSTA_REJEITADA))
+                .hasSize(1));
+    }
+
+    // ============== Promocao role FINANCEIRO ==============
 
     @Test
     void adminNaoPodeAlterarPropriaRole403() {
