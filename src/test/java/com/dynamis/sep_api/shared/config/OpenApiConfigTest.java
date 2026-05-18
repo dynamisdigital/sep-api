@@ -54,6 +54,13 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.paths['/api/v1/webhooks/celcoin/kyc']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/webhooks/celcoin/kyb']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/webhooks/celcoin/pld']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/usuarios/{id}/role']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/credito/propostas']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/credito/propostas/{id}']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/credito/propostas/{id}/parecer']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/credito/propostas/{id}/regras']")
+                        .exists())
                 .andExpect(jsonPath("$.components.schemas.UsuarioCreateDto").exists())
                 .andExpect(jsonPath("$.components.schemas.UsuarioResponseDto").exists())
                 .andExpect(jsonPath("$.components.schemas.LoginRequestDto").exists())
@@ -72,6 +79,16 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.RepresentanteLegalResponse")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.ConsultaPldResumoResponse")
-                        .exists());
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.CriarPropostaRequest").exists())
+                .andExpect(jsonPath("$.components.schemas.PropostaResponse").exists())
+                .andExpect(
+                        jsonPath("$.components.schemas.RegistrarParecerRequest").exists())
+                .andExpect(
+                        jsonPath("$.components.schemas.ParecerCreditoResponse").exists())
+                .andExpect(
+                        jsonPath("$.components.schemas.RegraAvaliadaResponse").exists())
+                .andExpect(jsonPath("$.components.schemas.ScoreInternoResponse").exists())
+                .andExpect(jsonPath("$.components.schemas.UsuarioRoleUpdateDto").exists());
     }
 }

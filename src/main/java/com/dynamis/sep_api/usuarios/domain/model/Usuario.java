@@ -97,4 +97,16 @@ public class Usuario extends EntidadeAuditavel {
     public void marcarMfaDesabilitado() {
         this.mfaHabilitado = false;
     }
+
+    /**
+     * Altera o role do usuario. Operacao restrita a ADMIN + step-up (Sprint 8 Task 8.4); validacao
+     * de autorizacao + auditoria fica no use case que chama este metodo. Aqui apenas garante que
+     * a nova role nao e nula.
+     */
+    public void alterarRole(Role novaRole) {
+        if (novaRole == null) {
+            throw new IllegalArgumentException("novaRole obrigatoria");
+        }
+        this.role = novaRole;
+    }
 }
