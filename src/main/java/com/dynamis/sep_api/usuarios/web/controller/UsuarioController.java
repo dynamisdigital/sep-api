@@ -2,6 +2,7 @@ package com.dynamis.sep_api.usuarios.web.controller;
 
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
+import com.dynamis.sep_api.usuarios.application.usecase.AlterarRoleUsuarioUseCase;
 import com.dynamis.sep_api.usuarios.application.usecase.AlterarSenhaUseCase;
 import com.dynamis.sep_api.usuarios.application.usecase.ConsultarUsuarioUseCase;
 import com.dynamis.sep_api.usuarios.application.usecase.CriarUsuarioUseCase;
@@ -9,6 +10,7 @@ import com.dynamis.sep_api.usuarios.application.usecase.ListarUsuariosUseCase;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
 import com.dynamis.sep_api.usuarios.web.dto.UsuarioCreateDto;
 import com.dynamis.sep_api.usuarios.web.dto.UsuarioResponseDto;
+import com.dynamis.sep_api.usuarios.web.dto.UsuarioRoleUpdateDto;
 import com.dynamis.sep_api.usuarios.web.dto.UsuarioSenhaUpdateDto;
 import com.dynamis.sep_api.usuarios.web.mapper.UsuarioMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,6 +44,7 @@ public class UsuarioController {
     private final ConsultarUsuarioUseCase consultarUsuarioUseCase;
     private final ListarUsuariosUseCase listarUsuariosUseCase;
     private final AlterarSenhaUseCase alterarSenhaUseCase;
+    private final AlterarRoleUsuarioUseCase alterarRoleUsuarioUseCase;
     private final UsuarioMapper mapper;
 
     public UsuarioController(
@@ -49,11 +52,13 @@ public class UsuarioController {
             ConsultarUsuarioUseCase consultarUsuarioUseCase,
             ListarUsuariosUseCase listarUsuariosUseCase,
             AlterarSenhaUseCase alterarSenhaUseCase,
+            AlterarRoleUsuarioUseCase alterarRoleUsuarioUseCase,
             UsuarioMapper mapper) {
         this.criarUsuarioUseCase = criarUsuarioUseCase;
         this.consultarUsuarioUseCase = consultarUsuarioUseCase;
         this.listarUsuariosUseCase = listarUsuariosUseCase;
         this.alterarSenhaUseCase = alterarSenhaUseCase;
+        this.alterarRoleUsuarioUseCase = alterarRoleUsuarioUseCase;
         this.mapper = mapper;
     }
 
@@ -200,5 +205,57 @@ public class UsuarioController {
             @AuthenticationPrincipal UsuarioAutenticado principal) {
         alterarSenhaUseCase.executar(id, dto, principal);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/role")
+    @PreAuthorize("hasRole('ADMIN')")
+    @com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp
+    @Operation(
+            summary = "Alterar role do usuario",
+            description = "Restrito a ADMIN + step-up token (X-Step-Up-Token). ADMIN nao pode alterar a propria role."
+                    + " Auditado como ROLE_ALTERADO em audit_log_seguranca (Sprint 8 Task 8.4).")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Role alterada",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = UsuarioResponseDto.class))),
+        @ApiResponse(
+                responseCode = "400",
+                description = "Role invalida",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Acesso negado (nao-ADMIN, falta step-up, ou auto-alteracao)",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Usuario nao encontrado",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<UsuarioResponseDto> alterarRole(
+            @PathVariable UUID id,
+            @Valid @RequestBody UsuarioRoleUpdateDto dto,
+            @AuthenticationPrincipal UsuarioAutenticado principal) {
+        Usuario salvo = alterarRoleUsuarioUseCase.executar(id, dto.role(), principal.id());
+        return ResponseEntity.ok(mapper.toResponse(salvo));
     }
 }

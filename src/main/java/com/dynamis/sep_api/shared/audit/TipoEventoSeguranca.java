@@ -12,6 +12,10 @@ package com.dynamis.sep_api.shared.audit;
  * <p>Sprint 7 Task 7.8: adicionados 7 eventos {@code KYB_*} e {@code PLD_*} para a trilha
  * regulatoria PJ + Prevencao a Lavagem de Dinheiro (Resolucao CMN 4.656/2018). Check constraint
  * atualizado em V13.
+ *
+ * <p>Sprint 8 Task 8.4: adicionado {@code ROLE_ALTERADO} para auditar promocao/rebaixamento de
+ * roles por ADMIN. Check constraint atualizado em V15. (Eventos de credito {@code PROPOSTA_*} +
+ * {@code PARECER_*} virao na Task 8.6.)
  */
 public enum TipoEventoSeguranca {
     LOGIN_OK,
@@ -38,5 +42,6 @@ public enum TipoEventoSeguranca {
     PLD_INICIADO,
     PLD_HIT_DETECTADO,
     PLD_LIMPO,
-    PLD_FINALIZADO
+    PLD_FINALIZADO,
+    ROLE_ALTERADO
 }
