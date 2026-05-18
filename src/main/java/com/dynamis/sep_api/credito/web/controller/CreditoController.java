@@ -1,23 +1,21 @@
 package com.dynamis.sep_api.credito.web.controller;
 
 import com.dynamis.sep_api.credito.application.dto.CriarPropostaCreditoCommand;
-import com.dynamis.sep_api.credito.application.usecase.ConsultarPropostaUseCase;
+import com.dynamis.sep_api.credito.application.dto.PropostaCompletaView;
+import com.dynamis.sep_api.credito.application.usecase.ConsultarPropostaCompletaUseCase;
 import com.dynamis.sep_api.credito.application.usecase.CriarPropostaCreditoUseCase;
 import com.dynamis.sep_api.credito.application.usecase.ListarPropostasUseCase;
+import com.dynamis.sep_api.credito.application.usecase.ListarRegrasAvaliadasUseCase;
 import com.dynamis.sep_api.credito.application.usecase.RegistrarParecerUseCase;
 import com.dynamis.sep_api.credito.domain.exception.OwnershipPropostaException;
 import com.dynamis.sep_api.credito.domain.model.ParecerCredito;
 import com.dynamis.sep_api.credito.domain.model.PropostaCredito;
 import com.dynamis.sep_api.credito.domain.vo.StatusProposta;
-import com.dynamis.sep_api.credito.infrastructure.persistence.ParecerCreditoRepository;
-import com.dynamis.sep_api.credito.infrastructure.persistence.RegraCreditoAvaliadaRepository;
-import com.dynamis.sep_api.credito.infrastructure.persistence.ScoreInternoRepository;
 import com.dynamis.sep_api.credito.web.dto.CriarPropostaRequest;
 import com.dynamis.sep_api.credito.web.dto.ParecerCreditoResponse;
 import com.dynamis.sep_api.credito.web.dto.PropostaResponse;
 import com.dynamis.sep_api.credito.web.dto.RegistrarParecerRequest;
 import com.dynamis.sep_api.credito.web.dto.RegraAvaliadaResponse;
-import com.dynamis.sep_api.credito.web.dto.ScoreInternoResponse;
 import com.dynamis.sep_api.credito.web.mapper.CreditoWebMapper;
 import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
@@ -52,13 +50,17 @@ import java.util.UUID;
  * Endpoints REST do modulo {@code credito} (Sprint 8 Task 8.5).
  *
  * <ul>
- *   <li>{@code POST /api/v1/credito/propostas} — cliente autenticado cria proposta;
+ *   <li>{@code POST /api/v1/credito/propostas} — apenas CLIENTE (ADMIN/FINANCEIRO nao criam em
+ *       nome de tomador nesta fase);
  *   <li>{@code GET /api/v1/credito/propostas/{id}} — ownership ou FINANCEIRO/ADMIN;
  *   <li>{@code GET /api/v1/credito/propostas} — cliente lista proprias; FINANCEIRO/ADMIN
  *       filtra qualquer;
  *   <li>{@code POST /api/v1/credito/propostas/{id}/parecer} — FINANCEIRO + step-up;
  *   <li>{@code GET /api/v1/credito/propostas/{id}/regras} — FINANCEIRO ou ADMIN.
  * </ul>
+ *
+ * <p>Sprint 8 fix code review Task 8.5: depende apenas de use cases de aplicacao — controller
+ * nao acessa repositorios JPA diretamente (preserva fronteira Hexagonal/DDD do PRD §11).
  */
 @RestController
 @RequestMapping("/api/v1/credito")
@@ -66,39 +68,33 @@ import java.util.UUID;
 public class CreditoController {
 
     private final CriarPropostaCreditoUseCase criarPropostaUseCase;
-    private final ConsultarPropostaUseCase consultarPropostaUseCase;
+    private final ConsultarPropostaCompletaUseCase consultarPropostaCompletaUseCase;
     private final ListarPropostasUseCase listarPropostasUseCase;
+    private final ListarRegrasAvaliadasUseCase listarRegrasAvaliadasUseCase;
     private final RegistrarParecerUseCase registrarParecerUseCase;
-    private final ScoreInternoRepository scoreRepository;
-    private final ParecerCreditoRepository parecerRepository;
-    private final RegraCreditoAvaliadaRepository regraRepository;
     private final CreditoWebMapper mapper;
 
     public CreditoController(
             CriarPropostaCreditoUseCase criarPropostaUseCase,
-            ConsultarPropostaUseCase consultarPropostaUseCase,
+            ConsultarPropostaCompletaUseCase consultarPropostaCompletaUseCase,
             ListarPropostasUseCase listarPropostasUseCase,
+            ListarRegrasAvaliadasUseCase listarRegrasAvaliadasUseCase,
             RegistrarParecerUseCase registrarParecerUseCase,
-            ScoreInternoRepository scoreRepository,
-            ParecerCreditoRepository parecerRepository,
-            RegraCreditoAvaliadaRepository regraRepository,
             CreditoWebMapper mapper) {
         this.criarPropostaUseCase = criarPropostaUseCase;
-        this.consultarPropostaUseCase = consultarPropostaUseCase;
+        this.consultarPropostaCompletaUseCase = consultarPropostaCompletaUseCase;
         this.listarPropostasUseCase = listarPropostasUseCase;
+        this.listarRegrasAvaliadasUseCase = listarRegrasAvaliadasUseCase;
         this.registrarParecerUseCase = registrarParecerUseCase;
-        this.scoreRepository = scoreRepository;
-        this.parecerRepository = parecerRepository;
-        this.regraRepository = regraRepository;
         this.mapper = mapper;
     }
 
     @PostMapping("/propostas")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('CLIENTE')")
     @Operation(
             summary = "Criar proposta de credito",
-            description = "Cliente autenticado cria proposta a partir de onboarding APROVADO_FINAL. ADMIN/FINANCEIRO"
-                    + " nao criam proposta em nome de cliente nesta fase.")
+            description = "Apenas CLIENTE autenticado cria proposta a partir de onboarding APROVADO_FINAL."
+                    + " ADMIN/FINANCEIRO nao criam proposta em nome de tomador nesta fase.")
     @ApiResponses({
         @ApiResponse(
                 responseCode = "201",
@@ -114,7 +110,7 @@ public class CreditoController {
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "403",
-                description = "Onboarding pertence a outro tomador",
+                description = "Sem role CLIENTE ou onboarding pertence a outro tomador",
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "404",
@@ -160,11 +156,11 @@ public class CreditoController {
     })
     public ResponseEntity<PropostaResponse> consultar(
             @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
-        PropostaCredito proposta = consultarPropostaUseCase.executar(id);
-        if (!operadorInterno(principal) && !proposta.getTomadorId().equals(principal.id())) {
+        PropostaCompletaView view = consultarPropostaCompletaUseCase.executar(id);
+        if (!operadorInterno(principal) && !view.proposta().getTomadorId().equals(principal.id())) {
             throw new OwnershipPropostaException("Proposta pertence a outro tomador");
         }
-        return ResponseEntity.ok(montarResponse(proposta));
+        return ResponseEntity.ok(toResponse(view));
     }
 
     @GetMapping("/propostas")
@@ -179,13 +175,10 @@ public class CreditoController {
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal UsuarioAutenticado principal) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<PropostaCredito> propostas;
-        if (operadorInterno(principal)) {
-            propostas = listarPropostasUseCase.listarComFiltros(tomadorId, status, pageable);
-        } else {
-            propostas = listarPropostasUseCase.listarDoTomador(principal.id(), status, pageable);
-        }
-        return ResponseEntity.ok(propostas.map(this::montarResponse));
+        Page<PropostaCredito> propostas = operadorInterno(principal)
+                ? listarPropostasUseCase.listarComFiltros(tomadorId, status, pageable)
+                : listarPropostasUseCase.listarDoTomador(principal.id(), status, pageable);
+        return ResponseEntity.ok(propostas.map(p -> toResponse(consultarPropostaCompletaUseCase.montar(p))));
     }
 
     @PostMapping("/propostas/{id}/parecer")
@@ -193,7 +186,7 @@ public class CreditoController {
     @RequireStepUp
     @Operation(
             summary = "Registrar parecer manual",
-            description = "Restrito a FINANCEIRO + step-up. Decisao sobrepoe sugestao do motor.")
+            description = "Restrito a FINANCEIRO + step-up (X-Step-Up-Token). Decisao sobrepoe sugestao do motor.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Parecer registrado"),
         @ApiResponse(
@@ -243,23 +236,17 @@ public class CreditoController {
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     public ResponseEntity<List<RegraAvaliadaResponse>> listarRegras(@PathVariable UUID id) {
-        consultarPropostaUseCase.executar(id); // garante existencia / 404
-        List<RegraAvaliadaResponse> regras = regraRepository.findByPropostaIdOrderByDataAvaliacaoAsc(id).stream()
+        List<RegraAvaliadaResponse> regras = listarRegrasAvaliadasUseCase.executar(id).stream()
                 .map(mapper::toRegraResponse)
                 .toList();
         return ResponseEntity.ok(regras);
     }
 
-    private PropostaResponse montarResponse(PropostaCredito proposta) {
-        ScoreInternoResponse score = scoreRepository
-                .findByPropostaId(proposta.getId())
-                .map(mapper::toScoreResponse)
-                .orElse(null);
-        ParecerCreditoResponse parecer = parecerRepository
-                .findTopByPropostaIdOrderByVersaoDesc(proposta.getId())
-                .map(mapper::toParecerResponse)
-                .orElse(null);
-        return mapper.toResponse(proposta, score, parecer);
+    private PropostaResponse toResponse(PropostaCompletaView view) {
+        return mapper.toResponse(
+                view.proposta(),
+                view.score() == null ? null : mapper.toScoreResponse(view.score()),
+                view.ultimoParecer() == null ? null : mapper.toParecerResponse(view.ultimoParecer()));
     }
 
     private boolean operadorInterno(UsuarioAutenticado principal) {
