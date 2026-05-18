@@ -1,20 +1,16 @@
 package com.dynamis.sep_api.usuarios.application.usecase;
 
-import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
-import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import com.dynamis.sep_api.shared.exception.AcessoNegadoException;
 import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import com.dynamis.sep_api.usuarios.application.exception.UsuarioNaoEncontradoException;
+import com.dynamis.sep_api.usuarios.domain.event.RoleAlteradaEvent;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
 import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -25,9 +21,10 @@ import java.util.UUID;
  *
  * <ul>
  *   <li>ADMIN nao pode alterar a propria role (HTTP 403);
- *   <li>Operacao e idempotente: se a nova role e igual a atual, no-op (sem gravar audit);
- *   <li>Sempre gera evento {@link TipoEventoSeguranca#ROLE_ALTERADO} no audit log de seguranca
- *       (rastreabilidade regulatoria — operacao sensivel).
+ *   <li>Operacao e idempotente: se a nova role e igual a atual, no-op (sem evento);
+ *   <li>Sempre publica {@link RoleAlteradaEvent}; {@code UsuariosAuditListener} grava
+ *       {@code ROLE_ALTERADO} via padrao AFTER_COMMIT + REQUIRES_NEW (fix code review Task 8.6 —
+ *       consistencia com demais listeners de auditoria reforcada).
  * </ul>
  */
 @Service
@@ -37,14 +34,11 @@ public class AlterarRoleUsuarioUseCase {
     public static final String CODIGO_ROLE_INVALIDA = "USR-400-001";
 
     private final UsuarioRepository repository;
-    private final AuditLogSegurancaService auditService;
-    private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public AlterarRoleUsuarioUseCase(
-            UsuarioRepository repository, AuditLogSegurancaService auditService, ObjectMapper objectMapper) {
+    public AlterarRoleUsuarioUseCase(UsuarioRepository repository, ApplicationEventPublisher eventPublisher) {
         this.repository = repository;
-        this.auditService = auditService;
-        this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -66,20 +60,7 @@ public class AlterarRoleUsuarioUseCase {
         alvo.alterarRole(novaRole);
         Usuario salvo = repository.save(alvo);
 
-        auditService.gravar(
-                TipoEventoSeguranca.ROLE_ALTERADO, atorAdminId, detalhes(usuarioAlvoId, anterior, novaRole));
+        eventPublisher.publishEvent(new RoleAlteradaEvent(atorAdminId, usuarioAlvoId, anterior, novaRole));
         return salvo;
-    }
-
-    private String detalhes(UUID alvoId, Role anterior, Role nova) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("usuarioAlvoId", alvoId.toString());
-        map.put("roleAnterior", anterior.name());
-        map.put("roleNova", nova.name());
-        try {
-            return objectMapper.writeValueAsString(map);
-        } catch (JsonProcessingException ex) {
-            return "{}";
-        }
     }
 }

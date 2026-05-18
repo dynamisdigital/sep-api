@@ -2,7 +2,6 @@ package com.dynamis.sep_api.credito.application.service;
 
 import com.dynamis.sep_api.credito.application.service.dto.RegraResultado;
 import com.dynamis.sep_api.credito.application.service.dto.ResultadoAvaliacaoCredito;
-import com.dynamis.sep_api.credito.domain.event.PropostaAvaliadaPeloMotorEvent;
 import com.dynamis.sep_api.credito.domain.event.PropostaRejeitadaEvent;
 import com.dynamis.sep_api.credito.domain.exception.PropostaNaoEncontradaException;
 import com.dynamis.sep_api.credito.domain.model.DecisaoCredito;
@@ -21,6 +20,9 @@ import com.dynamis.sep_api.onboarding.application.query.ConsultarOnboardingParaC
 import com.dynamis.sep_api.onboarding.application.query.OnboardingResumoCredito;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.TipoSolicitante;
+import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
+import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -34,6 +36,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -48,6 +52,7 @@ class PropostaAvaliacaoTransacionalTest {
     private ConsultarOnboardingParaCreditoQuery onboardingQuery;
     private MotorRegrasCredito motor;
     private ApplicationEventPublisher eventPublisher;
+    private AuditLogSegurancaService auditLogService;
     private PropostaAvaliacaoTransacional service;
 
     @BeforeEach
@@ -59,6 +64,7 @@ class PropostaAvaliacaoTransacionalTest {
         onboardingQuery = mock(ConsultarOnboardingParaCreditoQuery.class);
         motor = mock(MotorRegrasCredito.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
+        auditLogService = mock(AuditLogSegurancaService.class);
         service = new PropostaAvaliacaoTransacional(
                 propostaRepository,
                 scoreRepository,
@@ -66,7 +72,9 @@ class PropostaAvaliacaoTransacionalTest {
                 decisaoRepository,
                 onboardingQuery,
                 motor,
-                eventPublisher);
+                eventPublisher,
+                auditLogService,
+                new ObjectMapper());
         when(propostaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
@@ -90,8 +98,32 @@ class PropostaAvaliacaoTransacionalTest {
         verify(scoreRepository).save(any(ScoreInterno.class));
         verify(regraRepository).save(any(RegraCreditoAvaliada.class));
         verify(propostaRepository).save(proposta);
-        verify(eventPublisher).publishEvent(any(PropostaAvaliadaPeloMotorEvent.class));
+        verify(auditLogService)
+                .gravar(eq(TipoEventoSeguranca.PROPOSTA_AVALIADA_MOTOR), eq(proposta.getTomadorId()), anyString());
         verify(decisaoRepository, never()).save(any());
+    }
+
+    @Test
+    void falhaNaGravacaoDoAuditMotorPropagaParaTriggerPendencia() {
+        PropostaCredito proposta = propostaSimples();
+        when(propostaRepository.findById(proposta.getId())).thenReturn(Optional.of(proposta));
+        when(onboardingQuery.consultarPorId(any()))
+                .thenReturn(Optional.of(resumoPfOk(proposta.getSolicitacaoOnboardingId(), proposta.getTomadorId())));
+        when(motor.avaliar(any()))
+                .thenReturn(new ResultadoAvaliacaoCredito(
+                        900,
+                        StatusProposta.PRE_APROVADA,
+                        0,
+                        0,
+                        List.of(new RegraResultado("rg1", ResultadoRegra.PASSOU, null, false))));
+        org.mockito.Mockito.doThrow(new RuntimeException("audit down"))
+                .when(auditLogService)
+                .gravar(eq(TipoEventoSeguranca.PROPOSTA_AVALIADA_MOTOR), any(), anyString());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.avaliar(proposta.getId()))
+                .isInstanceOf(RuntimeException.class);
+        // Status NAO foi aplicado — exception propagada antes do save final
+        assertThat(proposta.getStatus()).isEqualTo(StatusProposta.EM_ANALISE);
     }
 
     @Test

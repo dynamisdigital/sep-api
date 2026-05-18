@@ -3,7 +3,6 @@ package com.dynamis.sep_api.credito.application.service;
 import com.dynamis.sep_api.credito.application.service.dto.ContextoAvaliacaoCredito;
 import com.dynamis.sep_api.credito.application.service.dto.RegraResultado;
 import com.dynamis.sep_api.credito.application.service.dto.ResultadoAvaliacaoCredito;
-import com.dynamis.sep_api.credito.domain.event.PropostaAvaliadaPeloMotorEvent;
 import com.dynamis.sep_api.credito.domain.event.PropostaRejeitadaEvent;
 import com.dynamis.sep_api.credito.domain.exception.PropostaNaoEncontradaException;
 import com.dynamis.sep_api.credito.domain.model.DecisaoCredito;
@@ -18,11 +17,17 @@ import com.dynamis.sep_api.credito.infrastructure.persistence.RegraCreditoAvalia
 import com.dynamis.sep_api.credito.infrastructure.persistence.ScoreInternoRepository;
 import com.dynamis.sep_api.onboarding.application.query.ConsultarOnboardingParaCreditoQuery;
 import com.dynamis.sep_api.onboarding.application.query.OnboardingResumoCredito;
+import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
+import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -33,8 +38,14 @@ import java.util.UUID;
  * fallback de {@link StatusProposta#PENDENCIA} em transacoes distintas — caso a transacao do
  * happy path entre em estado {@code rollback-only}, o fallback ainda consegue persistir o status.
  *
- * <p>Por que dois metodos em vez de um? Self-injection com {@code @Lazy} funcionaria mas adiciona
- * acoplamento sutil; separar em um service auxiliar deixa a estrutura mais legivel e testavel.
+ * <p>Sprint 8 fix code review Task 8.6: a gravacao de {@link TipoEventoSeguranca#PROPOSTA_AVALIADA_MOTOR}
+ * acontece SINCRONA dentro desta transacao (antes de retornar) — Step 008.6.3 do spec exige que
+ * "motor nao pode promover status sem auditoria". Se a gravacao do audit log falhar, a transacao
+ * sofre rollback e o {@code AvaliarPropostaUseCase} captura via catch global, chamando o
+ * fallback {@code moverParaPendencia} em transacao isolada. Os demais eventos
+ * ({@code PROPOSTA_CRIADA}, {@code PARECER_REGISTRADO}, {@code PROPOSTA_APROVADA},
+ * {@code PROPOSTA_REJEITADA}) continuam via listener AFTER_COMMIT — esses sao registrados apos
+ * o estado ja persistido e nao tem o requisito regulatorio de "garantia antes de promocao".
  */
 @Service
 public class PropostaAvaliacaoTransacional {
@@ -46,6 +57,8 @@ public class PropostaAvaliacaoTransacional {
     private final ConsultarOnboardingParaCreditoQuery onboardingQuery;
     private final MotorRegrasCredito motor;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogSegurancaService auditLogService;
+    private final ObjectMapper objectMapper;
 
     public PropostaAvaliacaoTransacional(
             PropostaCreditoRepository propostaRepository,
@@ -54,7 +67,9 @@ public class PropostaAvaliacaoTransacional {
             DecisaoCreditoRepository decisaoRepository,
             ConsultarOnboardingParaCreditoQuery onboardingQuery,
             MotorRegrasCredito motor,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            AuditLogSegurancaService auditLogService,
+            ObjectMapper objectMapper) {
         this.propostaRepository = propostaRepository;
         this.scoreRepository = scoreRepository;
         this.regraRepository = regraRepository;
@@ -62,13 +77,18 @@ public class PropostaAvaliacaoTransacional {
         this.onboardingQuery = onboardingQuery;
         this.motor = motor;
         this.eventPublisher = eventPublisher;
+        this.auditLogService = auditLogService;
+        this.objectMapper = objectMapper;
     }
 
     /**
      * Happy path: carrega proposta + onboarding, executa motor, persiste trilha (score + regras),
-     * aplica sugestao no agregado. Em rejeicao automatica, grava {@link DecisaoCredito} com origem
-     * {@link OrigemDecisao#MOTOR} e publica {@link PropostaRejeitadaEvent}. Sempre publica {@link
-     * PropostaAvaliadaPeloMotorEvent}.
+     * GRAVA audit log {@code PROPOSTA_AVALIADA_MOTOR} sincrono, aplica sugestao no agregado. Em
+     * rejeicao automatica, grava {@link DecisaoCredito} com origem {@link OrigemDecisao#MOTOR} e
+     * publica {@link PropostaRejeitadaEvent}.
+     *
+     * <p>Auditoria sincrona = Step 008.6.3: falha no audit -> exception propaga -> tx rollback
+     * -> orquestrador marca PENDENCIA.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ResultadoAvaliacaoCredito avaliar(UUID propostaId) {
@@ -85,6 +105,7 @@ public class PropostaAvaliacaoTransacional {
 
         ResultadoAvaliacaoCredito resultado = motor.avaliar(contexto);
         persistirTrilha(proposta, resultado);
+        gravarAuditMotorSincrono(proposta, resultado);
         proposta.aplicarSugestaoMotor(resultado.statusSugerido());
         propostaRepository.save(proposta);
 
@@ -94,14 +115,6 @@ public class PropostaAvaliacaoTransacional {
             eventPublisher.publishEvent(
                     new PropostaRejeitadaEvent(proposta.getId(), proposta.getTomadorId(), OrigemDecisao.MOTOR, null));
         }
-
-        eventPublisher.publishEvent(new PropostaAvaliadaPeloMotorEvent(
-                proposta.getId(),
-                proposta.getTomadorId(),
-                resultado.score(),
-                resultado.statusSugerido(),
-                resultado.falhas(),
-                resultado.pendencias()));
 
         return resultado;
     }
@@ -136,5 +149,22 @@ public class PropostaAvaliacaoTransacional {
             regraRepository.save(RegraCreditoAvaliada.registrar(
                     proposta.getId(), r.nome(), r.resultado(), r.motivo(), r.bloqueante()));
         }
+    }
+
+    private void gravarAuditMotorSincrono(PropostaCredito proposta, ResultadoAvaliacaoCredito resultado) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("propostaId", proposta.getId().toString());
+        payload.put("score", resultado.score());
+        payload.put("statusSugerido", resultado.statusSugerido().name());
+        payload.put("falhas", resultado.falhas());
+        payload.put("pendencias", resultado.pendencias());
+        String detalhes;
+        try {
+            detalhes = objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            // Falha de serializacao = falha de auditoria = rollback (Step 008.6.3).
+            throw new IllegalStateException("Falha ao serializar audit log de PROPOSTA_AVALIADA_MOTOR", ex);
+        }
+        auditLogService.gravar(TipoEventoSeguranca.PROPOSTA_AVALIADA_MOTOR, proposta.getTomadorId(), detalhes);
     }
 }

@@ -2,12 +2,10 @@ package com.dynamis.sep_api.credito.application.listener;
 
 import com.dynamis.sep_api.credito.domain.event.ParecerRegistradoEvent;
 import com.dynamis.sep_api.credito.domain.event.PropostaAprovadaEvent;
-import com.dynamis.sep_api.credito.domain.event.PropostaAvaliadaPeloMotorEvent;
 import com.dynamis.sep_api.credito.domain.event.PropostaCriadaEvent;
 import com.dynamis.sep_api.credito.domain.event.PropostaRejeitadaEvent;
 import com.dynamis.sep_api.credito.domain.vo.DecisaoParecer;
 import com.dynamis.sep_api.credito.domain.vo.OrigemDecisao;
-import com.dynamis.sep_api.credito.domain.vo.StatusProposta;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -50,22 +48,8 @@ class CreditoAuditListenerTest {
                 .doesNotContain("CPF");
     }
 
-    @Test
-    void propostaAvaliadaPeloMotorGravaScoreEStatusSugerido() {
-        UUID propostaId = UUID.randomUUID();
-        UUID tomadorId = UUID.randomUUID();
-
-        listener.aoAvaliarMotor(
-                new PropostaAvaliadaPeloMotorEvent(propostaId, tomadorId, 850, StatusProposta.PRE_APROVADA, 1, 2));
-
-        ArgumentCaptor<String> detalhes = ArgumentCaptor.forClass(String.class);
-        verify(auditService).gravar(eq(TipoEventoSeguranca.PROPOSTA_AVALIADA_MOTOR), eq(tomadorId), detalhes.capture());
-        assertThat(detalhes.getValue())
-                .contains("\"score\":850")
-                .contains("\"statusSugerido\":\"PRE_APROVADA\"")
-                .contains("\"falhas\":1")
-                .contains("\"pendencias\":2");
-    }
+    // PROPOSTA_AVALIADA_MOTOR e gravada SINCRONA pelo PropostaAvaliacaoTransacional —
+    // teste especifico vive em PropostaAvaliacaoTransacionalTest (fix code review Task 8.6).
 
     @Test
     void parecerRegistradoGravaScoreDoMotorEDecisaoManual() {

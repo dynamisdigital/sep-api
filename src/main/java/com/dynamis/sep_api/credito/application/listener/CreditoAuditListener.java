@@ -2,7 +2,6 @@ package com.dynamis.sep_api.credito.application.listener;
 
 import com.dynamis.sep_api.credito.domain.event.ParecerRegistradoEvent;
 import com.dynamis.sep_api.credito.domain.event.PropostaAprovadaEvent;
-import com.dynamis.sep_api.credito.domain.event.PropostaAvaliadaPeloMotorEvent;
 import com.dynamis.sep_api.credito.domain.event.PropostaCriadaEvent;
 import com.dynamis.sep_api.credito.domain.event.PropostaRejeitadaEvent;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
@@ -63,17 +62,9 @@ public class CreditoAuditListener {
         auditLogService.gravar(TipoEventoSeguranca.PROPOSTA_CRIADA, event.tomadorId(), serializar(payload));
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void aoAvaliarMotor(PropostaAvaliadaPeloMotorEvent event) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("propostaId", event.propostaId().toString());
-        payload.put("score", event.score());
-        payload.put("statusSugerido", event.statusSugerido().name());
-        payload.put("falhas", event.falhas());
-        payload.put("pendencias", event.pendencias());
-        auditLogService.gravar(TipoEventoSeguranca.PROPOSTA_AVALIADA_MOTOR, event.tomadorId(), serializar(payload));
-    }
+    // PROPOSTA_AVALIADA_MOTOR e gravada SINCRONA em PropostaAvaliacaoTransacional.avaliar() —
+    // Step 008.6.3 exige garantia "motor sem audit -> PENDENCIA". Nao ha handler AFTER_COMMIT
+    // para esse tipo.
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
