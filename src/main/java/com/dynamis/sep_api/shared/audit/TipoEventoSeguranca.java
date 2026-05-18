@@ -14,8 +14,11 @@ package com.dynamis.sep_api.shared.audit;
  * atualizado em V13.
  *
  * <p>Sprint 8 Task 8.4: adicionado {@code ROLE_ALTERADO} para auditar promocao/rebaixamento de
- * roles por ADMIN. Check constraint atualizado em V15. (Eventos de credito {@code PROPOSTA_*} +
- * {@code PARECER_*} virao na Task 8.6.)
+ * roles por ADMIN. Check constraint atualizado em V15.
+ *
+ * <p>Sprint 8 Task 8.6: adicionados 5 eventos {@code PROPOSTA_*}/{@code PARECER_*} para a trilha
+ * auditavel reforcada da analise de credito (CMN 4.656/2018 Art. 9). Check constraint atualizado
+ * em V16.
  */
 public enum TipoEventoSeguranca {
     LOGIN_OK,
@@ -43,5 +46,10 @@ public enum TipoEventoSeguranca {
     PLD_HIT_DETECTADO,
     PLD_LIMPO,
     PLD_FINALIZADO,
-    ROLE_ALTERADO
+    ROLE_ALTERADO,
+    PROPOSTA_CRIADA,
+    PROPOSTA_AVALIADA_MOTOR,
+    PARECER_REGISTRADO,
+    PROPOSTA_APROVADA,
+    PROPOSTA_REJEITADA
 }
