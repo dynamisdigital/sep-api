@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.usuarios.application.usecase;
 
 import com.dynamis.sep_api.identity.domain.vo.PasswordPolicy;
+import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import com.dynamis.sep_api.usuarios.application.exception.UsernameJaExisteException;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
@@ -87,6 +88,20 @@ class CriarUsuarioUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(dto))
                 .isInstanceOf(UsernameJaExisteException.class)
                 .hasMessageContaining("cliente@sep.test");
+
+        verify(repository, never()).save(any());
+        verify(passwordEncoder, never()).encode(any());
+    }
+
+    @Test
+    void cadastroInternoComRoleFinanceiroEhRejeitado() {
+        // Sprint 8 fix code review Task 8.4 — promocao a FINANCEIRO so via /usuarios/{id}/role
+        UsuarioInternoCreateDto dto =
+                new UsuarioInternoCreateDto("financeiro@sep.test", "passphrase-financeiro-segura", Role.FINANCEIRO);
+
+        assertThatThrownBy(() -> useCase.executarInterno(dto))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("FINANCEIRO");
 
         verify(repository, never()).save(any());
         verify(passwordEncoder, never()).encode(any());

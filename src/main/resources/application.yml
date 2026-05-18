@@ -119,6 +119,19 @@ app:
       base-url: ${APP_CELCOIN_BACKGROUND_CHECK_BASE_URL:https://sandbox.openfinance.celcoin.dev/onboarding/v1}
       client-id: ${APP_CELCOIN_BACKGROUND_CHECK_CLIENT_ID:${APP_CELCOIN_KYC_CLIENT_ID:}}
       client-secret: ${APP_CELCOIN_BACKGROUND_CHECK_CLIENT_SECRET:${APP_CELCOIN_KYC_CLIENT_SECRET:}}
+  credito:
+    motor:
+      score-inicial: ${APP_CREDITO_SCORE_INICIAL:1000}
+      penalidade-falha: ${APP_CREDITO_PENALIDADE_FALHA:50}
+      penalidade-pendencia: ${APP_CREDITO_PENALIDADE_PENDENCIA:20}
+      score-pre-aprovacao: ${APP_CREDITO_SCORE_PRE_APROVACAO:700}
+      score-analise: ${APP_CREDITO_SCORE_ANALISE:400}
+      idade-minima-pessoa: ${APP_CREDITO_IDADE_MINIMA_PESSOA:18}
+      tempo-minimo-empresa-meses: ${APP_CREDITO_TEMPO_MINIMO_EMPRESA_MESES:6}
+      valor-maximo-pf: ${APP_CREDITO_VALOR_MAXIMO_PF:50000.00}
+      valor-maximo-pj: ${APP_CREDITO_VALOR_MAXIMO_PJ:200000.00}
+      prazo-maximo-pf-meses: ${APP_CREDITO_PRAZO_MAXIMO_PF_MESES:12}
+      prazo-maximo-pj-meses: ${APP_CREDITO_PRAZO_MAXIMO_PJ_MESES:24}
   security:
     totp:
       issuer: ${APP_TOTP_ISSUER:SEP}

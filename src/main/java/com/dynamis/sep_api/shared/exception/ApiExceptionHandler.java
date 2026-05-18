@@ -82,6 +82,8 @@ public class ApiExceptionHandler {
                     case ValidacaoException ignored -> HttpStatus.BAD_REQUEST;
                     case RecursoNaoEncontradoException ignored -> HttpStatus.NOT_FOUND;
                     case ConflitoException ignored -> HttpStatus.CONFLICT;
+                    case AcessoNegadoException ignored -> HttpStatus.FORBIDDEN;
+                    case OperacaoNaoProcessavelException ignored -> HttpStatus.UNPROCESSABLE_ENTITY;
                 };
         return build(status, status.getReasonPhrase(), ex.getMessage(), request);
     }

@@ -216,3 +216,17 @@ via `__admin/mappings` do WireMock standalone. Passo a passo em
 Cobre Bearer OAuth (por providerKey), retry 5xx, propagacao X-Correlation-Id,
 preservacao da Idempotency-Key do caller no MDC, cache de token e isolamento de
 credenciais entre KYC/KYB/PLD.
+
+### IT do modulo `credito` (banco isolado `sep_test`)
+
+`CreditoIT` (Sprint 8) roda contra o profile `test` em banco dedicado pra evitar
+mexer em dados do `sep_dev`. Setup inicial:
+
+```bash
+docker exec sep-postgres psql -U sep -d postgres -c "CREATE DATABASE sep_test"
+./gradlew test --tests "com.dynamis.sep_api.credito.web.CreditoIT"
+```
+
+Override `DB_NAME=outro_banco` pra CI/sandbox isolada. Demais ITs (`OnboardingPessoaIT`,
+`OnboardingEmpresaIT`, `PldFollowupIT`) continuam em `sep_dev` por enquanto — migracao
+para `test` fica como follow-up cross-sprint.

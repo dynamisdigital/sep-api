@@ -9,7 +9,11 @@ package com.dynamis.sep_api.shared.exception;
  * Sprint 4.
  */
 public abstract sealed class DomainException extends RuntimeException
-        permits ValidacaoException, RecursoNaoEncontradoException, ConflitoException {
+        permits ValidacaoException,
+                RecursoNaoEncontradoException,
+                ConflitoException,
+                AcessoNegadoException,
+                OperacaoNaoProcessavelException {
 
     private final String codigo;
 
