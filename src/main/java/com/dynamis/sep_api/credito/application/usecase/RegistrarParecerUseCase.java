@@ -65,8 +65,10 @@ public class RegistrarParecerUseCase {
 
     @Transactional
     public ParecerCredito executar(RegistrarParecerCommand cmd) {
+        // Lock pessimista pra serializar pareceres concorrentes na mesma proposta: evita 2
+        // requests calcularem a mesma versao e baterem na unique uq_parecer_credito_versao.
         PropostaCredito proposta = propostaRepository
-                .findById(cmd.propostaId())
+                .findByIdForUpdate(cmd.propostaId())
                 .orElseThrow(() -> new PropostaNaoEncontradaException(cmd.propostaId()));
 
         if (proposta.getStatus().isFinal()) {

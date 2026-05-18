@@ -43,7 +43,8 @@ public class AdminUsuarioController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(
             summary = "Criar usuario interno",
-            description = "Cria usuario com role explicito (ADMIN ou CLIENTE). Restrito a ADMIN autenticado.")
+            description = "Cria usuario com role explicito (ADMIN ou CLIENTE). Restrito a ADMIN autenticado. "
+                    + "FINANCEIRO nao e aceito aqui — promover via POST /api/v1/usuarios/{id}/role.")
     @ApiResponses({
         @ApiResponse(
                 responseCode = "201",
