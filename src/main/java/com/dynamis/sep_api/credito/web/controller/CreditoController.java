@@ -2,6 +2,7 @@ package com.dynamis.sep_api.credito.web.controller;
 
 import com.dynamis.sep_api.credito.application.dto.CriarPropostaCreditoCommand;
 import com.dynamis.sep_api.credito.application.dto.PropostaCompletaView;
+import com.dynamis.sep_api.credito.application.dto.RegistrarParecerCommand;
 import com.dynamis.sep_api.credito.application.usecase.ConsultarPropostaCompletaUseCase;
 import com.dynamis.sep_api.credito.application.usecase.CriarPropostaCreditoUseCase;
 import com.dynamis.sep_api.credito.application.usecase.ListarPropostasUseCase;
@@ -210,8 +211,8 @@ public class CreditoController {
             @PathVariable UUID id,
             @Valid @RequestBody RegistrarParecerRequest request,
             @AuthenticationPrincipal UsuarioAutenticado principal) {
-        ParecerCredito parecer =
-                registrarParecerUseCase.executar(id, principal.id(), request.decisao(), request.justificativa());
+        ParecerCredito parecer = registrarParecerUseCase.executar(
+                new RegistrarParecerCommand(id, principal.id(), request.decisao(), request.justificativa()));
         return ResponseEntity.ok(mapper.toParecerResponse(parecer));
     }
 

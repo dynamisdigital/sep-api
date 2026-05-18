@@ -249,7 +249,9 @@ class CreditoControllerTest {
 
         ParecerCredito parecer = ParecerCredito.registrar(
                 propostaId, pareceristaId, DecisaoParecer.APROVAR, "Justificativa adequada do parecerista", 800, 1);
-        when(registrarParecerUseCase.executar(any(), any(), any(), any())).thenReturn(parecer);
+        when(registrarParecerUseCase.executar(
+                        any(com.dynamis.sep_api.credito.application.dto.RegistrarParecerCommand.class)))
+                .thenReturn(parecer);
         when(mapper.toParecerResponse(any())).thenReturn(null);
 
         RegistrarParecerRequest req =
@@ -269,7 +271,9 @@ class CreditoControllerTest {
 
         ParecerCredito parecer = ParecerCredito.registrar(
                 propostaId, pareceristaId, DecisaoParecer.APROVAR, "Justificativa adequada do parecerista", 800, 1);
-        when(registrarParecerUseCase.executar(any(), any(), any(), any())).thenReturn(parecer);
+        when(registrarParecerUseCase.executar(
+                        any(com.dynamis.sep_api.credito.application.dto.RegistrarParecerCommand.class)))
+                .thenReturn(parecer);
         when(mapper.toParecerResponse(any())).thenReturn(null);
 
         RegistrarParecerRequest req =

@@ -10,7 +10,6 @@ import com.dynamis.sep_api.credito.domain.model.DecisaoCredito;
 import com.dynamis.sep_api.credito.domain.model.ParecerCredito;
 import com.dynamis.sep_api.credito.domain.model.PropostaCredito;
 import com.dynamis.sep_api.credito.domain.model.ScoreInterno;
-import com.dynamis.sep_api.credito.domain.vo.DecisaoParecer;
 import com.dynamis.sep_api.credito.domain.vo.OrigemDecisao;
 import com.dynamis.sep_api.credito.domain.vo.StatusProposta;
 import com.dynamis.sep_api.credito.infrastructure.persistence.DecisaoCreditoRepository;
@@ -111,13 +110,5 @@ public class RegistrarParecerUseCase {
                 scoreMotor));
 
         return salvo;
-    }
-
-    /**
-     * Wrapper de conveniencia pra chamadas pelo controller.
-     */
-    public ParecerCredito executar(
-            java.util.UUID propostaId, java.util.UUID pareceristaId, DecisaoParecer decisao, String justificativa) {
-        return executar(new RegistrarParecerCommand(propostaId, pareceristaId, decisao, justificativa));
     }
 }
