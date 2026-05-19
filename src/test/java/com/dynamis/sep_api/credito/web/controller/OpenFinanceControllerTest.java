@@ -147,6 +147,25 @@ class OpenFinanceControllerTest {
     }
 
     @Test
+    void postConsentimentoRedirectUriMaliciosoRejeitado400() throws Exception {
+        // Sprint 9 fix code review Task 9.6: bloqueio SSRF/open redirect — scheme nao-http.
+        autenticar(UUID.randomUUID(), Role.CLIENTE);
+        mockMvc.perform(post("/api/v1/credito/propostas/{id}/open-finance/consentimento", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cpfCnpjTomador\":\"52998224725\",\"redirectUri\":\"javascript://evil.com/x\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void postConsentimentoCpfCnpjFormatoInvalido400() throws Exception {
+        autenticar(UUID.randomUUID(), Role.CLIENTE);
+        mockMvc.perform(post("/api/v1/credito/propostas/{id}/open-finance/consentimento", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cpfCnpjTomador\":\"123\",\"redirectUri\":\"https://sep/cb\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void getStatusClienteDono200() throws Exception {
         UUID tomadorId = UUID.randomUUID();
         UUID propostaId = UUID.randomUUID();
