@@ -128,6 +128,54 @@ class MotorRegrasCreditoTest {
     }
 
     @Test
+    void ajusteScorePositivoClampaEm1000() {
+        // Sprint 9 fix code review Task 9.4: scoreInicial 1000 + bonus +200 deve clampar em 1000.
+        com.dynamis.sep_api.credito.application.service.RegraCredito regraBonus =
+                new com.dynamis.sep_api.credito.application.service.RegraCredito() {
+                    @Override
+                    public String nome() {
+                        return "stub-bonus";
+                    }
+
+                    @Override
+                    public com.dynamis.sep_api.credito.application.service.dto.RegraResultado avaliar(
+                            ContextoAvaliacaoCredito ctx) {
+                        return com.dynamis.sep_api.credito.application.service.dto.RegraResultado.passouComBonus(
+                                "stub-bonus", 500);
+                    }
+                };
+        MotorRegrasCredito m = new MotorRegrasCredito(List.of(regraBonus), properties);
+        PropostaCredito p = MotorTestFixtures.propostaPj(new BigDecimal("10000"), 12);
+        ResultadoAvaliacaoCredito r = m.avaliar(MotorTestFixtures.contextoPjOk(p));
+        assertThat(r.score()).isEqualTo(1000);
+    }
+
+    @Test
+    void ajusteScoreNegativoExtraSomaPenalidadeFalhaPadrao() {
+        // Bonus negativo via falhouComPenalidadeExtra: motor aplica penalidade-falha padrao
+        // (50) + penalidade extra (-150) => total -200.
+        com.dynamis.sep_api.credito.application.service.RegraCredito regraPenal =
+                new com.dynamis.sep_api.credito.application.service.RegraCredito() {
+                    @Override
+                    public String nome() {
+                        return "stub-penalidade";
+                    }
+
+                    @Override
+                    public com.dynamis.sep_api.credito.application.service.dto.RegraResultado avaliar(
+                            ContextoAvaliacaoCredito ctx) {
+                        return com.dynamis.sep_api.credito.application.service.dto.RegraResultado
+                                .falhouComPenalidadeExtra("stub-penalidade", "alerta", 150);
+                    }
+                };
+        MotorRegrasCredito m = new MotorRegrasCredito(List.of(regraPenal), properties);
+        PropostaCredito p = MotorTestFixtures.propostaPj(new BigDecimal("10000"), 12);
+        ResultadoAvaliacaoCredito r = m.avaliar(MotorTestFixtures.contextoPjOk(p));
+        // scoreInicial 1000 - penalidadeFalha 50 - ajuste 150 = 800
+        assertThat(r.score()).isEqualTo(800);
+    }
+
+    @Test
     void propertiesInvalidaRejeitada() {
         try {
             new CreditoMotorProperties(

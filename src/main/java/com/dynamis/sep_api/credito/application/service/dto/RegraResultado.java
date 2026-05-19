@@ -32,9 +32,14 @@ public record RegraResultado(
         return new RegraResultado(nome, ResultadoRegra.FALHOU, motivo, false, 0);
     }
 
+    /**
+     * Cria resultado {@code FALHOU} com penalidade <strong>adicional</strong> alem da padrao do
+     * motor. Caller passa valor POSITIVO ({@code penalidadeExtra=150}) e o factory aplica como
+     * ajuste negativo internamente — somando com a penalidade-falha padrao do motor.
+     */
     public static RegraResultado falhouComPenalidadeExtra(String nome, String motivo, int penalidadeExtra) {
         if (penalidadeExtra < 0) {
-            throw new IllegalArgumentException("penalidadeExtra deve ser >= 0");
+            throw new IllegalArgumentException("penalidadeExtra deve ser >= 0 (sinal aplicado internamente)");
         }
         return new RegraResultado(nome, ResultadoRegra.FALHOU, motivo, false, -penalidadeExtra);
     }
