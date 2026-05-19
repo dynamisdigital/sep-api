@@ -120,6 +120,27 @@ class IniciarConsentimentoOpenFinanceUseCaseTest {
     }
 
     @Test
+    void saveFinalAposVincularExternoFalhaPropagaSemMascarar() {
+        // Sprint 9 fix code review Task 9.3: segundo save (apos provider success) pode falhar
+        // por deadlock/IO. Provider externo ja gravou consent — teste valida que exception
+        // propaga limpa pro caller (caller deve confiar em idempotency-key estavel pra retry).
+        UUID tomador = UUID.randomUUID();
+        PropostaCredito p = propostaEmAnalise(tomador);
+        when(propostaRepository.findById(p.getId())).thenReturn(Optional.of(p));
+        mockProviderOk();
+
+        org.mockito.stubbing.Answer<ConsentimentoOpenFinance> firstSaveOk = inv -> inv.getArgument(0);
+        when(consentimentoRepository.save(any()))
+                .thenAnswer(firstSaveOk)
+                .thenThrow(new DataIntegrityViolationException("deadlock no segundo save"));
+
+        assertThatThrownBy(() -> useCase.executar(new IniciarConsentimentoOpenFinanceCommand(
+                        p.getId(), tomador, "52998224725", "https://sep/cb")))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("deadlock no segundo save");
+    }
+
+    @Test
     void converteDataIntegrityViolationEm409EmCorrida() {
         // V17 unique parcial pega corrida; useCase converte 500 -> 409.
         UUID tomador = UUID.randomUUID();
