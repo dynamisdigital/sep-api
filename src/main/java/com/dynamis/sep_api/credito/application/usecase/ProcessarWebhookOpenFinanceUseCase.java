@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.credito.application.usecase;
 
 import com.dynamis.sep_api.credito.application.dto.ProcessarCallbackConsentimentoCommand;
+import com.dynamis.sep_api.credito.domain.exception.ConsentimentoInvalidoException;
 import com.dynamis.sep_api.credito.domain.exception.ConsentimentoNaoEncontradoException;
 import com.dynamis.sep_api.credito.domain.model.ConsentimentoOpenFinance;
 import com.dynamis.sep_api.credito.infrastructure.persistence.ConsentimentoOpenFinanceRepository;
@@ -103,6 +104,15 @@ public class ProcessarWebhookOpenFinanceUseCase {
             } catch (ConsentimentoNaoEncontradoException ex) {
                 evento.marcarFalhou("consentimento nao encontrado para consent_id");
                 log.warn("Webhook Open Finance consent_id={} sem consentimento correspondente", callback.consentId());
+            } catch (ConsentimentoInvalidoException ex) {
+                // Sprint 9 fix code review Task 9.5: transicao invalida (ex.: dominio rejeita
+                // estado-alvo) nao deve estourar 500 — outbox precisa persistir pra idempotency
+                // funcionar em retry.
+                evento.marcarFalhou("transicao invalida: " + ex.getMessage());
+                log.warn(
+                        "Webhook Open Finance consent_id={} transicao invalida: {}",
+                        callback.consentId(),
+                        ex.getMessage());
             }
             return new Resultado(true, false);
         }
