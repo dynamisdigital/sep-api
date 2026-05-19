@@ -15,16 +15,31 @@ class FakeOpenFinanceProviderTest {
     private final FakeOpenFinanceProvider provider = new FakeOpenFinanceProvider();
 
     @Test
-    void iniciarConsentimentoRetornaIdDeterministicoPorProposta() {
+    void iniciarConsentimentoRetornaIdExternoComPrefixoFake() {
         UUID prop = UUID.randomUUID();
         RequisicaoConsentimento req =
                 new RequisicaoConsentimento(prop, UUID.randomUUID(), "52998224725", "https://sep/cb");
 
         RespostaConsentimento resp = provider.iniciarConsentimento(req, "corr-1");
 
-        assertThat(resp.idExterno()).isEqualTo("fake-of-" + prop);
-        assertThat(resp.urlAutorizacao()).contains(prop.toString());
+        assertThat(resp.idExterno()).startsWith("fake-of-");
+        assertThat(resp.urlAutorizacao()).contains(resp.idExterno());
         assertThat(resp.dataExpiracao()).isNotNull();
+    }
+
+    @Test
+    void iniciarConsentimentoGeraIdsUnicosParaMesmaProposta() {
+        // Sprint 9 fix code review Task 9.2: propostaId pode ter historico de consentimentos
+        // NEGADO/EXPIRADO + novo PENDENTE; idExterno precisa ser unico por chamada pra nao
+        // colidir em findByIdExternoCelcoin.
+        UUID prop = UUID.randomUUID();
+        RequisicaoConsentimento req =
+                new RequisicaoConsentimento(prop, UUID.randomUUID(), "52998224725", "https://sep/cb");
+
+        RespostaConsentimento r1 = provider.iniciarConsentimento(req, "corr-a");
+        RespostaConsentimento r2 = provider.iniciarConsentimento(req, "corr-b");
+
+        assertThat(r1.idExterno()).isNotEqualTo(r2.idExterno());
     }
 
     @Test

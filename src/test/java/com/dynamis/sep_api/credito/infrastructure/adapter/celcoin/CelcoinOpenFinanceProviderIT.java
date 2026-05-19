@@ -149,6 +149,53 @@ class CelcoinOpenFinanceProviderIT {
     }
 
     @Test
+    void responseSemConsentIdLevantaIllegalState() {
+        wireMock.stubFor(post(urlEqualTo("/consents"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"authorization_url\":\"https://celcoin/authz/x\"}")));
+
+        assertThatThrownBy(() -> provider.iniciarConsentimento(novaRequisicao(), "corr-noid"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("consent_id");
+    }
+
+    @Test
+    void responseSemAuthorizationUrlLevantaIllegalState() {
+        wireMock.stubFor(post(urlEqualTo("/consents"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"consent_id\":\"ext-x\"}")));
+
+        assertThatThrownBy(() -> provider.iniciarConsentimento(novaRequisicao(), "corr-nourl"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("authorization_url");
+    }
+
+    @Test
+    void idempotencyKeyPropagadaQuandoCallerSetaMdc() {
+        wireMock.stubFor(
+                post(urlEqualTo("/consents"))
+                        .withHeader("Idempotency-Key", equalTo("open-finance:consent:prop-xyz:1"))
+                        .willReturn(
+                                aResponse()
+                                        .withStatus(200)
+                                        .withHeader("Content-Type", "application/json")
+                                        .withBody(
+                                                "{\"consent_id\":\"ext-idem\",\"authorization_url\":\"https://celcoin/authz/idem\",\"expires_at\":\"2026-06-18T12:00:00-03:00\"}")));
+
+        org.slf4j.MDC.put("idempotencyKey", "open-finance:consent:prop-xyz:1");
+        try {
+            RespostaConsentimento resp = provider.iniciarConsentimento(novaRequisicao(), "corr-idem");
+            assertThat(resp.idExterno()).isEqualTo("ext-idem");
+        } finally {
+            org.slf4j.MDC.remove("idempotencyKey");
+        }
+    }
+
+    @Test
     void oauthTokenReusadoEntreChamadas() {
         wireMock.stubFor(
                 post(urlEqualTo("/consents"))

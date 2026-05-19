@@ -4,6 +4,7 @@ import com.dynamis.sep_api.credito.application.port.out.OpenFinanceProvider;
 import com.dynamis.sep_api.credito.application.port.out.dto.MovimentacaoConsolidada;
 import com.dynamis.sep_api.credito.application.port.out.dto.RequisicaoConsentimento;
 import com.dynamis.sep_api.credito.application.port.out.dto.RespostaConsentimento;
+import com.fasterxml.uuid.Generators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /**
  * Adapter fake do {@link OpenFinanceProvider} para dev/test sem credenciais Celcoin/Finansystech.
@@ -41,7 +43,11 @@ public class FakeOpenFinanceProvider implements OpenFinanceProvider {
 
     @Override
     public RespostaConsentimento iniciarConsentimento(RequisicaoConsentimento requisicao, String correlationId) {
-        String idExterno = "fake-of-" + requisicao.propostaId();
+        // idExterno unico por chamada — Sprint 9 fix code review Task 9.2: propostaId pode ter
+        // historico de consentimentos NEGADO/EXPIRADO (V17 unique parcial permite isso) e a nova
+        // tentativa precisa de id distinto pra findByIdExternoCelcoin nao colidir.
+        UUID uuid = Generators.timeBasedReorderedGenerator().generate();
+        String idExterno = "fake-of-" + uuid;
         String url = URL_AUTORIZACAO_TEMPLATE.formatted(idExterno);
         log.info(
                 "FakeOpenFinanceProvider.iniciarConsentimento propostaId={} correlationId={} -> {}",

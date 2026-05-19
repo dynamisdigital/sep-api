@@ -9,8 +9,11 @@ import com.dynamis.sep_api.credito.infrastructure.adapter.celcoin.dto.CelcoinOpe
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 
 /**
  * Mapeamento entre DTOs do port e payload Celcoin/Finansystech (ADR 0006). Sprint 9.
@@ -22,6 +25,8 @@ import java.time.OffsetDateTime;
  */
 @Mapper(componentModel = "spring")
 public interface CelcoinOpenFinanceMapper {
+
+    Logger LOG = LoggerFactory.getLogger(CelcoinOpenFinanceMapper.class);
 
     @Mapping(target = "propostaId", expression = "java(requisicao.propostaId().toString())")
     @Mapping(target = "tomadorId", expression = "java(requisicao.tomadorId().toString())")
@@ -51,7 +56,9 @@ public interface CelcoinOpenFinanceMapper {
         }
         try {
             return OffsetDateTime.parse(iso);
-        } catch (Exception ex) {
+        } catch (DateTimeParseException ex) {
+            // Celcoin payload com formato inesperado — null aceito; logamos pra triagem.
+            LOG.warn("Celcoin Open Finance expires_at em formato invalido: '{}'", iso);
             return null;
         }
     }

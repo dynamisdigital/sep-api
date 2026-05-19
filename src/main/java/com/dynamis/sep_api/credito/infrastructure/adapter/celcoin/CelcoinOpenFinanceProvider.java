@@ -31,9 +31,26 @@ import org.springframework.web.client.RestClientResponseException;
  * <p>Resilience4j (instance {@code celcoin-open-finance}): retry em 5xx + IOException com circuit
  * breaker.
  *
+ * <p><strong>Idempotency-Key</strong>: responsabilidade do caller (use case) — popular MDC com
+ * {@code idempotencyKey} ANTES de chamar este adapter. {@code IdempotencyKeyInterceptor} le do
+ * MDC e injeta no header. Chave recomendada:
+ *
+ * <ul>
+ *   <li>{@code open-finance:consent:<propostaId>:<tentativa>} para {@code iniciarConsentimento}
+ *   <li>{@code open-finance:movement:<idExterno>} para {@code consultarMovimentacao}
+ * </ul>
+ *
+ * <p>Sem chave no MDC, {@code POST /consents} sob {@code @Retry} pode gerar consentimentos
+ * duplicados no provider em caso de 5xx pos-criacao.
+ *
  * <p>LGPD: logs nunca incluem payload bruto nem body de erro do provider — apenas status HTTP,
  * correlationId e identificadores tecnicos. O {@code payloadConsolidado} persistido vem da
  * resposta JSON ja sanitizada pelo provider (snapshot agregado, NUNCA extrato transacional).
+ *
+ * <p>Validacao defensiva: response body null ou campos obrigatorios ausentes (consent_id,
+ * authorization_url) levantam {@link IllegalStateException} no adapter — evita NPE tardio no
+ * use case. Falhas tecnicas (5xx, IOException) sobem como {@code RestClientResponseException}
+ * pra Resilience4j retry.
  */
 @Component
 @ConditionalOnProperty(name = "app.open-finance.provider", havingValue = "celcoin")
@@ -72,10 +89,20 @@ public class CelcoinOpenFinanceProvider implements OpenFinanceProvider {
                     .body(payload)
                     .retrieve()
                     .body(CelcoinOpenFinanceConsentResponse.class);
+            if (response == null) {
+                throw new IllegalStateException(
+                        "Resposta nula do Celcoin Open Finance POST /consents (esperado payload com consent_id)");
+            }
+            if (response.idConsentimento() == null || response.idConsentimento().isBlank()) {
+                throw new IllegalStateException("Celcoin Open Finance POST /consents sem consent_id");
+            }
+            if (response.urlAutorizacao() == null || response.urlAutorizacao().isBlank()) {
+                throw new IllegalStateException("Celcoin Open Finance POST /consents sem authorization_url");
+            }
             log.info(
                     "Celcoin Open Finance iniciarConsentimento propostaId={} consent_id={}",
                     requisicao.propostaId(),
-                    response != null ? response.idConsentimento() : "null");
+                    response.idConsentimento());
             return mapper.toRespostaConsentimento(response);
         } catch (RestClientResponseException ex) {
             log.warn(
@@ -97,11 +124,15 @@ public class CelcoinOpenFinanceProvider implements OpenFinanceProvider {
                     .headers(this::headersAutenticacao)
                     .retrieve()
                     .body(CelcoinOpenFinanceMovimentacaoResponse.class);
+            if (response == null) {
+                throw new IllegalStateException(
+                        "Resposta nula do Celcoin Open Finance GET /consents/" + idExternoConsentimento + "/movements");
+            }
             String payloadCru = serializar(response);
             log.info(
                     "Celcoin Open Finance consultarMovimentacao idExterno={} meses={}",
                     idExternoConsentimento,
-                    response != null ? response.mesesAvaliados() : "null");
+                    response.mesesAvaliados());
             return mapper.toMovimentacaoConsolidada(response, payloadCru);
         } catch (RestClientResponseException ex) {
             log.warn(
