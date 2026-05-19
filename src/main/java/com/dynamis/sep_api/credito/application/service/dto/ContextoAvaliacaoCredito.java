@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.credito.application.service.dto;
 
+import com.dynamis.sep_api.credito.domain.model.MovimentacaoOpenFinance;
 import com.dynamis.sep_api.credito.domain.model.PropostaCredito;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.TipoSolicitante;
@@ -16,13 +17,28 @@ import java.time.LocalDate;
  * dataAbertura} preenchido apenas pra {@link TipoSolicitante#EMPRESA} quando disponivel
  * (pos-consulta CNPJ na Sprint 7). Regras devem retornar {@code PENDENTE} se a informacao
  * necessaria estiver ausente.
+ *
+ * <p>Sprint 9 Task 9.4: {@code movimentacaoOpenFinance} preenchido pelo {@code
+ * ReavaliarPropostaComOpenFinanceUseCase} apos {@code AUTORIZADO} + recebimento de dados. Null no
+ * fluxo Sprint 8 — {@code RegraOpenFinanceMovimentacao} retorna {@code PENDENTE} (impacto neutro).
  */
 public record ContextoAvaliacaoCredito(
         PropostaCredito proposta,
         TipoSolicitante tipoSolicitante,
         StatusOnboarding statusOnboarding,
         LocalDate dataNascimento,
-        LocalDate dataAbertura) {
+        LocalDate dataAbertura,
+        MovimentacaoOpenFinance movimentacaoOpenFinance) {
+
+    /** Construtor de compatibilidade pra Sprint 8 — preenche movimentacao=null. */
+    public ContextoAvaliacaoCredito(
+            PropostaCredito proposta,
+            TipoSolicitante tipoSolicitante,
+            StatusOnboarding statusOnboarding,
+            LocalDate dataNascimento,
+            LocalDate dataAbertura) {
+        this(proposta, tipoSolicitante, statusOnboarding, dataNascimento, dataAbertura, null);
+    }
 
     public boolean isPessoa() {
         return tipoSolicitante == TipoSolicitante.PESSOA;
