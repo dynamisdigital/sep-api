@@ -17,6 +17,7 @@ import com.dynamis.sep_api.credito.infrastructure.persistence.ConsentimentoOpenF
 import com.dynamis.sep_api.credito.infrastructure.persistence.PropostaCreditoRepository;
 import org.slf4j.MDC;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -82,10 +83,23 @@ public class IniciarConsentimentoOpenFinanceUseCase {
                     throw new ConsentimentoAtivoException();
                 });
 
+        // Sprint 9 fix code review Task 9.3 (anti-orphan): persiste registro local PENDENTE
+        // ANTES de chamar provider externo. V17 unique parcial detecta corrida via
+        // DataIntegrityViolationException -> 409 sem provider ter sido chamado. Se provider
+        // falhar depois, transacao rola para tras e nao deixa consentimento local nem orfao
+        // externo (idempotency-key estavel = consentimento.id permite retry idempotente).
+        ConsentimentoOpenFinance consentimento;
+        try {
+            consentimento = consentimentoRepository.save(
+                    ConsentimentoOpenFinance.iniciarLocal(cmd.propostaId(), cmd.tomadorId()));
+        } catch (DataIntegrityViolationException ex) {
+            throw new ConsentimentoAtivoException();
+        }
+
+        // Idempotency-Key estavel por entity id — retry da mesma operacao reusa a mesma chave
+        // (provider Celcoin Finansystech retorna mesmo consent_id pra duplicatas).
         String correlationId = UUID.randomUUID().toString();
-        // Idempotency-Key deterministica por proposta + timestamp (V17 unique parcial garante 1
-        // PENDENTE por proposta — chave inclui millis pra suportar novo PENDENTE pos-NEGADO).
-        String idempotencyKey = "open-finance:consent:" + cmd.propostaId() + ":" + System.currentTimeMillis();
+        String idempotencyKey = "open-finance:consent:" + consentimento.getId();
         String mdcAnterior = MDC.get(MDC_IDEMPOTENCY_KEY);
         MDC.put(MDC_IDEMPOTENCY_KEY, idempotencyKey);
         RespostaConsentimento resposta;
@@ -102,12 +116,9 @@ public class IniciarConsentimentoOpenFinanceUseCase {
             }
         }
 
-        ConsentimentoOpenFinance consentimento = consentimentoRepository.save(ConsentimentoOpenFinance.iniciar(
-                cmd.propostaId(),
-                cmd.tomadorId(),
-                resposta.urlAutorizacao(),
-                resposta.idExterno(),
-                resposta.dataExpiracao()));
+        consentimento.vincularExterno(resposta.idExterno(), resposta.urlAutorizacao(), resposta.dataExpiracao());
+        consentimento = consentimentoRepository.save(consentimento);
+
         eventPublisher.publishEvent(new OpenFinanceConsentimentoIniciadoEvent(
                 consentimento.getId(), cmd.propostaId(), cmd.tomadorId(), resposta.idExterno()));
         return consentimento;

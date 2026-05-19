@@ -59,6 +59,10 @@ public class ProcessarCallbackConsentimentoUseCase {
             return;
         }
         if (atual.isFinal()) {
+            // TODO Sprint futura: revogacao tardia de consentimento Open Finance (NEGADO chegando
+            // pos AUTORIZADO) deve disparar fluxo de revogacao (/consents/{id}/revoke) — Open
+            // Finance Brasil prevê endpoint dedicado. Por ora, log WARN preserva trilha e nao
+            // reverte estado ja consolidado.
             log.warn(
                     "Callback Open Finance conflitante idExterno={} statusAtual={} alvo={} — ignorado, provider e fonte de verdade externa",
                     cmd.idExternoCelcoin(),

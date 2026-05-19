@@ -20,8 +20,13 @@ import java.util.Set;
  * baseada em Open Finance Brasil API spec (Resolucao BCB 32/2020).
  *
  * <p>Estrategia conservadora: top-level objects e arrays sao mantidos; campos por nome em
- * {@link #CAMPOS_SENSIVEIS_REMOVIDOS} sao apagados recursivamente. Falha de parse devolve payload
- * original (audit nunca fica vazio por bug do sanitizer).
+ * {@link #CAMPOS_SENSIVEIS_REMOVIDOS} sao apagados recursivamente.
+ *
+ * <p><strong>Fail-closed</strong> (Sprint 9 fix code review Task 9.3): se o payload nao for JSON
+ * valido, devolve placeholder {@code {"_sanitizer_error":"non-json","_size":N}} em vez do payload
+ * bruto. Trade-off: perdemos detalhe pra forensics, mas garantimos que dados sensiveis nao vazam
+ * na tabela {@code movimentacao_open_finance.payload_consolidado} caso provider externo mude
+ * contrato e retorne texto plano com PII.
  */
 @Component
 public class OpenFinancePayloadSanitizer {
@@ -51,8 +56,9 @@ public class OpenFinancePayloadSanitizer {
     }
 
     /**
-     * Devolve payload com campos sensiveis removidos. Se o payload nao for JSON valido, devolve
-     * string original (audit nao deve ficar vazio por bug aqui — bug e tracker via WARN log).
+     * Devolve payload com campos sensiveis removidos. Fail-closed: se o payload nao for JSON
+     * valido, devolve placeholder {@code {"_sanitizer_error":...,"_size":N}} pra nao persistir
+     * potencial PII.
      */
     public String sanitize(String payload) {
         if (payload == null || payload.isBlank()) {
@@ -63,8 +69,11 @@ public class OpenFinancePayloadSanitizer {
             removerRecursivo(node);
             return objectMapper.writeValueAsString(node);
         } catch (JsonProcessingException ex) {
-            log.warn("Falha ao sanitizar payload Open Finance: {} — persistindo original", ex.getMessage());
-            return payload;
+            log.warn(
+                    "Payload Open Finance nao e JSON valido (size={} chars): {}. Persistindo placeholder pra evitar vazamento LGPD.",
+                    payload.length(),
+                    ex.getMessage());
+            return "{\"_sanitizer_error\":\"non-json\",\"_size\":" + payload.length() + "}";
         }
     }
 

@@ -28,9 +28,22 @@ class OpenFinancePayloadSanitizerTest {
     }
 
     @Test
-    void payloadInvalidoDevolveOriginal() {
-        String original = "not-json";
-        assertThat(sanitizer.sanitize(original)).isEqualTo(original);
+    void removeCamposSensiveisAninhadosDentroDeArray() {
+        // Cobertura cross caveman #5: provider pode mudar payload pra arrays profundos.
+        String out = sanitizer.sanitize(
+                "{\"data\":[{\"accounts\":[{\"account_number\":\"x\",\"saldo\":100},{\"cpf\":\"y\"}]}]}");
+        assertThat(out).doesNotContain("account_number").doesNotContain("cpf").contains("saldo");
+    }
+
+    @Test
+    void payloadInvalidoFalhaFechadaComPlaceholder() {
+        String original = "not-json-with-pii-cpf-52998224725";
+        String out = sanitizer.sanitize(original);
+        assertThat(out)
+                .doesNotContain("52998224725")
+                .doesNotContain("not-json")
+                .contains("_sanitizer_error")
+                .contains("non-json");
     }
 
     @Test

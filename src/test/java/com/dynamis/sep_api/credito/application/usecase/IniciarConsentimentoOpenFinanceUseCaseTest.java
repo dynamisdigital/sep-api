@@ -19,6 +19,7 @@ import com.dynamis.sep_api.credito.infrastructure.persistence.PropostaCreditoRep
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -49,6 +50,8 @@ class IniciarConsentimentoOpenFinanceUseCaseTest {
         eventPublisher = mock(ApplicationEventPublisher.class);
         useCase = new IniciarConsentimentoOpenFinanceUseCase(
                 propostaRepository, consentimentoRepository, provider, eventPublisher);
+        // save() retorna o argumento — funciona pra save inicial (iniciarLocal) e segundo save
+        // (vincularExterno) — ambos passam o mesmo entity ref.
         when(consentimentoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(consentimentoRepository.findFirstByPropostaIdAndStatusOrderByDataInicioDesc(
                         any(), eq(StatusConsentimento.PENDENTE)))
@@ -114,6 +117,21 @@ class IniciarConsentimentoOpenFinanceUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(new IniciarConsentimentoOpenFinanceCommand(
                         p.getId(), tomador, "52998224725", "https://sep/cb")))
                 .isInstanceOf(OpenFinanceFluxoInvalidoException.class);
+    }
+
+    @Test
+    void converteDataIntegrityViolationEm409EmCorrida() {
+        // V17 unique parcial pega corrida; useCase converte 500 -> 409.
+        UUID tomador = UUID.randomUUID();
+        PropostaCredito p = propostaEmAnalise(tomador);
+        when(propostaRepository.findById(p.getId())).thenReturn(Optional.of(p));
+        mockProviderOk();
+        when(consentimentoRepository.save(any()))
+                .thenThrow(new DataIntegrityViolationException("uq_consentimento_of_proposta_pendente"));
+
+        assertThatThrownBy(() -> useCase.executar(new IniciarConsentimentoOpenFinanceCommand(
+                        p.getId(), tomador, "52998224725", "https://sep/cb")))
+                .isInstanceOf(ConsentimentoAtivoException.class);
     }
 
     @Test

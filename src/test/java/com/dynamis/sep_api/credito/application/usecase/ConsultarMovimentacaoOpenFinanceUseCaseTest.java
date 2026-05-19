@@ -4,8 +4,8 @@ import com.dynamis.sep_api.credito.application.port.out.OpenFinanceProvider;
 import com.dynamis.sep_api.credito.application.port.out.dto.MovimentacaoConsolidada;
 import com.dynamis.sep_api.credito.application.service.OpenFinancePayloadSanitizer;
 import com.dynamis.sep_api.credito.domain.event.OpenFinanceDadosRecebidosEvent;
+import com.dynamis.sep_api.credito.domain.exception.ConsentimentoNaoAutorizadoException;
 import com.dynamis.sep_api.credito.domain.exception.ConsentimentoNaoEncontradoException;
-import com.dynamis.sep_api.credito.domain.exception.OpenFinanceFluxoInvalidoException;
 import com.dynamis.sep_api.credito.domain.model.ConsentimentoOpenFinance;
 import com.dynamis.sep_api.credito.domain.model.MovimentacaoOpenFinance;
 import com.dynamis.sep_api.credito.infrastructure.persistence.ConsentimentoOpenFinanceRepository;
@@ -66,8 +66,7 @@ class ConsultarMovimentacaoOpenFinanceUseCaseTest {
     void consultaProviderEPersisteSnapshot() {
         ConsentimentoOpenFinance c = autorizado();
         when(consentimentoRepository.findById(c.getId())).thenReturn(Optional.of(c));
-        when(movimentacaoRepository.findFirstByConsentimentoIdOrderByDataRecebimentoDesc(c.getId()))
-                .thenReturn(Optional.empty());
+        when(movimentacaoRepository.findByConsentimentoId(c.getId())).thenReturn(Optional.empty());
         when(provider.consultarMovimentacao(eq("ext-1"), anyString()))
                 .thenReturn(new MovimentacaoConsolidada(
                         "{\"saldo\":3000}",
@@ -101,7 +100,7 @@ class ConsultarMovimentacaoOpenFinanceUseCaseTest {
                 OffsetDateTime.now().plusDays(30));
         when(consentimentoRepository.findById(c.getId())).thenReturn(Optional.of(c));
 
-        assertThatThrownBy(() -> useCase.executar(c.getId())).isInstanceOf(OpenFinanceFluxoInvalidoException.class);
+        assertThatThrownBy(() -> useCase.executar(c.getId())).isInstanceOf(ConsentimentoNaoAutorizadoException.class);
     }
 
     @Test
@@ -116,8 +115,7 @@ class ConsultarMovimentacaoOpenFinanceUseCaseTest {
                 new BigDecimal("2000"),
                 3);
         when(consentimentoRepository.findById(c.getId())).thenReturn(Optional.of(c));
-        when(movimentacaoRepository.findFirstByConsentimentoIdOrderByDataRecebimentoDesc(c.getId()))
-                .thenReturn(Optional.of(existente));
+        when(movimentacaoRepository.findByConsentimentoId(c.getId())).thenReturn(Optional.of(existente));
 
         MovimentacaoOpenFinance r = useCase.executar(c.getId());
 
@@ -130,8 +128,7 @@ class ConsultarMovimentacaoOpenFinanceUseCaseTest {
     void payloadSanitizadoRemoveCamposSensiveis() {
         ConsentimentoOpenFinance c = autorizado();
         when(consentimentoRepository.findById(c.getId())).thenReturn(Optional.of(c));
-        when(movimentacaoRepository.findFirstByConsentimentoIdOrderByDataRecebimentoDesc(c.getId()))
-                .thenReturn(Optional.empty());
+        when(movimentacaoRepository.findByConsentimentoId(c.getId())).thenReturn(Optional.empty());
         when(provider.consultarMovimentacao(anyString(), anyString()))
                 .thenReturn(new MovimentacaoConsolidada(
                         "{\"saldo\":3000,\"cpf\":\"52998224725\",\"account_number\":\"12345\",\"transactions\":[{\"v\":1}]}",

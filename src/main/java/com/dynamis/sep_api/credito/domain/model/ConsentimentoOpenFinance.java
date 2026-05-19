@@ -79,8 +79,23 @@ public class ConsentimentoOpenFinance {
     }
 
     /**
-     * Cria consentimento em {@link StatusConsentimento#PENDENTE}. URL de autorizacao e id externo
-     * vem do {@code OpenFinanceProvider.iniciarConsentimento(...)}.
+     * Cria registro local PENDENTE sem dados do provider externo (Sprint 9 fix code review Task
+     * 9.3 — anti-orphan). Use case deve persistir esta entidade ANTES de chamar
+     * {@code OpenFinanceProvider}, usar {@link #getId()} como idempotency-key estavel, e depois
+     * chamar {@link #vincularExterno(String, String, OffsetDateTime)} com a resposta. Se o
+     * provider falhar, transacao rola para tras sem deixar consentimento local nem externo
+     * orfao no provider (idempotency-key e estavel pra retry).
+     */
+    public static ConsentimentoOpenFinance iniciarLocal(UUID propostaId, UUID tomadorId) {
+        Objects.requireNonNull(propostaId, "propostaId obrigatorio");
+        Objects.requireNonNull(tomadorId, "tomadorId obrigatorio");
+        UUID id = Generators.timeBasedReorderedGenerator().generate();
+        return new ConsentimentoOpenFinance(id, propostaId, tomadorId, null, null, null);
+    }
+
+    /**
+     * Cria consentimento ja vinculado a provider (testes/legacy). Use case real deve usar
+     * {@link #iniciarLocal(UUID, UUID)} + {@link #vincularExterno(String, String, OffsetDateTime)}.
      */
     public static ConsentimentoOpenFinance iniciar(
             UUID propostaId,
@@ -94,6 +109,25 @@ public class ConsentimentoOpenFinance {
         Objects.requireNonNull(idExternoCelcoin, "idExternoCelcoin obrigatorio");
         UUID id = Generators.timeBasedReorderedGenerator().generate();
         return new ConsentimentoOpenFinance(id, propostaId, tomadorId, urlAutorizacao, idExternoCelcoin, dataExpiracao);
+    }
+
+    /**
+     * Anexa dados do provider externo a um consentimento local. So aceita se ainda nao houver
+     * vinculo (idExternoCelcoin null) e status seguir PENDENTE.
+     */
+    public void vincularExterno(String idExternoCelcoin, String urlAutorizacao, OffsetDateTime dataExpiracao) {
+        Objects.requireNonNull(idExternoCelcoin, "idExternoCelcoin obrigatorio");
+        Objects.requireNonNull(urlAutorizacao, "urlAutorizacao obrigatorio");
+        if (this.idExternoCelcoin != null) {
+            throw new ConsentimentoInvalidoException(
+                    "vincularExterno chamado com idExterno ja definido: " + this.idExternoCelcoin);
+        }
+        if (status != StatusConsentimento.PENDENTE) {
+            throw new ConsentimentoInvalidoException("vincularExterno", status, StatusConsentimento.PENDENTE);
+        }
+        this.idExternoCelcoin = idExternoCelcoin;
+        this.urlAutorizacao = urlAutorizacao;
+        this.dataExpiracao = dataExpiracao;
     }
 
     /** Marca como autorizado. Aceita apenas a partir de {@link StatusConsentimento#PENDENTE}. */

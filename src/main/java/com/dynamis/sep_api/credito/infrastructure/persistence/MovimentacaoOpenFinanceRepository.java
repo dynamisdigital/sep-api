@@ -12,5 +12,11 @@ public interface MovimentacaoOpenFinanceRepository extends JpaRepository<Movimen
 
     Optional<MovimentacaoOpenFinance> findFirstByPropostaIdOrderByDataRecebimentoDesc(UUID propostaId);
 
+    /**
+     * V18 garante 1:1 com consentimento; chamada returns no maximo 1 snapshot. {@code findFirstBy*}
+     * mantido por compatibilidade com chamadores que ainda precisam de ordering semantico.
+     */
     Optional<MovimentacaoOpenFinance> findFirstByConsentimentoIdOrderByDataRecebimentoDesc(UUID consentimentoId);
+
+    Optional<MovimentacaoOpenFinance> findByConsentimentoId(UUID consentimentoId);
 }

@@ -4,16 +4,16 @@ import com.dynamis.sep_api.credito.application.port.out.OpenFinanceProvider;
 import com.dynamis.sep_api.credito.application.port.out.dto.MovimentacaoConsolidada;
 import com.dynamis.sep_api.credito.application.service.OpenFinancePayloadSanitizer;
 import com.dynamis.sep_api.credito.domain.event.OpenFinanceDadosRecebidosEvent;
+import com.dynamis.sep_api.credito.domain.exception.ConsentimentoNaoAutorizadoException;
 import com.dynamis.sep_api.credito.domain.exception.ConsentimentoNaoEncontradoException;
-import com.dynamis.sep_api.credito.domain.exception.OpenFinanceFluxoInvalidoException;
 import com.dynamis.sep_api.credito.domain.model.ConsentimentoOpenFinance;
 import com.dynamis.sep_api.credito.domain.model.MovimentacaoOpenFinance;
 import com.dynamis.sep_api.credito.domain.vo.StatusConsentimento;
-import com.dynamis.sep_api.credito.domain.vo.StatusProposta;
 import com.dynamis.sep_api.credito.infrastructure.persistence.ConsentimentoOpenFinanceRepository;
 import com.dynamis.sep_api.credito.infrastructure.persistence.MovimentacaoOpenFinanceRepository;
 import org.slf4j.MDC;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,13 +68,12 @@ public class ConsultarMovimentacaoOpenFinanceUseCase {
                 .orElseThrow(() -> new ConsentimentoNaoEncontradoException(consentimentoId.toString()));
 
         if (consentimento.getStatus() != StatusConsentimento.AUTORIZADO) {
-            // Reusa exception de fluxo invalido — proposta status como proxy do estado nao autorizado
-            // nao se aplica aqui; melhor usar StatusProposta.REJEITADA como sinalizacao generica.
-            throw new OpenFinanceFluxoInvalidoException(StatusProposta.REJEITADA);
+            throw new ConsentimentoNaoAutorizadoException(consentimento.getStatus());
         }
 
-        // Idempotencia: snapshot existente -> retorna sem reprocessar (callback tardio repete dados).
-        var existente = movimentacaoRepository.findFirstByConsentimentoIdOrderByDataRecebimentoDesc(consentimentoId);
+        // Idempotencia: snapshot existente -> retorna sem reprocessar (callback tardio repete
+        // dados). V18 unique consentimento_id garante 1:1.
+        var existente = movimentacaoRepository.findByConsentimentoId(consentimentoId);
         if (existente.isPresent()) {
             return existente.get();
         }
@@ -96,14 +95,24 @@ public class ConsultarMovimentacaoOpenFinanceUseCase {
 
         String payloadSanitizado = sanitizer.sanitize(consolidada.payloadConsolidado());
 
-        MovimentacaoOpenFinance snapshot = movimentacaoRepository.save(MovimentacaoOpenFinance.registrar(
-                consentimentoId,
-                consentimento.getPropostaId(),
-                payloadSanitizado,
-                consolidada.mediaEntradasMensal(),
-                consolidada.mediaSaidasMensal(),
-                consolidada.saldoMedio(),
-                consolidada.numeroMesesAvaliados()));
+        // Sprint 9 fix code review Task 9.3: race condition — 2 callbacks concorrentes podem
+        // passar pelo findFirstBy vazio simultaneamente. Constraint nao existe (movimentacao
+        // pode ter N por consentimento por design), entao detectamos via re-check.
+        MovimentacaoOpenFinance snapshot;
+        try {
+            snapshot = movimentacaoRepository.save(MovimentacaoOpenFinance.registrar(
+                    consentimentoId,
+                    consentimento.getPropostaId(),
+                    payloadSanitizado,
+                    consolidada.mediaEntradasMensal(),
+                    consolidada.mediaSaidasMensal(),
+                    consolidada.saldoMedio(),
+                    consolidada.numeroMesesAvaliados()));
+        } catch (DataIntegrityViolationException ex) {
+            // V18 unique consentimento_id: corrida com outro callback simultaneo — retorna o
+            // snapshot ja-persistido pra idempotencia ponta-a-ponta.
+            return movimentacaoRepository.findByConsentimentoId(consentimentoId).orElseThrow(() -> ex);
+        }
 
         eventPublisher.publishEvent(new OpenFinanceDadosRecebidosEvent(
                 snapshot.getId(),
