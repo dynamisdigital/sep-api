@@ -61,6 +61,12 @@ class OpenApiConfigTest {
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/credito/propostas/{id}/regras']")
                         .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/credito/propostas/{id}/open-finance/consentimento']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/credito/propostas/{id}/open-finance']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/webhooks/celcoin/open-finance']")
+                        .exists())
                 .andExpect(jsonPath("$.components.schemas.UsuarioCreateDto").exists())
                 .andExpect(jsonPath("$.components.schemas.UsuarioResponseDto").exists())
                 .andExpect(jsonPath("$.components.schemas.LoginRequestDto").exists())
@@ -89,6 +95,14 @@ class OpenApiConfigTest {
                 .andExpect(
                         jsonPath("$.components.schemas.RegraAvaliadaResponse").exists())
                 .andExpect(jsonPath("$.components.schemas.ScoreInternoResponse").exists())
-                .andExpect(jsonPath("$.components.schemas.UsuarioRoleUpdateDto").exists());
+                .andExpect(jsonPath("$.components.schemas.UsuarioRoleUpdateDto").exists())
+                .andExpect(jsonPath("$.components.schemas.IniciarConsentimentoOpenFinanceRequest")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.IniciarConsentimentoOpenFinanceResponse")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.OpenFinanceStatusResponse")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.MovimentacaoConsolidadaResponse")
+                        .exists());
     }
 }
