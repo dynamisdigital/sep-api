@@ -90,7 +90,7 @@ class PropostaAvaliacaoTransacionalTest {
                         StatusProposta.PRE_APROVADA,
                         0,
                         0,
-                        List.of(new RegraResultado("rg1", ResultadoRegra.PASSOU, null, false))));
+                        List.of(new RegraResultado("rg1", ResultadoRegra.PASSOU, null, false, 0))));
 
         service.avaliar(proposta.getId());
 
@@ -115,7 +115,7 @@ class PropostaAvaliacaoTransacionalTest {
                         StatusProposta.PRE_APROVADA,
                         0,
                         0,
-                        List.of(new RegraResultado("rg1", ResultadoRegra.PASSOU, null, false))));
+                        List.of(new RegraResultado("rg1", ResultadoRegra.PASSOU, null, false, 0))));
         org.mockito.Mockito.doThrow(new RuntimeException("audit down"))
                 .when(auditLogService)
                 .gravar(eq(TipoEventoSeguranca.PROPOSTA_AVALIADA_MOTOR), any(), anyString());
@@ -138,7 +138,7 @@ class PropostaAvaliacaoTransacionalTest {
                         StatusProposta.REJEITADA,
                         3,
                         0,
-                        List.of(new RegraResultado("rg1", ResultadoRegra.FALHOU, "x", true))));
+                        List.of(new RegraResultado("rg1", ResultadoRegra.FALHOU, "x", true, 0))));
 
         service.avaliar(proposta.getId());
 

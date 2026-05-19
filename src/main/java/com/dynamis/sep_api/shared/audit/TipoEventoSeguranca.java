@@ -19,6 +19,9 @@ package com.dynamis.sep_api.shared.audit;
  * <p>Sprint 8 Task 8.6: adicionados 5 eventos {@code PROPOSTA_*}/{@code PARECER_*} para a trilha
  * auditavel reforcada da analise de credito (CMN 4.656/2018 Art. 9). Check constraint atualizado
  * em V16.
+ *
+ * <p>Sprint 9 Task 9.7: adicionados 5 eventos {@code OPEN_FINANCE_*} para o ciclo de consentimento
+ * Open Finance Brasil + reavaliacao do score. Check constraint atualizado em V19.
  */
 public enum TipoEventoSeguranca {
     LOGIN_OK,
@@ -51,5 +54,10 @@ public enum TipoEventoSeguranca {
     PROPOSTA_AVALIADA_MOTOR,
     PARECER_REGISTRADO,
     PROPOSTA_APROVADA,
-    PROPOSTA_REJEITADA
+    PROPOSTA_REJEITADA,
+    OPEN_FINANCE_CONSENTIMENTO_INICIADO,
+    OPEN_FINANCE_AUTORIZADO,
+    OPEN_FINANCE_NEGADO,
+    OPEN_FINANCE_DADOS_RECEBIDOS,
+    OPEN_FINANCE_REAVALIACAO
 }

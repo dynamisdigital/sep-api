@@ -50,11 +50,13 @@ public class MotorRegrasCredito {
         List<RegraResultado> resultados = new ArrayList<>(regras.size());
         int falhas = 0;
         int pendencias = 0;
+        int ajusteTotal = 0;
         boolean bloqueioAbsoluto = false;
 
         for (RegraCredito regra : regras) {
             RegraResultado r = regra.avaliar(contexto);
             resultados.add(r);
+            ajusteTotal += r.ajusteScore();
             if (r.resultado() == ResultadoRegra.FALHOU) {
                 falhas++;
                 if (r.bloqueante()) {
@@ -65,16 +67,16 @@ public class MotorRegrasCredito {
             }
         }
 
-        int score = calcularScore(falhas, pendencias);
+        int score = calcularScore(falhas, pendencias, ajusteTotal);
         StatusProposta sugerido = sugerirStatus(score, bloqueioAbsoluto);
         return new ResultadoAvaliacaoCredito(
                 score, sugerido, falhas, pendencias, Collections.unmodifiableList(resultados));
     }
 
-    private int calcularScore(int falhas, int pendencias) {
+    private int calcularScore(int falhas, int pendencias, int ajusteTotal) {
         int penalidade = properties.penalidadeFalha() * falhas + properties.penalidadePendencia() * pendencias;
-        int score = properties.scoreInicial() - penalidade;
-        return Math.max(0, score);
+        int score = properties.scoreInicial() - penalidade + ajusteTotal;
+        return Math.max(0, Math.min(1000, score));
     }
 
     private StatusProposta sugerirStatus(int score, boolean bloqueioAbsoluto) {

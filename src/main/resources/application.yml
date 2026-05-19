@@ -100,12 +100,15 @@ app:
       celcoin-kyc: ${APP_WEBHOOK_SECRET_CELCOIN_KYC:dev-kyc-webhook-secret-change-me}
       celcoin-kyb: ${APP_WEBHOOK_SECRET_CELCOIN_KYB:dev-kyb-webhook-secret-change-me}
       celcoin-pld: ${APP_WEBHOOK_SECRET_CELCOIN_PLD:dev-pld-webhook-secret-change-me}
+      celcoin-open-finance: ${APP_WEBHOOK_SECRET_CELCOIN_OPEN_FINANCE:dev-open-finance-webhook-secret-change-me}
   kyc:
     provider: ${APP_KYC_PROVIDER:fake}
   kyb:
     provider: ${APP_KYB_PROVIDER:fake}
   pld:
     provider: ${APP_PLD_PROVIDER:fake}
+  open-finance:
+    provider: ${APP_OPEN_FINANCE_PROVIDER:fake}
   celcoin:
     kyc:
       base-url: ${APP_CELCOIN_KYC_BASE_URL:https://sandbox.openfinance.celcoin.dev/onboarding/v1}
@@ -119,6 +122,10 @@ app:
       base-url: ${APP_CELCOIN_BACKGROUND_CHECK_BASE_URL:https://sandbox.openfinance.celcoin.dev/onboarding/v1}
       client-id: ${APP_CELCOIN_BACKGROUND_CHECK_CLIENT_ID:${APP_CELCOIN_KYC_CLIENT_ID:}}
       client-secret: ${APP_CELCOIN_BACKGROUND_CHECK_CLIENT_SECRET:${APP_CELCOIN_KYC_CLIENT_SECRET:}}
+    open-finance:
+      base-url: ${APP_CELCOIN_OPEN_FINANCE_BASE_URL:https://sandbox.openfinance.celcoin.dev/open-finance/v1}
+      client-id: ${APP_CELCOIN_OPEN_FINANCE_CLIENT_ID:}
+      client-secret: ${APP_CELCOIN_OPEN_FINANCE_CLIENT_SECRET:}
   credito:
     motor:
       score-inicial: ${APP_CREDITO_SCORE_INICIAL:1000}
@@ -162,6 +169,8 @@ resilience4j:
         baseConfig: default
       celcoin-background-check:
         baseConfig: default
+      celcoin-open-finance:
+        baseConfig: default
   retry:
     configs:
       default:
@@ -189,6 +198,13 @@ resilience4j:
           - org.springframework.web.client.ResourceAccessException
           - org.springframework.web.client.HttpServerErrorException
           - java.io.IOException
+      celcoin-open-finance:
+        maxAttempts: 3
+        waitDuration: 500ms
+        retryExceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
   timelimiter:
     configs:
       default:
@@ -199,6 +215,8 @@ resilience4j:
       celcoin-kyb:
         timeoutDuration: 30s
       celcoin-background-check:
+        timeoutDuration: 30s
+      celcoin-open-finance:
         timeoutDuration: 30s
   ratelimiter:
     configs:
