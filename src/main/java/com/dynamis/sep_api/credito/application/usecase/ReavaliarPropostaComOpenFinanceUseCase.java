@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
@@ -81,7 +82,9 @@ public class ReavaliarPropostaComOpenFinanceUseCase {
         this.eventPublisher = eventPublisher;
     }
 
-    @Transactional
+    // REQUIRES_NEW: chamado por OpenFinanceDadosRecebidosListener AFTER_COMMIT — sem REQUIRES_NEW
+    // Spring nao abre nova tx por causa do tx synchronizer ainda bound ao thread.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Optional<ResultadoAvaliacaoCredito> executar(UUID propostaId, UUID consentimentoId) {
         PropostaCredito proposta = propostaRepository
                 .findById(propostaId)
@@ -148,6 +151,11 @@ public class ReavaliarPropostaComOpenFinanceUseCase {
     private void persistirNovaTrilha(UUID propostaId, ResultadoAvaliacaoCredito resultado) {
         scoreRepository.deleteByPropostaId(propostaId);
         regraRepository.deleteByPropostaId(propostaId);
+        // Flush explicito — score_interno_proposta_id_key (unique) colide se Hibernate
+        // ordenar insert antes do delete na mesma tx. Sprint 8 PropostaAvaliacaoTransacional
+        // nao sofre porque la nao ha score pre-existente; em Reavaliar SEMPRE ha.
+        scoreRepository.flush();
+        regraRepository.flush();
         scoreRepository.save(ScoreInterno.calculado(
                 propostaId, resultado.score(), resultado.statusSugerido(), resultado.falhas(), resultado.pendencias()));
         for (RegraResultado r : resultado.regras()) {

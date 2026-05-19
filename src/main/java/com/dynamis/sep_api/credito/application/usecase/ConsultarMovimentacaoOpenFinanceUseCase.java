@@ -15,6 +15,7 @@ import org.slf4j.MDC;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
@@ -61,7 +62,9 @@ public class ConsultarMovimentacaoOpenFinanceUseCase {
         this.eventPublisher = eventPublisher;
     }
 
-    @Transactional
+    // REQUIRES_NEW: chamado por OpenFinanceAutorizadoListener AFTER_COMMIT — Hibernate session
+    // do tx anterior ainda esta bound ao thread; sem REQUIRES_NEW Spring nao abre nova tx.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public MovimentacaoOpenFinance executar(UUID consentimentoId) {
         ConsentimentoOpenFinance consentimento = consentimentoRepository
                 .findById(consentimentoId)
