@@ -84,6 +84,8 @@ public class ReavaliarPropostaComOpenFinanceUseCase {
 
     // REQUIRES_NEW: chamado por OpenFinanceDadosRecebidosListener AFTER_COMMIT — sem REQUIRES_NEW
     // Spring nao abre nova tx por causa do tx synchronizer ainda bound ao thread.
+    // ATENCAO: REQUIRES_NEW suspende a tx do caller — se este use case for invocado por
+    // endpoint REST @Transactional no futuro, avalie se o comportamento e desejado.
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Optional<ResultadoAvaliacaoCredito> executar(UUID propostaId, UUID consentimentoId) {
         PropostaCredito proposta = propostaRepository

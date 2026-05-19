@@ -64,6 +64,8 @@ public class ConsultarMovimentacaoOpenFinanceUseCase {
 
     // REQUIRES_NEW: chamado por OpenFinanceAutorizadoListener AFTER_COMMIT — Hibernate session
     // do tx anterior ainda esta bound ao thread; sem REQUIRES_NEW Spring nao abre nova tx.
+    // ATENCAO: se este use case for invocado por endpoint REST @Transactional no futuro,
+    // REQUIRES_NEW suspende a tx do controller — avalie se isso e desejado.
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public MovimentacaoOpenFinance executar(UUID consentimentoId) {
         ConsentimentoOpenFinance consentimento = consentimentoRepository
