@@ -25,14 +25,16 @@ class PropostaAprovadaListenerTest {
     private PropostaAprovadaListener listener;
 
     @Test
-    void aoAprovar_disparaUseCaseComPropostaId() {
+    void aoAprovar_disparaUseCaseComPropostaIdEParecerOrigem() {
         UUID propostaId = UUID.randomUUID();
-        PropostaAprovadaEvent event = new PropostaAprovadaEvent(propostaId, UUID.randomUUID(), UUID.randomUUID());
+        UUID parecerId = UUID.randomUUID();
+        PropostaAprovadaEvent event = new PropostaAprovadaEvent(propostaId, UUID.randomUUID(), parecerId);
 
         listener.aoAprovar(event);
 
         verify(gerarContratoUseCase)
-                .executar(argThat((GerarContratoCommand c) -> c.propostaId().equals(propostaId)));
+                .executar(argThat((GerarContratoCommand c) ->
+                        c.propostaId().equals(propostaId) && parecerId.equals(c.parecerOrigemId())));
     }
 
     @Test
@@ -45,5 +47,29 @@ class PropostaAprovadaListenerTest {
 
         // Nao deve lancar — listener engole a excecao e apenas loga
         listener.aoAprovar(event);
+    }
+
+    @Test
+    void aoAprovar_eventoNull_naoLancaENaoChamaUseCase() {
+        // Defensivo: try cobre tudo (Sprint 10 fix code review)
+        listener.aoAprovar(null);
+        org.mockito.Mockito.verifyNoInteractions(gerarContratoUseCase);
+    }
+
+    @Test
+    void aoAprovar_replayDoMesmoEvento_chamaUseCaseDuasVezesComMesmoParecerOrigem() {
+        // Listener nao mantem estado proprio — replay simplesmente repassa pra use case com o
+        // mesmo parecerOrigemId. Idempotencia real esta no GerarContratoUseCase, que detecta
+        // versao vigente com mesmo parecer e faz short-circuit.
+        UUID propostaId = UUID.randomUUID();
+        UUID parecerId = UUID.randomUUID();
+        PropostaAprovadaEvent event = new PropostaAprovadaEvent(propostaId, UUID.randomUUID(), parecerId);
+
+        listener.aoAprovar(event);
+        listener.aoAprovar(event);
+
+        org.mockito.Mockito.verify(gerarContratoUseCase, org.mockito.Mockito.times(2))
+                .executar(argThat((GerarContratoCommand c) ->
+                        c.propostaId().equals(propostaId) && parecerId.equals(c.parecerOrigemId())));
     }
 }

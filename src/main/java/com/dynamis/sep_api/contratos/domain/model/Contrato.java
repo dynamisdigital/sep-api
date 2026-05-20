@@ -93,12 +93,16 @@ public class Contrato extends EntidadeAuditavel {
      * permitir.
      */
     public VersaoContrato adicionarVersao(String conteudoTexto, String hashSha256) {
+        return adicionarVersao(conteudoTexto, hashSha256, null);
+    }
+
+    public VersaoContrato adicionarVersao(String conteudoTexto, String hashSha256, UUID parecerOrigemId) {
         if (!status.permiteNovaVersao()) {
             throw new ContratoEstadoInvalidoException("adicionarVersao", status);
         }
         int proximoNumero =
                 versoes.stream().mapToInt(VersaoContrato::getNumero).max().orElse(0) + 1;
-        VersaoContrato versao = VersaoContrato.criar(this, proximoNumero, conteudoTexto, hashSha256);
+        VersaoContrato versao = VersaoContrato.criar(this, proximoNumero, conteudoTexto, hashSha256, parecerOrigemId);
         versoes.add(versao);
         if (status == StatusFormalizacao.GERADO) {
             this.status = StatusFormalizacao.AGUARDANDO_ACEITE;

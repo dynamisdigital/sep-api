@@ -53,6 +53,9 @@ public class VersaoContrato {
     @Column(name = "data_geracao", nullable = false, updatable = false)
     private OffsetDateTime dataGeracao;
 
+    @Column(name = "parecer_origem_id", columnDefinition = "uuid", updatable = false)
+    private UUID parecerOrigemId;
+
     @OneToMany(mappedBy = "versao", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("ordem ASC")
     private List<ClausulaContratual> clausulas = new ArrayList<>();
@@ -65,16 +68,23 @@ public class VersaoContrato {
             int numero,
             String conteudoTexto,
             String hashSha256,
-            OffsetDateTime dataGeracao) {
+            OffsetDateTime dataGeracao,
+            UUID parecerOrigemId) {
         this.id = id;
         this.contrato = contrato;
         this.numero = numero;
         this.conteudoTexto = conteudoTexto;
         this.hashSha256 = hashSha256;
         this.dataGeracao = dataGeracao;
+        this.parecerOrigemId = parecerOrigemId;
     }
 
     public static VersaoContrato criar(Contrato contrato, int numero, String conteudoTexto, String hashSha256) {
+        return criar(contrato, numero, conteudoTexto, hashSha256, null);
+    }
+
+    public static VersaoContrato criar(
+            Contrato contrato, int numero, String conteudoTexto, String hashSha256, UUID parecerOrigemId) {
         Objects.requireNonNull(contrato, "contrato obrigatorio");
         if (numero <= 0) {
             throw new IllegalArgumentException("numero deve ser positivo");
@@ -88,7 +98,8 @@ public class VersaoContrato {
             throw new IllegalArgumentException("hashSha256 deve ser hex lowercase de 64 chars");
         }
         UUID id = Generators.timeBasedReorderedGenerator().generate();
-        return new VersaoContrato(id, contrato, numero, conteudoTexto, hashSha256, OffsetDateTime.now());
+        return new VersaoContrato(
+                id, contrato, numero, conteudoTexto, hashSha256, OffsetDateTime.now(), parecerOrigemId);
     }
 
     public void adicionarClausula(int ordem, String titulo, String texto) {
@@ -117,6 +128,10 @@ public class VersaoContrato {
 
     public OffsetDateTime getDataGeracao() {
         return dataGeracao;
+    }
+
+    public UUID getParecerOrigemId() {
+        return parecerOrigemId;
     }
 
     public List<ClausulaContratual> getClausulas() {

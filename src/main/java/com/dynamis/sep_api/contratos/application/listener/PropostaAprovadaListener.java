@@ -39,11 +39,23 @@ public class PropostaAprovadaListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void aoAprovar(PropostaAprovadaEvent event) {
+        // Try cobre TUDO (inclusive construcao do command + null event) — proposta ja foi aprovada
+        // e nao pode ser revertida por falha de formalizacao; falha ja-logada vira pendencia
+        // operacional em sprint futura (backoffice).
         try {
-            gerarContratoUseCase.executar(new GerarContratoCommand(event.propostaId()));
+            if (event == null || event.propostaId() == null) {
+                log.error("PropostaAprovadaEvent invalido recebido (event={})", event);
+                return;
+            }
+            // parecerId vira parecerOrigemId no comando: idempotencia delegada ao use case
+            // (replay do mesmo evento -> mesma proposta + mesmo parecer -> short-circuit).
+            gerarContratoUseCase.executar(new GerarContratoCommand(event.propostaId(), event.parecerId()));
         } catch (RuntimeException e) {
             log.error(
-                    "Falha ao gerar contrato apos aprovacao da proposta {}: {}", event.propostaId(), e.getMessage(), e);
+                    "Falha ao gerar contrato apos aprovacao da proposta {}: {}",
+                    event != null ? event.propostaId() : null,
+                    e.getMessage(),
+                    e);
         }
     }
 }

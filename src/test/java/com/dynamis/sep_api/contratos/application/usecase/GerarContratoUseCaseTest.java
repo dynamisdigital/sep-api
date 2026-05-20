@@ -15,12 +15,12 @@ import com.dynamis.sep_api.contratos.domain.model.Contrato;
 import com.dynamis.sep_api.contratos.domain.vo.StatusFormalizacao;
 import com.dynamis.sep_api.contratos.domain.vo.TipoContrato;
 import com.dynamis.sep_api.contratos.infrastructure.persistence.ContratoRepository;
+import com.dynamis.sep_api.credito.application.usecase.ConsultarPropostaUseCase;
 import com.dynamis.sep_api.credito.domain.exception.PropostaNaoEncontradaException;
 import com.dynamis.sep_api.credito.domain.model.PropostaCredito;
 import com.dynamis.sep_api.credito.domain.vo.DecisaoParecer;
 import com.dynamis.sep_api.credito.domain.vo.Money;
 import com.dynamis.sep_api.credito.domain.vo.TipoOperacao;
-import com.dynamis.sep_api.credito.infrastructure.persistence.PropostaCreditoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,7 +49,7 @@ class GerarContratoUseCaseTest {
     private static final String HASH = "0".repeat(64);
 
     @Mock
-    private PropostaCreditoRepository propostaRepository;
+    private ConsultarPropostaUseCase consultarPropostaUseCase;
 
     @Mock
     private ContratoRepository contratoRepository;
@@ -69,22 +70,23 @@ class GerarContratoUseCaseTest {
     private GerarContratoUseCase useCase;
 
     private PropostaCredito proposta;
+    private UUID parecerId;
 
     @BeforeEach
     void setup() {
         proposta = PropostaCredito.criar(
                 UUID.randomUUID(), UUID.randomUUID(), TipoOperacao.CAPITAL_GIRO, Money.brl("10000"), 12);
-        // simulando trajeto APROVADA: EM_ANALISE -> PRE_APROVADA -> APROVADA
         proposta.aplicarSugestaoMotor(com.dynamis.sep_api.credito.domain.vo.StatusProposta.PRE_APROVADA);
         proposta.registrarDecisaoManual(DecisaoParecer.APROVAR);
+        parecerId = UUID.randomUUID();
     }
 
     @Test
     void executar_propostaInexistente_lancaNaoEncontrada() {
         UUID id = UUID.randomUUID();
-        when(propostaRepository.findById(id)).thenReturn(Optional.empty());
+        when(consultarPropostaUseCase.executar(id)).thenThrow(new PropostaNaoEncontradaException(id));
 
-        assertThatThrownBy(() -> useCase.executar(new GerarContratoCommand(id)))
+        assertThatThrownBy(() -> useCase.executar(new GerarContratoCommand(id, parecerId)))
                 .isInstanceOf(PropostaNaoEncontradaException.class);
     }
 
@@ -92,42 +94,81 @@ class GerarContratoUseCaseTest {
     void executar_propostaNaoAprovada_lanca422() {
         PropostaCredito naoAprovada = PropostaCredito.criar(
                 UUID.randomUUID(), UUID.randomUUID(), TipoOperacao.CAPITAL_GIRO, Money.brl("100"), 6);
-        when(propostaRepository.findById(naoAprovada.getId())).thenReturn(Optional.of(naoAprovada));
+        when(consultarPropostaUseCase.executar(naoAprovada.getId())).thenReturn(naoAprovada);
 
-        assertThatThrownBy(() -> useCase.executar(new GerarContratoCommand(naoAprovada.getId())))
+        assertThatThrownBy(() -> useCase.executar(new GerarContratoCommand(naoAprovada.getId(), parecerId)))
                 .isInstanceOf(PropostaNaoAprovadaException.class);
     }
 
     @Test
     void executar_criacaoInicial_geraContratoEmAguardandoAceiteEPublicaEventoGerado() {
         mockarRenderizacao();
-        when(propostaRepository.findById(proposta.getId())).thenReturn(Optional.of(proposta));
+        when(consultarPropostaUseCase.executar(proposta.getId())).thenReturn(proposta);
         when(contratoRepository.findByPropostaId(proposta.getId())).thenReturn(Optional.empty());
         when(contratoRepository.save(any(Contrato.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Contrato resultado = useCase.executar(new GerarContratoCommand(proposta.getId()));
+        Contrato resultado = useCase.executar(new GerarContratoCommand(proposta.getId(), parecerId));
 
         assertThat(resultado.getStatus()).isEqualTo(StatusFormalizacao.AGUARDANDO_ACEITE);
         assertThat(resultado.getVersoes()).hasSize(1);
         assertThat(resultado.getVersoes().get(0).getNumero()).isEqualTo(1);
+        assertThat(resultado.getVersoes().get(0).getParecerOrigemId()).isEqualTo(parecerId);
         assertThat(resultado.getVersoes().get(0).getClausulas()).hasSize(2);
         verify(eventPublisher, times(1)).publishEvent(argThat((Object e) -> e instanceof ContratoGeradoEvent));
     }
 
     @Test
-    void executar_regeneracaoEmAguardandoAceite_publicaEventoNovaVersao() {
+    void executar_regeneracaoComNovoParecer_publicaEventoNovaVersao() {
+        UUID outroParecer = UUID.randomUUID();
+        Contrato existente = Contrato.criar(proposta.getId(), proposta.getTomadorId(), TipoContrato.MUTUO);
+        existente.adicionarVersao("v1", HASH, outroParecer);
+
+        mockarRenderizacao();
+        when(consultarPropostaUseCase.executar(proposta.getId())).thenReturn(proposta);
+        when(contratoRepository.findByPropostaId(proposta.getId())).thenReturn(Optional.of(existente));
+        when(contratoRepository.save(any(Contrato.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Contrato resultado = useCase.executar(new GerarContratoCommand(proposta.getId(), parecerId));
+
+        assertThat(resultado.getVersoes()).hasSize(2);
+        assertThat(resultado.getVersoes().get(1).getNumero()).isEqualTo(2);
+        assertThat(resultado.getVersoes().get(1).getParecerOrigemId()).isEqualTo(parecerId);
+        verify(eventPublisher, times(1)).publishEvent(argThat((Object e) -> e instanceof ContratoNovaVersaoEvent));
+    }
+
+    @Test
+    void executar_replayDoMesmoParecer_idempotenteRetornaContratoSemNovaVersao() {
+        // Replay do PropostaAprovadaEvent: mesma proposta, mesmo parecerId — versao vigente ja
+        // foi gerada por esse parecer. UseCase faz short-circuit.
+        Contrato existente = Contrato.criar(proposta.getId(), proposta.getTomadorId(), TipoContrato.MUTUO);
+        existente.adicionarVersao("v1 ja gerada por esse parecer", HASH, parecerId);
+
+        when(consultarPropostaUseCase.executar(proposta.getId())).thenReturn(proposta);
+        when(contratoRepository.findByPropostaId(proposta.getId())).thenReturn(Optional.of(existente));
+
+        Contrato resultado = useCase.executar(new GerarContratoCommand(proposta.getId(), parecerId));
+
+        assertThat(resultado).isSameAs(existente);
+        assertThat(resultado.getVersoes()).hasSize(1);
+        verify(contratoRepository, never()).save(any(Contrato.class));
+        verify(eventPublisher, never()).publishEvent(any());
+        verify(templateEngine, never()).renderizar(any());
+    }
+
+    @Test
+    void executar_comandoManualSemParecer_naoAplicaIdempotencia() {
+        // Comando manual (parecerOrigemId=null) — regeneracao explicita, sem short-circuit.
         Contrato existente = Contrato.criar(proposta.getId(), proposta.getTomadorId(), TipoContrato.MUTUO);
         existente.adicionarVersao("v1", HASH);
 
         mockarRenderizacao();
-        when(propostaRepository.findById(proposta.getId())).thenReturn(Optional.of(proposta));
+        when(consultarPropostaUseCase.executar(proposta.getId())).thenReturn(proposta);
         when(contratoRepository.findByPropostaId(proposta.getId())).thenReturn(Optional.of(existente));
         when(contratoRepository.save(any(Contrato.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Contrato resultado = useCase.executar(new GerarContratoCommand(proposta.getId()));
+        Contrato resultado = useCase.executar(GerarContratoCommand.manual(proposta.getId()));
 
         assertThat(resultado.getVersoes()).hasSize(2);
-        assertThat(resultado.getVersoes().get(1).getNumero()).isEqualTo(2);
         verify(eventPublisher, times(1)).publishEvent(argThat((Object e) -> e instanceof ContratoNovaVersaoEvent));
     }
 
@@ -137,21 +178,21 @@ class GerarContratoUseCaseTest {
         existente.adicionarVersao("v1", HASH);
         existente.marcarAceito();
 
-        when(propostaRepository.findById(proposta.getId())).thenReturn(Optional.of(proposta));
+        when(consultarPropostaUseCase.executar(proposta.getId())).thenReturn(proposta);
         when(contratoRepository.findByPropostaId(proposta.getId())).thenReturn(Optional.of(existente));
 
-        assertThatThrownBy(() -> useCase.executar(new GerarContratoCommand(proposta.getId())))
+        assertThatThrownBy(() -> useCase.executar(new GerarContratoCommand(proposta.getId(), parecerId)))
                 .isInstanceOf(ContratoEstadoInvalidoException.class);
     }
 
     @Test
     void executar_hashCalculadoDoConteudoFinal() {
         mockarRenderizacao();
-        when(propostaRepository.findById(proposta.getId())).thenReturn(Optional.of(proposta));
+        when(consultarPropostaUseCase.executar(proposta.getId())).thenReturn(proposta);
         when(contratoRepository.findByPropostaId(proposta.getId())).thenReturn(Optional.empty());
         when(contratoRepository.save(any(Contrato.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        useCase.executar(new GerarContratoCommand(proposta.getId()));
+        useCase.executar(new GerarContratoCommand(proposta.getId(), parecerId));
 
         verify(hashService).calcular("CONTEUDO RENDERIZADO");
         verify(eventPublisher)
