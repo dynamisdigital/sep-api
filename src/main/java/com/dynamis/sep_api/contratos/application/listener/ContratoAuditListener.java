@@ -63,7 +63,10 @@ public class ContratoAuditListener {
         payload.put("versaoId", event.versaoId().toString());
         payload.put("numeroVersao", event.numeroVersao());
         payload.put("hashSha256", event.hashSha256());
-        auditLogService.gravar(TipoEventoSeguranca.CONTRATO_GERADO, event.tomadorId(), serializar(payload));
+        auditLogService.gravar(
+                TipoEventoSeguranca.CONTRATO_GERADO,
+                event.tomadorId(),
+                serializar(payload, event.contratoId().toString()));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -75,26 +78,30 @@ public class ContratoAuditListener {
         payload.put("versaoId", event.versaoId().toString());
         payload.put("numeroVersao", event.numeroVersao());
         payload.put("hashSha256", event.hashSha256());
-        auditLogService.gravar(TipoEventoSeguranca.CONTRATO_NOVA_VERSAO, event.tomadorId(), serializar(payload));
+        auditLogService.gravar(
+                TipoEventoSeguranca.CONTRATO_NOVA_VERSAO,
+                event.tomadorId(),
+                serializar(payload, event.contratoId().toString()));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void aoAceitar(ContratoAceitoEvent event) {
+        // IP e user-agent vivem APENAS nas colunas dedicadas de audit_log_seguranca; nao
+        // duplicamos no JSONB pra manter consistencia forense (uma fonte por campo) e evitar
+        // discrepancia de truncamento entre coluna (45/500 chars) e payload.
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("contratoId", event.contratoId().toString());
         payload.put("propostaId", event.propostaId().toString());
         payload.put("versaoId", event.versaoId().toString());
         payload.put("numeroVersao", event.numeroVersao());
         payload.put("hashSha256", event.hashSha256());
-        // user-agent ja vem truncado a 500 chars pela entidade; trunca de novo a 200 pra audit
-        payload.put("userAgentOrigem", truncar(event.userAgentOrigem()));
         auditLogService.gravar(
                 TipoEventoSeguranca.CONTRATO_ACEITO,
                 event.tomadorId(),
                 event.ipOrigem(),
                 event.userAgentOrigem(),
-                serializar(payload));
+                serializar(payload, event.contratoId().toString()));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -105,15 +112,24 @@ public class ContratoAuditListener {
         payload.put("propostaId", event.propostaId().toString());
         payload.put("tomadorId", event.tomadorId().toString());
         payload.put("justificativa", truncar(event.justificativa()));
-        auditLogService.gravar(TipoEventoSeguranca.CONTRATO_CANCELADO, event.canceladoPorId(), serializar(payload));
+        auditLogService.gravar(
+                TipoEventoSeguranca.CONTRATO_CANCELADO,
+                event.canceladoPorId(),
+                serializar(payload, event.contratoId().toString()));
     }
 
-    private String serializar(Map<String, Object> payload) {
+    /**
+     * Serializa o payload em JSON; em caso de falha, devolve fallback minimo com o
+     * {@code contratoId} pra preservar rastreabilidade no audit log (em vez de {@code "{}"}, que
+     * mascararia a falha como payload genuinamente vazio). Auditoria nao pode quebrar o fluxo de
+     * negocio (mesma decisao do {@code OnboardingAuditListener} da Sprint 6).
+     */
+    private String serializar(Map<String, Object> payload, String contratoId) {
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException e) {
-            log.warn("Falha ao serializar payload de audit contratos: {}", e.getMessage());
-            return "{}";
+            log.warn("Falha ao serializar payload de audit contratos; usando fallback minimo: {}", e.getMessage());
+            return "{\"contratoId\":\"" + contratoId + "\",\"erroSerializacao\":true}";
         }
     }
 

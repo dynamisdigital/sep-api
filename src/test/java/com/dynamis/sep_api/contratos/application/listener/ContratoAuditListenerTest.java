@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -78,13 +79,17 @@ class ContratoAuditListenerTest {
         listener.aoAceitar(new ContratoAceitoEvent(
                 contratoId, UUID.randomUUID(), tomadorId, versaoId, 1, HASH, "203.0.113.42", "Mozilla/5.0"));
 
+        // IP e user-agent ficam APENAS nas colunas dedicadas (3o e 4o args); nao duplicam no JSON
         verify(auditLogService)
                 .gravar(
                         eq(TipoEventoSeguranca.CONTRATO_ACEITO),
                         eq(tomadorId),
                         eq("203.0.113.42"),
                         eq("Mozilla/5.0"),
-                        matches(".*\"hashSha256\":\"" + HASH + "\".*\"userAgentOrigem\":\"Mozilla/5.0\".*"));
+                        org.mockito.ArgumentMatchers.argThat(
+                                (String json) -> json.contains("\"hashSha256\":\"" + HASH + "\"")
+                                        && !json.contains("userAgentOrigem")
+                                        && !json.contains("ipOrigem")));
     }
 
     @Test
@@ -133,5 +138,25 @@ class ContratoAuditListenerTest {
                         any(),
                         org.mockito.ArgumentMatchers.argThat(
                                 (String json) -> !json.contains("conteudoTexto") && !json.contains("clausulas")));
+    }
+
+    @Test
+    void serializacaoFalhando_devolveFallbackComContratoId() throws Exception {
+        // Mock ObjectMapper que joga JsonProcessingException — fallback deve preservar
+        // rastreabilidade via contratoId em vez de retornar "{}"
+        ObjectMapper omQuebrado = org.mockito.Mockito.mock(ObjectMapper.class);
+        when(omQuebrado.writeValueAsString(org.mockito.ArgumentMatchers.any()))
+                .thenThrow(new com.fasterxml.jackson.core.JsonGenerationException("fake"));
+        ContratoAuditListener quebrado = new ContratoAuditListener(auditLogService, omQuebrado);
+        UUID contratoId = UUID.randomUUID();
+        UUID tomadorId = UUID.randomUUID();
+
+        quebrado.aoGerar(new ContratoGeradoEvent(contratoId, UUID.randomUUID(), tomadorId, UUID.randomUUID(), 1, HASH));
+
+        verify(auditLogService)
+                .gravar(
+                        eq(TipoEventoSeguranca.CONTRATO_GERADO),
+                        eq(tomadorId),
+                        contains("\"contratoId\":\"" + contratoId + "\",\"erroSerializacao\":true"));
     }
 }
