@@ -78,6 +78,9 @@ class CreditoIT {
     PropostaCreditoRepository propostaRepository;
 
     @Autowired
+    com.dynamis.sep_api.contratos.infrastructure.persistence.ContratoRepository contratoRepository;
+
+    @Autowired
     ScoreInternoRepository scoreRepository;
 
     @Autowired
@@ -131,6 +134,9 @@ class CreditoIT {
             throw new IllegalStateException("CreditoIT deve rodar apenas no banco sep_test; URL atual: " + url + ". "
                     + "Crie o banco com: createdb -h localhost -U sep sep_test");
         }
+        // contrato.proposta_id REFERENCES proposta_credito — limpar contratos primeiro (Sprint 10).
+        // PropostaAprovadaListener gera contrato automaticamente quando IT aprova proposta.
+        contratoRepository.deleteAll();
         // decisao_credito.parecer_id REFERENCES parecer_credito — limpar decisao primeiro
         decisaoRepository.deleteAll();
         parecerRepository.deleteAll();
