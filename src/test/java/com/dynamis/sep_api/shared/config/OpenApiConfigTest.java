@@ -67,6 +67,13 @@ class OpenApiConfigTest {
                         .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/webhooks/celcoin/open-finance']")
                         .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/contratos/{id}']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/contratos/proposta/{propostaId}']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/contratos/{id}/versoes']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/contratos/{id}/aceite']").exists())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/contratos/{id}/cancelar']").exists())
                 .andExpect(jsonPath("$.components.schemas.UsuarioCreateDto").exists())
                 .andExpect(jsonPath("$.components.schemas.UsuarioResponseDto").exists())
                 .andExpect(jsonPath("$.components.schemas.LoginRequestDto").exists())

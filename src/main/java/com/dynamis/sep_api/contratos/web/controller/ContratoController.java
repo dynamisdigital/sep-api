@@ -1,0 +1,272 @@
+package com.dynamis.sep_api.contratos.web.controller;
+
+import com.dynamis.sep_api.contratos.application.usecase.CancelarContratoUseCase;
+import com.dynamis.sep_api.contratos.application.usecase.ConsultarContratoUseCase;
+import com.dynamis.sep_api.contratos.application.usecase.RegistrarAceiteUseCase;
+import com.dynamis.sep_api.contratos.application.usecase.command.CancelarContratoCommand;
+import com.dynamis.sep_api.contratos.application.usecase.command.RegistrarAceiteCommand;
+import com.dynamis.sep_api.contratos.domain.exception.ContratoOwnershipException;
+import com.dynamis.sep_api.contratos.domain.model.Contrato;
+import com.dynamis.sep_api.contratos.web.dto.CancelarContratoRequest;
+import com.dynamis.sep_api.contratos.web.dto.ContratoResponse;
+import com.dynamis.sep_api.contratos.web.dto.RegistrarAceiteRequest;
+import com.dynamis.sep_api.contratos.web.dto.VersaoContratoResponse;
+import com.dynamis.sep_api.contratos.web.mapper.ContratoWebMapper;
+import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp;
+import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
+import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
+import com.dynamis.sep_api.usuarios.domain.model.Role;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Endpoints REST do modulo {@code contratos} (Sprint 10 Task 10.6).
+ *
+ * <ul>
+ *   <li>{@code GET /api/v1/contratos/proposta/{propostaId}} — ownership ou FINANCEIRO/ADMIN;
+ *   <li>{@code GET /api/v1/contratos/{id}} — ownership ou FINANCEIRO/ADMIN;
+ *   <li>{@code GET /api/v1/contratos/{id}/versoes} — ownership ou FINANCEIRO/ADMIN;
+ *   <li>{@code PATCH /api/v1/contratos/{id}/aceite} — CLIENTE (ownership) + step-up;
+ *   <li>{@code POST /api/v1/contratos/{id}/cancelar} — FINANCEIRO/ADMIN + step-up.
+ * </ul>
+ *
+ * <p>Controller depende apenas dos use cases da camada {@code application} — nao acessa
+ * repository JPA diretamente (preserva fronteira Hexagonal/DDD do PRD §11).
+ */
+@RestController
+@RequestMapping("/api/v1/contratos")
+@Tag(name = "contratos", description = "Formalizacao contratual — geracao, aceite e cancelamento pre-aceite")
+public class ContratoController {
+
+    private final ConsultarContratoUseCase consultarContratoUseCase;
+    private final RegistrarAceiteUseCase registrarAceiteUseCase;
+    private final CancelarContratoUseCase cancelarContratoUseCase;
+    private final ContratoWebMapper mapper;
+
+    public ContratoController(
+            ConsultarContratoUseCase consultarContratoUseCase,
+            RegistrarAceiteUseCase registrarAceiteUseCase,
+            CancelarContratoUseCase cancelarContratoUseCase,
+            ContratoWebMapper mapper) {
+        this.consultarContratoUseCase = consultarContratoUseCase;
+        this.registrarAceiteUseCase = registrarAceiteUseCase;
+        this.cancelarContratoUseCase = cancelarContratoUseCase;
+        this.mapper = mapper;
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Consultar contrato por id",
+            description = "Cliente acessa apenas contrato proprio; FINANCEIRO/ADMIN acessa qualquer.")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "OK",
+                content = @Content(schema = @Schema(implementation = ContratoResponse.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Contrato de outro tomador",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Contrato nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<ContratoResponse> consultarPorId(
+            @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        Contrato contrato = consultarContratoUseCase.porId(id);
+        garantirOwnershipOuOperador(contrato, principal);
+        return ResponseEntity.ok(mapper.toResponse(
+                contrato,
+                consultarContratoUseCase.buscarAceiteDaVersaoVigente(contrato).orElse(null)));
+    }
+
+    @GetMapping("/proposta/{propostaId}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Consultar contrato pela proposta",
+            description = "Atalho que dispensa conhecer o contratoId quando se sabe a proposta. Ownership ou"
+                    + " FINANCEIRO/ADMIN.")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "OK",
+                content = @Content(schema = @Schema(implementation = ContratoResponse.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Contrato de outro tomador",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Proposta sem contrato gerado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<ContratoResponse> consultarPorProposta(
+            @PathVariable UUID propostaId, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        Contrato contrato = consultarContratoUseCase.porPropostaId(propostaId);
+        garantirOwnershipOuOperador(contrato, principal);
+        return ResponseEntity.ok(mapper.toResponse(
+                contrato,
+                consultarContratoUseCase.buscarAceiteDaVersaoVigente(contrato).orElse(null)));
+    }
+
+    @GetMapping("/{id}/versoes")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Listar versoes geradas do contrato",
+            description = "Versoes em ordem ascendente de numero. Ownership ou FINANCEIRO/ADMIN.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Lista de versoes"),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Contrato de outro tomador",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Contrato nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<List<VersaoContratoResponse>> listarVersoes(
+            @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        Contrato contrato = consultarContratoUseCase.porId(id);
+        garantirOwnershipOuOperador(contrato, principal);
+        return ResponseEntity.ok(mapper.toVersaoListResponse(consultarContratoUseCase.listarVersoes(id)));
+    }
+
+    @PatchMapping("/{id}/aceite")
+    @PreAuthorize("hasRole('CLIENTE')")
+    @RequireStepUp
+    @Operation(
+            summary = "Registrar aceite do tomador",
+            description = "CLIENTE titular do contrato registra aceite sobre a versao vigente. Exige step-up"
+                    + " (X-Step-Up-Token).")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Aceite registrado"),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Sem role CLIENTE, sem step-up ou contrato de outro tomador",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Contrato nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "409",
+                description = "Contrato fora de AGUARDANDO_ACEITE ou versao ja aceita",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<ContratoResponse> registrarAceite(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) RegistrarAceiteRequest request,
+            @AuthenticationPrincipal UsuarioAutenticado principal,
+            HttpServletRequest servletRequest) {
+        Contrato contrato = registrarAceiteUseCase.executar(new RegistrarAceiteCommand(
+                id, principal.id(), extrairIp(servletRequest), servletRequest.getHeader("User-Agent")));
+        return ResponseEntity.ok(mapper.toResponse(
+                contrato,
+                consultarContratoUseCase.buscarAceiteDaVersaoVigente(contrato).orElse(null)));
+    }
+
+    @PostMapping("/{id}/cancelar")
+    @PreAuthorize("hasAnyRole('FINANCEIRO','ADMIN')")
+    @RequireStepUp
+    @Operation(
+            summary = "Cancelar contrato pre-aceite",
+            description = "FINANCEIRO ou ADMIN cancela contrato em GERADO/AGUARDANDO_ACEITE. Exige step-up"
+                    + " e justificativa (10-500 chars).")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Contrato cancelado"),
+        @ApiResponse(
+                responseCode = "400",
+                description = "Justificativa invalida",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Sem role FINANCEIRO/ADMIN ou sem step-up",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Contrato nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "409",
+                description = "Contrato ja aceito/em assinatura/cancelado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<ContratoResponse> cancelar(
+            @PathVariable UUID id,
+            @Valid @RequestBody CancelarContratoRequest request,
+            @AuthenticationPrincipal UsuarioAutenticado principal) {
+        Contrato contrato = cancelarContratoUseCase.executar(
+                new CancelarContratoCommand(id, principal.id(), request.justificativa()));
+        return ResponseEntity.ok(mapper.toResponse(
+                contrato,
+                consultarContratoUseCase.buscarAceiteDaVersaoVigente(contrato).orElse(null)));
+    }
+
+    // ============== helpers ==============
+
+    private void garantirOwnershipOuOperador(Contrato contrato, UsuarioAutenticado principal) {
+        if (operadorInterno(principal)) {
+            return;
+        }
+        if (!contrato.getTomadorId().equals(principal.id())) {
+            throw new ContratoOwnershipException(contrato.getId());
+        }
+    }
+
+    private boolean operadorInterno(UsuarioAutenticado principal) {
+        Role role = principal.role();
+        return role == Role.ADMIN || role == Role.FINANCEIRO;
+    }
+
+    /**
+     * Extrai o IP do request. Usa {@code X-Forwarded-For} apenas se o servidor estiver atras de um
+     * proxy confiavel — comportamento ainda nao configurado no projeto, entao caimos em {@code
+     * getRemoteAddr()} pra evitar IP spoof via header arbitrario. Quando o reverse proxy AWS
+     * entrar na Epic 16, este metodo ganha integracao com {@code ForwardedHeaderFilter}.
+     */
+    private static String extrairIp(HttpServletRequest request) {
+        return request.getRemoteAddr();
+    }
+}
