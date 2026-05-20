@@ -60,6 +60,13 @@ public class ThymeleafTemplateContratoEngine implements TemplateContratoEngine {
         if (conteudo == null || conteudo.isBlank()) {
             throw new TemplateContratoException("Template " + templateName + " gerou conteudo vazio");
         }
-        return new TemplateContratoResponse(conteudo, clausulaParser.parse(conteudo));
+        var clausulas = clausulaParser.parse(conteudo);
+        if (clausulas.isEmpty()) {
+            throw new TemplateContratoException(
+                    "Template "
+                            + templateName
+                            + " gerou contrato sem clausulas — marcadores 'CLAUSULA N - TITULO' ausentes ou clausulasPadrao vazio");
+        }
+        return new TemplateContratoResponse(conteudo, clausulas);
     }
 }
