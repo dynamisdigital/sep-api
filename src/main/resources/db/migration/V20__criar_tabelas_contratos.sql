@@ -31,7 +31,7 @@ CREATE TABLE versao_contrato (
     hash_sha256 VARCHAR(64) NOT NULL,
     data_geracao TIMESTAMP WITH TIME ZONE NOT NULL,
     CONSTRAINT uq_versao_contrato_numero UNIQUE (contrato_id, numero),
-    CONSTRAINT chk_versao_hash_len CHECK (char_length(hash_sha256) = 64)
+    CONSTRAINT chk_versao_hash_hex CHECK (hash_sha256 ~ '^[a-f0-9]{64}$')
 );
 
 CREATE INDEX idx_versao_contrato_contrato_id ON versao_contrato(contrato_id);

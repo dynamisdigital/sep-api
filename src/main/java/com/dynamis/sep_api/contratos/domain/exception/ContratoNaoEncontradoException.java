@@ -1,12 +1,16 @@
 package com.dynamis.sep_api.contratos.domain.exception;
 
+import com.dynamis.sep_api.shared.exception.RecursoNaoEncontradoException;
+
 import java.util.UUID;
 
-/** Levantada quando contrato/versao buscada nao existe. Mapeada para 404 no handler global. */
-public class ContratoNaoEncontradoException extends RuntimeException {
+/** Contrato/versao buscado nao existe (HTTP 404). */
+public class ContratoNaoEncontradoException extends RecursoNaoEncontradoException {
+
+    public static final String CODIGO = "CTR-404-001";
 
     public ContratoNaoEncontradoException(String mensagem) {
-        super(mensagem);
+        super(CODIGO, mensagem);
     }
 
     public static ContratoNaoEncontradoException porId(UUID id) {

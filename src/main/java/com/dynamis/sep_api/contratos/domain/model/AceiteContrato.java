@@ -22,6 +22,7 @@ import java.util.UUID;
 public class AceiteContrato {
 
     private static final int USER_AGENT_MAX = 500;
+    private static final int IP_ORIGEM_MAX = 45;
 
     @Id
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
@@ -64,16 +65,17 @@ public class AceiteContrato {
             VersaoContrato versao, UUID tomadorId, String ipOrigem, String userAgentOrigem) {
         Objects.requireNonNull(versao, "versao obrigatoria");
         Objects.requireNonNull(tomadorId, "tomadorId obrigatorio");
-        String userAgentTruncado = truncar(userAgentOrigem);
+        String ipTruncado = truncar(ipOrigem, IP_ORIGEM_MAX);
+        String userAgentTruncado = truncar(userAgentOrigem, USER_AGENT_MAX);
         UUID id = Generators.timeBasedReorderedGenerator().generate();
-        return new AceiteContrato(id, versao, tomadorId, OffsetDateTime.now(), ipOrigem, userAgentTruncado);
+        return new AceiteContrato(id, versao, tomadorId, OffsetDateTime.now(), ipTruncado, userAgentTruncado);
     }
 
-    private static String truncar(String userAgent) {
-        if (userAgent == null) {
+    private static String truncar(String valor, int max) {
+        if (valor == null) {
             return null;
         }
-        return userAgent.length() > USER_AGENT_MAX ? userAgent.substring(0, USER_AGENT_MAX) : userAgent;
+        return valor.length() > max ? valor.substring(0, max) : valor;
     }
 
     public UUID getId() {

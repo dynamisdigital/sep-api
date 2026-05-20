@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Versao imutavel do conteudo de um {@link Contrato}. Cada geracao (inicial ou re-geracao
@@ -29,6 +30,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "versao_contrato")
 public class VersaoContrato {
+
+    private static final Pattern HEX_SHA256 = Pattern.compile("^[a-f0-9]{64}$");
 
     @Id
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
@@ -81,8 +84,8 @@ public class VersaoContrato {
             throw new IllegalArgumentException("conteudoTexto nao pode ser vazio");
         }
         Objects.requireNonNull(hashSha256, "hashSha256 obrigatorio");
-        if (hashSha256.length() != 64) {
-            throw new IllegalArgumentException("hashSha256 deve ter 64 chars hex");
+        if (!HEX_SHA256.matcher(hashSha256).matches()) {
+            throw new IllegalArgumentException("hashSha256 deve ser hex lowercase de 64 chars");
         }
         UUID id = Generators.timeBasedReorderedGenerator().generate();
         return new VersaoContrato(id, contrato, numero, conteudoTexto, hashSha256, OffsetDateTime.now());

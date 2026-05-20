@@ -20,6 +20,17 @@ class VersaoContratoTest {
     }
 
     @Test
+    void criar_rejeitaHashNaoHexOuUppercase() {
+        Contrato contrato = Contrato.criar(UUID.randomUUID(), UUID.randomUUID(), TipoContrato.MUTUO);
+        // 64 chars mas com 'z' (nao-hex)
+        assertThatThrownBy(() -> VersaoContrato.criar(contrato, 1, "conteudo", "z".repeat(64)))
+                .isInstanceOf(IllegalArgumentException.class);
+        // hex uppercase deve ser rejeitado (normalizamos pra lowercase no caller)
+        assertThatThrownBy(() -> VersaoContrato.criar(contrato, 1, "conteudo", "A".repeat(64)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void criar_recusaConteudoVazio() {
         Contrato contrato = Contrato.criar(UUID.randomUUID(), UUID.randomUUID(), TipoContrato.MUTUO);
         assertThatThrownBy(() -> VersaoContrato.criar(contrato, 1, "  ", HASH))
