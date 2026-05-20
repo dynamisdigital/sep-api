@@ -36,14 +36,30 @@ public class ConsultarContratoUseCase {
 
     @Transactional(readOnly = true)
     public Contrato porId(UUID contratoId) {
-        return repository.findById(contratoId).orElseThrow(() -> ContratoNaoEncontradoException.porId(contratoId));
+        Contrato contrato =
+                repository.findById(contratoId).orElseThrow(() -> ContratoNaoEncontradoException.porId(contratoId));
+        inicializarLazy(contrato);
+        return contrato;
     }
 
     @Transactional(readOnly = true)
     public Contrato porPropostaId(UUID propostaId) {
-        return repository
+        Contrato contrato = repository
                 .findByPropostaId(propostaId)
                 .orElseThrow(() -> ContratoNaoEncontradoException.porProposta(propostaId));
+        inicializarLazy(contrato);
+        return contrato;
+    }
+
+    /**
+     * Forca a inicializacao das colecoes lazy dentro da tx readOnly. Necessario porque
+     * {@code Contrato.versoes} e {@code VersaoContrato.clausulas} sao dois bags @OneToMany —
+     * Hibernate nao consegue fetch ambos via {@code @EntityGraph} (MultipleBagFetchException). Com
+     * a init aqui, o objeto sai do use case ja com as colecoes carregadas e o mapper web nao
+     * depende de Open Session in View.
+     */
+    private void inicializarLazy(Contrato contrato) {
+        contrato.getVersoes().forEach(v -> v.getClausulas().size());
     }
 
     @Transactional(readOnly = true)

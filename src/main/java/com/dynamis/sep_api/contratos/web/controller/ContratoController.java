@@ -51,6 +51,15 @@ import java.util.UUID;
  *
  * <p>Controller depende apenas dos use cases da camada {@code application} — nao acessa
  * repository JPA diretamente (preserva fronteira Hexagonal/DDD do PRD §11).
+ *
+ * <p><b>Limitacao conhecida do step-up:</b> {@code StepUpEnforcementAspect} (Sprint 5 Task 5.6)
+ * libera operacoes anotadas com {@code @RequireStepUp} quando o usuario autenticado tem
+ * {@code mfaHabilitado=false} — bypass deliberado para suportar migracao pre-MFA. Como aceite e
+ * cancelamento sao operacoes legais sobre documento contratual (CMN 4.656/2018 Art. 11), esse
+ * bypass enfraquece a garantia. Mitigacao operacional: <i>todo usuario com role CLIENTE,
+ * FINANCEIRO ou ADMIN em producao deve ter MFA habilitado antes de liberar formalizacao</i>. Fix
+ * arquitetural com {@code @RequireStepUpEstrita} (sem bypass) fica em sprint futura de hardening
+ * do modulo {@code identity}; este controller ganhara a annotation forte quando ela existir.
  */
 @RestController
 @RequestMapping("/api/v1/contratos")
