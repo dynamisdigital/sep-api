@@ -14,6 +14,7 @@ import com.dynamis.sep_api.shared.exception.ConflitoException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,10 +84,21 @@ public class RegistrarAceiteUseCase {
                     CODIGO_VERSAO_JA_ACEITA, "Versao " + vigente.getNumero() + " do contrato ja foi aceita");
         }
 
-        contrato.marcarAceito();
+        // Persist aceite primeiro: se falhar por unique constraint (race entre 2 PATCH /aceite),
+        // o contrato ainda nao transicionou pra ACEITO. Lock pessimista no Contrato serializa o
+        // caso real (2º caller espera o 1º commitar, le estado ACEITO e falha em permiteAceite),
+        // mas o try/catch defende contra cenarios de borda + execucao fora do controller.
         AceiteContrato aceite = AceiteContrato.registrar(
                 vigente, command.tomadorAutenticadoId(), command.ipOrigem(), command.userAgentOrigem());
-        aceiteRepository.save(aceite);
+        try {
+            aceiteRepository.save(aceite);
+            aceiteRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflitoException(
+                    CODIGO_VERSAO_JA_ACEITA, "Versao " + vigente.getNumero() + " do contrato ja foi aceita");
+        }
+
+        contrato.marcarAceito();
         Contrato salvo = contratoRepository.save(contrato);
 
         log.info(

@@ -132,6 +132,25 @@ class RegistrarAceiteUseCaseTest {
     }
 
     @Test
+    void executar_raceUniqueVersao_traduzParaConflito() {
+        // Cenario: existsByVersaoId retorna false (caller 1 e 2 passam pela checagem),
+        // mas save do caller 2 viola UNIQUE versao_id porque caller 1 ja persistiu.
+        when(contratoRepository.findByIdForUpdate(contrato.getId())).thenReturn(Optional.of(contrato));
+        when(aceiteRepository.existsByVersaoId(any())).thenReturn(false);
+        when(aceiteRepository.save(any(AceiteContrato.class)))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException(
+                        "unique violation aceite_contrato_versao_id"));
+
+        assertThatThrownBy(() -> useCase.executar(new RegistrarAceiteCommand(contrato.getId(), tomadorId, "ip", "ua")))
+                .isInstanceOf(ConflitoException.class)
+                .hasMessageContaining("ja foi aceita");
+        // contrato NAO deve ter sido transicionado nem persistido
+        assertThat(contrato.getStatus()).isEqualTo(StatusFormalizacao.AGUARDANDO_ACEITE);
+        verify(contratoRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
     void executar_aceitaIpEUserAgentNull() {
         when(contratoRepository.findByIdForUpdate(contrato.getId())).thenReturn(Optional.of(contrato));
         when(aceiteRepository.existsByVersaoId(any())).thenReturn(false);
