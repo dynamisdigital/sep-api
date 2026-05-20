@@ -8,6 +8,7 @@ import com.dynamis.sep_api.contratos.domain.model.Contrato;
 import com.dynamis.sep_api.contratos.domain.vo.StatusFormalizacao;
 import com.dynamis.sep_api.contratos.domain.vo.TipoContrato;
 import com.dynamis.sep_api.contratos.infrastructure.persistence.ContratoRepository;
+import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -117,7 +118,7 @@ class CancelarContratoUseCaseTest {
     @Test
     void command_recusaJustificativaCurta() {
         assertThatThrownBy(() -> new CancelarContratoCommand(UUID.randomUUID(), UUID.randomUUID(), "curta"))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ValidacaoException.class)
                 .hasMessageContaining("justificativa");
     }
 
@@ -125,8 +126,38 @@ class CancelarContratoUseCaseTest {
     void command_recusaJustificativaLonga() {
         String longa = "x".repeat(501);
         assertThatThrownBy(() -> new CancelarContratoCommand(UUID.randomUUID(), UUID.randomUUID(), longa))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ValidacaoException.class)
                 .hasMessageContaining("justificativa");
+    }
+
+    @Test
+    void command_aceitaJustificativaNoLimiteInferior() {
+        String exatos10 = "x".repeat(10);
+        CancelarContratoCommand cmd = new CancelarContratoCommand(UUID.randomUUID(), UUID.randomUUID(), exatos10);
+        assertThat(cmd.justificativa()).hasSize(10);
+    }
+
+    @Test
+    void command_aceitaJustificativaNoLimiteSuperior() {
+        String exatos500 = "x".repeat(500);
+        CancelarContratoCommand cmd = new CancelarContratoCommand(UUID.randomUUID(), UUID.randomUUID(), exatos500);
+        assertThat(cmd.justificativa()).hasSize(500);
+    }
+
+    @Test
+    void command_recusa9CharsAposTrim() {
+        // String aparentemente longa mas post-trim fica abaixo do minimo
+        assertThatThrownBy(() ->
+                        new CancelarContratoCommand(UUID.randomUUID(), UUID.randomUUID(), "        " + "x".repeat(9)))
+                .isInstanceOf(ValidacaoException.class);
+    }
+
+    @Test
+    void command_recusaWhitespacePuro() {
+        // String so com espacos = 0 chars apos trim
+        assertThatThrownBy(
+                        () -> new CancelarContratoCommand(UUID.randomUUID(), UUID.randomUUID(), "                    "))
+                .isInstanceOf(ValidacaoException.class);
     }
 
     @Test
