@@ -83,6 +83,11 @@ dependencies {
 	// Logs estruturados com MDC (correlationId/traceId)
 	implementation "net.logstash.logback:logstash-logback-encoder:${logstashEncoderVersion}"
 
+	// Thymeleaf standalone para renderizar templates de contrato (Sprint 10 Task 10.2).
+	// Usamos a lib standalone (sem spring-boot-starter-thymeleaf) pra evitar plugar view
+	// resolver em Spring MVC; o engine fica encapsulado no adapter do modulo `contratos`.
+	implementation 'org.thymeleaf:thymeleaf'
+
 	// Testes
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'

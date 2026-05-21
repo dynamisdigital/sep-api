@@ -22,6 +22,10 @@ package com.dynamis.sep_api.shared.audit;
  *
  * <p>Sprint 9 Task 9.7: adicionados 5 eventos {@code OPEN_FINANCE_*} para o ciclo de consentimento
  * Open Finance Brasil + reavaliacao do score. Check constraint atualizado em V19.
+ *
+ * <p>Sprint 10 Task 10.7: adicionados 4 eventos {@code CONTRATO_*} para a trilha auditavel
+ * reforcada da formalizacao contratual (CMN 4.656/2018 Art. 11 + LGPD com retencao minima de 10
+ * anos). Check constraint atualizado em V22.
  */
 public enum TipoEventoSeguranca {
     LOGIN_OK,
@@ -59,5 +63,9 @@ public enum TipoEventoSeguranca {
     OPEN_FINANCE_AUTORIZADO,
     OPEN_FINANCE_NEGADO,
     OPEN_FINANCE_DADOS_RECEBIDOS,
-    OPEN_FINANCE_REAVALIACAO
+    OPEN_FINANCE_REAVALIACAO,
+    CONTRATO_GERADO,
+    CONTRATO_NOVA_VERSAO,
+    CONTRATO_ACEITO,
+    CONTRATO_CANCELADO
 }

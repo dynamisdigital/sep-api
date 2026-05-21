@@ -1,0 +1,18 @@
+CEDULA DE CREDITO BANCARIO (CCB) - ESQUELETO
+
+[ATENCAO] Esta CCB e um esqueleto preparatorio para a Sprint 11. O conteudo
+juridico completo (preambulo, ficha de emissao, encargos, vencimento, garantias
+e fluxo de pagamento) sera materializado quando a integracao com o provedor de
+assinatura digital for definida (ADR 0013).
+
+PROPOSTA: [(${propostaId})]
+TOMADOR: [(${tomadorId})]
+TIPO DE OPERACAO: [(${tipoOperacao})]
+VALOR SOLICITADO: R$ [(${valorSolicitado})]
+PRAZO: [(${prazoMeses})] meses
+DATA DE GERACAO: [(${dataGeracao})]
+
+[(${clausulasPadrao})]
+
+NUMERACAO E REGISTRO: a serem definidos na Sprint 11.
+ASSINATURA DIGITAL: pendente de integracao com provider externo.
