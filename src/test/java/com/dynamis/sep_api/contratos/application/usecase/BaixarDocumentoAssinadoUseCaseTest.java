@@ -70,19 +70,36 @@ class BaixarDocumentoAssinadoUseCaseTest {
     }
 
     @Test
-    void executar_documentoExpurgado_rejeita() {
+    void executar_blobPurgadoLgpd_diferencia() {
         Contrato contrato = contratoAssinado();
         EnvelopeAssinatura envelope = envelopeOf(contrato);
-        DocumentoAssinado documento = DocumentoAssinado.criar(envelope.getId(), HASH, AGORA, null, "path-gone");
+        String pathUuid = UUID.randomUUID().toString();
+        DocumentoAssinado documento = DocumentoAssinado.criar(envelope.getId(), HASH, AGORA, null, pathUuid);
 
         when(loader.carregar(contrato.getId())).thenReturn(contrato);
         when(envelopeRepository.findByContratoId(contrato.getId())).thenReturn(Optional.of(envelope));
         when(documentoRepository.findByEnvelopeId(envelope.getId())).thenReturn(Optional.of(documento));
-        when(storage.carregar("path-gone")).thenReturn(Optional.empty());
+        when(storage.carregar(pathUuid)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.executar(contrato.getId()))
                 .isInstanceOf(ContratoAssinaturaIndisponivelException.class)
-                .hasMessageContaining("expurgado");
+                .hasMessageContaining("blob nao localizado");
+    }
+
+    @Test
+    void executar_pathStorageCorrompido_diferencia() {
+        Contrato contrato = contratoAssinado();
+        EnvelopeAssinatura envelope = envelopeOf(contrato);
+        DocumentoAssinado documento = DocumentoAssinado.criar(envelope.getId(), HASH, AGORA, null, "nao-uuid");
+
+        when(loader.carregar(contrato.getId())).thenReturn(contrato);
+        when(envelopeRepository.findByContratoId(contrato.getId())).thenReturn(Optional.of(envelope));
+        when(documentoRepository.findByEnvelopeId(envelope.getId())).thenReturn(Optional.of(documento));
+        when(storage.carregar("nao-uuid")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> useCase.executar(contrato.getId()))
+                .isInstanceOf(ContratoAssinaturaIndisponivelException.class)
+                .hasMessageContaining("formato invalido");
     }
 
     private Contrato contratoAssinado() {

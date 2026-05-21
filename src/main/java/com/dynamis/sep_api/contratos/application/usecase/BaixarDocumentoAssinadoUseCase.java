@@ -53,10 +53,26 @@ public class BaixarDocumentoAssinadoUseCase {
         DocumentoAssinado documento = documentoRepository
                 .findByEnvelopeId(envelope.getId())
                 .orElseThrow(() -> new ContratoAssinaturaIndisponivelException(contratoId, "documento ausente"));
-        byte[] bytes = storage.carregar(documento.getPathStorage())
-                .orElseThrow(() -> new ContratoAssinaturaIndisponivelException(
-                        contratoId, "binario expurgado pathStorage=" + documento.getPathStorage()));
+        String pathStorage = documento.getPathStorage();
+        byte[] bytes = storage.carregar(pathStorage)
+                .orElseThrow(
+                        () -> new ContratoAssinaturaIndisponivelException(contratoId, motivoBlobAusente(pathStorage)));
         return new Resultado(documento, bytes);
+    }
+
+    /**
+     * Fix C6 review Task 11.5: storage.carregar retorna {@code Optional.empty()} tanto pra blob
+     * removido por politica de retencao/LGPD quanto pra pathStorage corrompido. Distingue no log
+     * pra ajudar o operador: UUID valido = blob nao localizado (pode ser purge); formato invalido
+     * = data corruption.
+     */
+    private String motivoBlobAusente(String pathStorage) {
+        try {
+            java.util.UUID.fromString(pathStorage);
+            return "blob nao localizado no storage (purge/LGPD?) pathStorage=" + pathStorage;
+        } catch (IllegalArgumentException e) {
+            return "pathStorage com formato invalido (data corruption) pathStorage=" + pathStorage;
+        }
     }
 
     public record Resultado(DocumentoAssinado documento, byte[] conteudo) {}

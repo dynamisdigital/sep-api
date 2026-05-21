@@ -5,6 +5,7 @@ import com.dynamis.sep_api.contratos.application.port.out.DocumentoAssinadoStora
 import com.dynamis.sep_api.contratos.application.service.HashContratoService;
 import com.dynamis.sep_api.contratos.domain.event.ContratoAssinadoEvent;
 import com.dynamis.sep_api.contratos.domain.event.ContratoRecusadoEvent;
+import com.dynamis.sep_api.contratos.domain.exception.ContratoEstadoInvalidoException;
 import com.dynamis.sep_api.contratos.domain.model.Contrato;
 import com.dynamis.sep_api.contratos.domain.model.DocumentoAssinado;
 import com.dynamis.sep_api.contratos.domain.model.EnvelopeAssinatura;
@@ -78,10 +79,20 @@ public class ProcessarCallbackAssinaturaUseCase {
     @Transactional
     public boolean executar(CallbackAssinatura callback) {
         Objects.requireNonNull(callback, "callback obrigatorio");
+
+        // Fix C2 review Task 11.5: lock global ordering — contrato sempre ANTES de envelope.
+        // Descobre contratoId via leitura sem lock; depois lock contrato; depois re-lock envelope.
+        // Callbacks concorrentes de envelopes diferentes que apontam pro mesmo contrato passam a
+        // serializar via lock do contrato em vez de deadlock cross-resource.
+        EnvelopeAssinatura snapshot = envelopeRepository
+                .findByProviderAndIdEnvelopeExterno(callback.provider(), callback.idEnvelopeExterno())
+                .orElseThrow(() -> new ContratoEstadoInvalidoException(
+                        "callback.envelopeAusente:" + callback.provider() + "/" + callback.idEnvelopeExterno(), null));
+        Contrato contrato = contratoLoader.carregarComLock(snapshot.getContratoId());
         EnvelopeAssinatura envelope = envelopeRepository
                 .findByProviderAndIdEnvelopeExternoForUpdate(callback.provider(), callback.idEnvelopeExterno())
-                .orElseThrow(() -> new IllegalStateException(
-                        "Envelope nao encontrado: " + callback.provider() + "/" + callback.idEnvelopeExterno()));
+                .orElseThrow(() -> new ContratoEstadoInvalidoException(
+                        "callback.envelopeAusente:" + callback.provider() + "/" + callback.idEnvelopeExterno(), null));
 
         if (eventoRepository.existsByEnvelopeIdAndIdEventoExterno(envelope.getId(), callback.idEventoExterno())) {
             log.info(
@@ -99,8 +110,8 @@ public class ProcessarCallbackAssinaturaUseCase {
                 callback.dataEvento()));
 
         switch (callback.status()) {
-            case ASSINADO -> finalizarComoAssinado(envelope, callback);
-            case RECUSADO -> finalizarComoRecusado(envelope, callback);
+            case ASSINADO -> finalizarComoAssinado(envelope, contrato, callback);
+            case RECUSADO -> finalizarComoRecusado(envelope, contrato, callback);
             case EXPIRADO -> envelope.marcarExpirado(callback.dataEvento());
             case VISUALIZADO -> envelope.marcarVisualizado(callback.dataEvento());
             case ENVIADO, RASCUNHO -> log.debug(
@@ -109,37 +120,51 @@ public class ProcessarCallbackAssinaturaUseCase {
         return true;
     }
 
-    private void finalizarComoAssinado(EnvelopeAssinatura envelope, CallbackAssinatura callback) {
+    private void finalizarComoAssinado(EnvelopeAssinatura envelope, Contrato contrato, CallbackAssinatura callback) {
         byte[] pdfAssinado = provider.baixarDocumentoAssinado(envelope.getIdEnvelopeExterno());
         String hash = hashService.calcular(pdfAssinado);
         String pathStorage = storage.salvar(pdfAssinado);
+        boolean documentoPersistido = false;
+        try {
+            DocumentoAssinado documento = DocumentoAssinado.criar(
+                    envelope.getId(), hash, callback.dataEvento(), callback.selo(), pathStorage);
+            documento = documentoRepository.save(documento);
+            documentoPersistido = true;
+            envelope.marcarAssinado(callback.dataEvento());
+            contrato.marcarAssinado();
 
-        DocumentoAssinado documento =
-                DocumentoAssinado.criar(envelope.getId(), hash, callback.dataEvento(), callback.selo(), pathStorage);
-        documento = documentoRepository.save(documento);
-        envelope.marcarAssinado(callback.dataEvento());
-
-        Contrato contrato = contratoLoader.carregarComLock(envelope.getContratoId());
-        contrato.marcarAssinado();
-
-        eventPublisher.publishEvent(new ContratoAssinadoEvent(
-                contrato.getId(),
-                contrato.getPropostaId(),
-                contrato.getTomadorId(),
-                envelope.getVersaoId(),
-                envelope.getId(),
-                documento.getId(),
-                hash));
-        log.info(
-                "Contrato assinado contratoId={} envelopeId={} documentoId={}",
-                contrato.getId(),
-                envelope.getId(),
-                documento.getId());
+            eventPublisher.publishEvent(new ContratoAssinadoEvent(
+                    contrato.getId(),
+                    contrato.getPropostaId(),
+                    contrato.getTomadorId(),
+                    envelope.getVersaoId(),
+                    envelope.getId(),
+                    documento.getId(),
+                    hash));
+            log.info(
+                    "Contrato assinado contratoId={} envelopeId={} documentoId={}",
+                    contrato.getId(),
+                    envelope.getId(),
+                    documento.getId());
+        } finally {
+            // Fix C3 review Task 11.5: compensa blob orfao quando documento nao persistiu
+            // (constraint violation, hash invalido). Storage.salvar ja commitou (impl inline
+            // grava por save() do repository); compensating delete previne orphan rows.
+            if (!documentoPersistido) {
+                try {
+                    storage.deletar(pathStorage);
+                } catch (RuntimeException ex) {
+                    log.warn(
+                            "Falha ao compensar blob orfao apos erro no DocumentoAssinado pathStorage={}: {}",
+                            pathStorage,
+                            ex.getMessage());
+                }
+            }
+        }
     }
 
-    private void finalizarComoRecusado(EnvelopeAssinatura envelope, CallbackAssinatura callback) {
+    private void finalizarComoRecusado(EnvelopeAssinatura envelope, Contrato contrato, CallbackAssinatura callback) {
         envelope.marcarRecusado(callback.dataEvento());
-        Contrato contrato = contratoLoader.carregarComLock(envelope.getContratoId());
         contrato.marcarRecusado();
 
         eventPublisher.publishEvent(new ContratoRecusadoEvent(

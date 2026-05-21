@@ -85,7 +85,14 @@ public class EnviarParaAssinaturaUseCase {
 
         String idempotencyKey = contrato.getId() + ":v" + versao.getNumero();
 
-        // Idempotencia: envelope da versao ja existe → devolve sem chamar provider
+        // Ordem (fix C1 review Task 11.5): valida estado ANTES de consultar envelope existente.
+        // Idempotencia em EM_ASSINATURA: se envelope ja existe pra essa versao, devolve sem chamar
+        // o provider. Estados final/cancelado rejeitados explicitamente.
+        if (!contrato.getStatus().permiteEnvioAssinatura()
+                && contrato.getStatus() != com.dynamis.sep_api.contratos.domain.vo.StatusFormalizacao.EM_ASSINATURA) {
+            throw new ContratoEstadoInvalidoException("enviarParaAssinatura", contrato.getStatus());
+        }
+
         var existente = envelopeRepository.findByIdempotencyKey(idempotencyKey);
         if (existente.isPresent()) {
             log.info(
@@ -95,22 +102,31 @@ public class EnviarParaAssinaturaUseCase {
             return existente.get();
         }
 
+        // Sanity: estado ACEITO obrigatorio pra criar envelope novo (EM_ASSINATURA so com
+        // envelope existente — pego no bloco anterior).
         if (!contrato.getStatus().permiteEnvioAssinatura()) {
             throw new ContratoEstadoInvalidoException("enviarParaAssinatura", contrato.getStatus());
         }
 
         PropostaCredito proposta = propostaRepository
                 .findById(contrato.getPropostaId())
-                .orElseThrow(() -> new IllegalStateException("Proposta nao encontrada para contrato " + contratoId));
+                .orElseThrow(() -> new ContratoEstadoInvalidoException(
+                        "enviarParaAssinatura.propostaAusente", contrato.getStatus()));
         Usuario tomador = usuarioRepository
                 .findById(contrato.getTomadorId())
-                .orElseThrow(() -> new IllegalStateException("Tomador nao encontrado para contrato " + contratoId));
+                .orElseThrow(() -> new ContratoEstadoInvalidoException(
+                        "enviarParaAssinatura.tomadorAusente", contrato.getStatus()));
 
         byte[] pdf = ccbGenerator.gerar(CcbTemplate.de(contrato, versao, proposta, OffsetDateTime.now()));
         String hashPdf = hashService.calcular(pdf);
 
-        RequisicaoEnvioAssinatura req = new RequisicaoEnvioAssinatura(
-                contrato.getId(), versao.getId(), tomador.getUsername(), tomador.getUsername(), idempotencyKey);
+        // Fix C5 review Task 11.5: signatario email != nome. Usuario.username eh email (validado
+        // em Sprint 2); nome deriva do prefixo do email + sufixo UUID — placeholder seguro ate
+        // onboarding (Epic 5) expor nome real. Pendencia documentada em CCB.md/CONTRATOS.md.
+        String email = tomador.getUsername();
+        String nome = derivarNomePlaceholder(email, tomador.getId());
+        RequisicaoEnvioAssinatura req =
+                new RequisicaoEnvioAssinatura(contrato.getId(), versao.getId(), email, nome, idempotencyKey);
         RespostaEnvioAssinatura resp = provider.enviarParaAssinatura(pdf, req, correlationId);
 
         EnvelopeAssinatura envelope = EnvelopeAssinatura.criar(
@@ -130,5 +146,16 @@ public class EnviarParaAssinaturaUseCase {
                 envelope.getId(),
                 envelope.getIdEnvelopeExterno());
         return envelope;
+    }
+
+    /**
+     * Placeholder seguro para nome do signatario quando onboarding ainda nao expoe o nome real.
+     * Garante {@code nome != email} (exigencia do Clicksign + Lei 14.063 — assinatura eletronica
+     * requer identificacao distinta do meio de contato).
+     */
+    private String derivarNomePlaceholder(String email, UUID tomadorId) {
+        int at = email.indexOf('@');
+        String prefixo = (at > 0 ? email.substring(0, at) : email);
+        return "Tomador " + prefixo + " #" + tomadorId.toString().substring(0, 8);
     }
 }

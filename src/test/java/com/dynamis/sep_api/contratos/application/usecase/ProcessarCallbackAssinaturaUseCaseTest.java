@@ -83,9 +83,28 @@ class ProcessarCallbackAssinaturaUseCaseTest {
                 HASH,
                 AGORA);
 
+        when(envelopeRepository.findByProviderAndIdEnvelopeExterno("clicksign", "ext-1"))
+                .thenReturn(Optional.of(envelope));
         when(envelopeRepository.findByProviderAndIdEnvelopeExternoForUpdate("clicksign", "ext-1"))
                 .thenReturn(Optional.of(envelope));
         when(loader.carregarComLock(contrato.getId())).thenReturn(contrato);
+    }
+
+    @Test
+    void executar_assinado_falhaAoSalvarDocumento_compensaBlob() {
+        byte[] pdf = "%PDF".getBytes();
+        when(provider.baixarDocumentoAssinado("ext-1")).thenReturn(pdf);
+        when(storage.salvar(pdf)).thenReturn("path-orfa");
+        when(documentoRepository.save(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("constraint"));
+        when(eventoRepository.existsByEnvelopeIdAndIdEventoExterno(any(), any()))
+                .thenReturn(false);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> useCase.executar(new CallbackAssinatura(
+                        "clicksign", "ext-1", "evt-x", StatusEnvelope.ASSINADO, "ok", null, AGORA)))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+        verify(storage).deletar("path-orfa");
     }
 
     @Test

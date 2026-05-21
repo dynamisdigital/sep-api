@@ -44,4 +44,18 @@ public class InlineDocumentoAssinadoStorage implements DocumentoAssinadoStorage 
         }
         return blobRepository.findById(id).map(DocumentoAssinadoBlob::getConteudo);
     }
+
+    @Override
+    @Transactional
+    public void deletar(String pathStorage) {
+        if (pathStorage == null || pathStorage.isBlank()) {
+            return;
+        }
+        try {
+            UUID id = UUID.fromString(pathStorage);
+            blobRepository.deleteById(id);
+        } catch (IllegalArgumentException e) {
+            // path malformado eh no-op (idempotente)
+        }
+    }
 }

@@ -27,4 +27,12 @@ public interface DocumentoAssinadoStorage {
     String salvar(byte[] conteudo);
 
     Optional<byte[]> carregar(String pathStorage);
+
+    /**
+     * Remove o binario referenciado por {@code pathStorage}. Usado pra compensar persistencia
+     * orfa quando a entidade {@link com.dynamis.sep_api.contratos.domain.model.DocumentoAssinado}
+     * falha em ser criada apos {@link #salvar(byte[])} ja ter commitado. Idempotente: chamada com
+     * path inexistente ou malformado eh no-op.
+     */
+    void deletar(String pathStorage);
 }
