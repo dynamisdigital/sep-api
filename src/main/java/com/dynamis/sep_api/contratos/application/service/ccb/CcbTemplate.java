@@ -66,13 +66,22 @@ public record CcbTemplate(
         Objects.requireNonNull(hashVersao, "hashVersao obrigatorio");
     }
 
-    public static CcbTemplate de(Contrato contrato, VersaoContrato versao, PropostaCredito proposta) {
+    /**
+     * Monta o template a partir das entidades persistidas. {@code dataEmissao} e parametro
+     * obrigatorio (nao usar {@code OffsetDateTime.now()} interno) para garantir geracao
+     * deterministica do PDF — exigencia da integridade do hash em {@code
+     * EnvelopeAssinatura.hashPdfEnviado} e da idempotencia de reenvio (Task 11.5). O caller deve
+     * derivar {@code dataEmissao} da {@code VersaoContrato.dataGeracao} ou de relogio injetado.
+     */
+    public static CcbTemplate de(
+            Contrato contrato, VersaoContrato versao, PropostaCredito proposta, OffsetDateTime dataEmissao) {
         Objects.requireNonNull(contrato, "contrato obrigatorio");
         Objects.requireNonNull(versao, "versao obrigatoria");
         Objects.requireNonNull(proposta, "proposta obrigatoria");
+        Objects.requireNonNull(dataEmissao, "dataEmissao obrigatoria");
         return new CcbTemplate(
                 "CCB-" + contrato.getId(),
-                FORMATO_DATA.format(OffsetDateTime.now()),
+                FORMATO_DATA.format(dataEmissao),
                 "Tomador UUID " + contrato.getTomadorId(),
                 FAVORECIDA_PADRAO,
                 formatarValor(proposta.getValorSolicitado()),
