@@ -302,6 +302,18 @@ public class ContratoController {
         @ApiResponse(
                 responseCode = "409",
                 description = "Contrato fora de ACEITO/EM_ASSINATURA",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Falha na geracao da CCB ou provider 4xx (contrato/permissao)",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "502",
+                description = "Provider de assinatura retornou resposta nao processavel",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "503",
+                description = "Provider de assinatura indisponivel (5xx); reagendar reprocessamento",
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     public ResponseEntity<StatusAssinaturaResponse> enviarParaAssinatura(

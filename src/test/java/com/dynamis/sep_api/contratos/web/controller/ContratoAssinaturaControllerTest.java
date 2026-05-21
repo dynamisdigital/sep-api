@@ -1,5 +1,8 @@
 package com.dynamis.sep_api.contratos.web.controller;
 
+import com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderException;
+import com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderHttpException;
+import com.dynamis.sep_api.contratos.application.service.ccb.CcbGeracaoException;
 import com.dynamis.sep_api.contratos.application.usecase.BaixarDocumentoAssinadoUseCase;
 import com.dynamis.sep_api.contratos.application.usecase.CancelarContratoUseCase;
 import com.dynamis.sep_api.contratos.application.usecase.ConsultarContratoUseCase;
@@ -275,6 +278,66 @@ class ContratoAssinaturaControllerTest {
                                 "Content-Disposition",
                                 "attachment; filename=\"contrato-" + c.getId() + "-assinado.pdf\""))
                 .andExpect(content().bytes(pdf));
+    }
+
+    // ============== Error mapping (review manual M1/M2) ==============
+
+    @Test
+    void getStatusComUuidInvalidoRetorna400() throws Exception {
+        autenticar(UUID.randomUUID(), Role.FINANCEIRO);
+
+        mockMvc.perform(get("/api/v1/contratos/{id}/assinatura/status", "not-a-uuid"))
+                .andExpect(status().isBadRequest());
+
+        verify(consultarStatusAssinaturaUseCase, never()).executar(any());
+    }
+
+    @Test
+    void postAssinarFalhaCcbRetorna422() throws Exception {
+        UsuarioAutenticado p = autenticar(UUID.randomUUID(), Role.FINANCEIRO);
+        when(stepUpTokenService.validarEConsumir(anyString())).thenReturn(Optional.of(p.id()));
+        UUID contratoId = UUID.randomUUID();
+        when(enviarParaAssinaturaUseCase.executar(eq(contratoId), anyString()))
+                .thenThrow(new CcbGeracaoException("Falha ao gerar PDF da CCB", new RuntimeException("io")));
+
+        mockMvc.perform(post("/api/v1/contratos/{id}/assinar", contratoId).header("X-Step-Up-Token", "tok"))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void postAssinarProviderServerErrorRetorna503() throws Exception {
+        UsuarioAutenticado p = autenticar(UUID.randomUUID(), Role.FINANCEIRO);
+        when(stepUpTokenService.validarEConsumir(anyString())).thenReturn(Optional.of(p.id()));
+        UUID contratoId = UUID.randomUUID();
+        when(enviarParaAssinaturaUseCase.executar(eq(contratoId), anyString()))
+                .thenThrow(new AssinaturaProviderHttpException(503, "Clicksign indisponivel", null));
+
+        mockMvc.perform(post("/api/v1/contratos/{id}/assinar", contratoId).header("X-Step-Up-Token", "tok"))
+                .andExpect(status().isServiceUnavailable());
+    }
+
+    @Test
+    void postAssinarProviderClientErrorRetorna422() throws Exception {
+        UsuarioAutenticado p = autenticar(UUID.randomUUID(), Role.FINANCEIRO);
+        when(stepUpTokenService.validarEConsumir(anyString())).thenReturn(Optional.of(p.id()));
+        UUID contratoId = UUID.randomUUID();
+        when(enviarParaAssinaturaUseCase.executar(eq(contratoId), anyString()))
+                .thenThrow(new AssinaturaProviderHttpException(400, "Bad request no Clicksign", null));
+
+        mockMvc.perform(post("/api/v1/contratos/{id}/assinar", contratoId).header("X-Step-Up-Token", "tok"))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void postAssinarProviderErroGenericoRetorna502() throws Exception {
+        UsuarioAutenticado p = autenticar(UUID.randomUUID(), Role.FINANCEIRO);
+        when(stepUpTokenService.validarEConsumir(anyString())).thenReturn(Optional.of(p.id()));
+        UUID contratoId = UUID.randomUUID();
+        when(enviarParaAssinaturaUseCase.executar(eq(contratoId), anyString()))
+                .thenThrow(new AssinaturaProviderException("Resposta inesperada"));
+
+        mockMvc.perform(post("/api/v1/contratos/{id}/assinar", contratoId).header("X-Step-Up-Token", "tok"))
+                .andExpect(status().isBadGateway());
     }
 
     @Test
