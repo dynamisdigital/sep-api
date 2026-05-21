@@ -6,6 +6,8 @@ import com.dynamis.sep_api.contratos.application.port.out.dto.RespostaEnvioAssin
 import com.dynamis.sep_api.contratos.application.service.HashContratoService;
 import com.dynamis.sep_api.contratos.application.service.ccb.CcbGenerator;
 import com.dynamis.sep_api.contratos.application.service.ccb.CcbTemplate;
+import com.dynamis.sep_api.contratos.domain.event.AssinaturaEnviadaEvent;
+import com.dynamis.sep_api.contratos.domain.event.CcbGeradaEvent;
 import com.dynamis.sep_api.contratos.domain.exception.ContratoEstadoInvalidoException;
 import com.dynamis.sep_api.contratos.domain.model.Contrato;
 import com.dynamis.sep_api.contratos.domain.model.EnvelopeAssinatura;
@@ -17,6 +19,7 @@ import com.dynamis.sep_api.usuarios.domain.model.Usuario;
 import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,6 +60,7 @@ public class EnviarParaAssinaturaUseCase {
     private final CcbGenerator ccbGenerator;
     private final AssinaturaDigitalProvider provider;
     private final HashContratoService hashService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public EnviarParaAssinaturaUseCase(
             ContratoLoaderService contratoLoader,
@@ -65,7 +69,8 @@ public class EnviarParaAssinaturaUseCase {
             UsuarioRepository usuarioRepository,
             CcbGenerator ccbGenerator,
             AssinaturaDigitalProvider provider,
-            HashContratoService hashService) {
+            HashContratoService hashService,
+            ApplicationEventPublisher eventPublisher) {
         this.contratoLoader = contratoLoader;
         this.envelopeRepository = envelopeRepository;
         this.propostaRepository = propostaRepository;
@@ -73,6 +78,7 @@ public class EnviarParaAssinaturaUseCase {
         this.ccbGenerator = ccbGenerator;
         this.provider = provider;
         this.hashService = hashService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -119,6 +125,13 @@ public class EnviarParaAssinaturaUseCase {
 
         byte[] pdf = ccbGenerator.gerar(CcbTemplate.de(contrato, versao, proposta, OffsetDateTime.now()));
         String hashPdf = hashService.calcular(pdf);
+        eventPublisher.publishEvent(new CcbGeradaEvent(
+                contrato.getId(),
+                contrato.getPropostaId(),
+                contrato.getTomadorId(),
+                versao.getId(),
+                versao.getNumero(),
+                hashPdf));
 
         // Fix C5 review Task 11.5: signatario email != nome. Usuario.username eh email (validado
         // em Sprint 2); nome deriva do prefixo do email + sufixo UUID — placeholder seguro ate
@@ -139,6 +152,16 @@ public class EnviarParaAssinaturaUseCase {
                 resp.dataEnvio());
         envelope = envelopeRepository.save(envelope);
         contrato.marcarEmAssinatura();
+
+        eventPublisher.publishEvent(new AssinaturaEnviadaEvent(
+                contrato.getId(),
+                contrato.getPropostaId(),
+                contrato.getTomadorId(),
+                versao.getId(),
+                envelope.getId(),
+                envelope.getIdEnvelopeExterno(),
+                PROVIDER_NAME,
+                hashPdf));
 
         log.info(
                 "Contrato enviado para assinatura contratoId={} envelopeId={} idEnvelopeExterno={}",

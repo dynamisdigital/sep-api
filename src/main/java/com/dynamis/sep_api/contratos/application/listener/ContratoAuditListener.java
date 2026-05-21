@@ -1,9 +1,15 @@
 package com.dynamis.sep_api.contratos.application.listener;
 
+import com.dynamis.sep_api.contratos.domain.event.AssinaturaEnviadaEvent;
+import com.dynamis.sep_api.contratos.domain.event.AssinaturaVisualizadaEvent;
+import com.dynamis.sep_api.contratos.domain.event.CcbGeradaEvent;
 import com.dynamis.sep_api.contratos.domain.event.ContratoAceitoEvent;
+import com.dynamis.sep_api.contratos.domain.event.ContratoAssinadoEvent;
 import com.dynamis.sep_api.contratos.domain.event.ContratoCanceladoEvent;
 import com.dynamis.sep_api.contratos.domain.event.ContratoGeradoEvent;
 import com.dynamis.sep_api.contratos.domain.event.ContratoNovaVersaoEvent;
+import com.dynamis.sep_api.contratos.domain.event.ContratoRecusadoEvent;
+import com.dynamis.sep_api.contratos.domain.event.DocumentoAssinadoBaixadoEvent;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -115,6 +121,102 @@ public class ContratoAuditListener {
         auditLogService.gravar(
                 TipoEventoSeguranca.CONTRATO_CANCELADO,
                 event.canceladoPorId(),
+                serializar(payload, event.contratoId().toString()));
+    }
+
+    // ============== Sprint 11 Task 11.8: ciclo de assinatura digital ==============
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoGerarCcb(CcbGeradaEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contratoId", event.contratoId().toString());
+        payload.put("propostaId", event.propostaId().toString());
+        payload.put("versaoId", event.versaoId().toString());
+        payload.put("numeroVersao", event.numeroVersao());
+        payload.put("hashPdfGerado", event.hashPdfGerado());
+        auditLogService.gravar(
+                TipoEventoSeguranca.CCB_GERADA,
+                event.tomadorId(),
+                serializar(payload, event.contratoId().toString()));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoEnviarAssinatura(AssinaturaEnviadaEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contratoId", event.contratoId().toString());
+        payload.put("propostaId", event.propostaId().toString());
+        payload.put("versaoId", event.versaoId().toString());
+        payload.put("envelopeId", event.envelopeId().toString());
+        payload.put("idEnvelopeExterno", event.idEnvelopeExterno());
+        payload.put("provider", event.provider());
+        payload.put("hashPdfEnviado", event.hashPdfEnviado());
+        auditLogService.gravar(
+                TipoEventoSeguranca.ASSINATURA_ENVIADA,
+                event.tomadorId(),
+                serializar(payload, event.contratoId().toString()));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoVisualizarAssinatura(AssinaturaVisualizadaEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contratoId", event.contratoId().toString());
+        payload.put("envelopeId", event.envelopeId().toString());
+        payload.put("provider", event.provider());
+        payload.put(
+                "dataEvento",
+                event.dataEvento() == null ? null : event.dataEvento().toString());
+        auditLogService.gravar(
+                TipoEventoSeguranca.ASSINATURA_VISUALIZADA,
+                event.tomadorId(),
+                serializar(payload, event.contratoId().toString()));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoAssinar(ContratoAssinadoEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contratoId", event.contratoId().toString());
+        payload.put("propostaId", event.propostaId().toString());
+        payload.put("versaoId", event.versaoId().toString());
+        payload.put("envelopeId", event.envelopeId().toString());
+        payload.put("documentoAssinadoId", event.documentoAssinadoId().toString());
+        payload.put("hashPdfAssinado", event.hashPdfAssinado());
+        auditLogService.gravar(
+                TipoEventoSeguranca.ASSINATURA_ASSINADA,
+                event.tomadorId(),
+                serializar(payload, event.contratoId().toString()));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoRecusar(ContratoRecusadoEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contratoId", event.contratoId().toString());
+        payload.put("propostaId", event.propostaId().toString());
+        payload.put("versaoId", event.versaoId().toString());
+        payload.put("envelopeId", event.envelopeId().toString());
+        auditLogService.gravar(
+                TipoEventoSeguranca.ASSINATURA_RECUSADA,
+                event.tomadorId(),
+                serializar(payload, event.contratoId().toString()));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoBaixarDocumentoAssinado(DocumentoAssinadoBaixadoEvent event) {
+        // ip + user-agent vivem APENAS nas colunas dedicadas (LGPD). JSONB carrega so IDs tecnicos.
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contratoId", event.contratoId().toString());
+        payload.put("envelopeId", event.envelopeId().toString());
+        payload.put("documentoAssinadoId", event.documentoAssinadoId().toString());
+        auditLogService.gravar(
+                TipoEventoSeguranca.DOCUMENTO_ASSINADO_BAIXADO,
+                event.baixadoPorId(),
+                event.ipOrigem(),
+                event.userAgentOrigem(),
                 serializar(payload, event.contratoId().toString()));
     }
 

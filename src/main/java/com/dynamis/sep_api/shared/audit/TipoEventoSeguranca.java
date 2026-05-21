@@ -26,6 +26,12 @@ package com.dynamis.sep_api.shared.audit;
  * <p>Sprint 10 Task 10.7: adicionados 4 eventos {@code CONTRATO_*} para a trilha auditavel
  * reforcada da formalizacao contratual (CMN 4.656/2018 Art. 11 + LGPD com retencao minima de 10
  * anos). Check constraint atualizado em V22.
+ *
+ * <p>Sprint 11 Task 11.8: adicionados 6 eventos do ciclo de assinatura digital ({@code CCB_GERADA},
+ * {@code ASSINATURA_ENVIADA}/{@code _VISUALIZADA}/{@code _ASSINADA}/{@code _RECUSADA},
+ * {@code DOCUMENTO_ASSINADO_BAIXADO}). Mesma exigencia regulatoria (CMN 4.656/2018 + Lei
+ * 10.931/2004 CCB + LGPD); {@code DOCUMENTO_ASSINADO_BAIXADO} grava ip+user-agent pra trilha de
+ * acesso ao documento legal. Check constraint atualizado em V24.
  */
 public enum TipoEventoSeguranca {
     LOGIN_OK,
@@ -67,5 +73,11 @@ public enum TipoEventoSeguranca {
     CONTRATO_GERADO,
     CONTRATO_NOVA_VERSAO,
     CONTRATO_ACEITO,
-    CONTRATO_CANCELADO
+    CONTRATO_CANCELADO,
+    CCB_GERADA,
+    ASSINATURA_ENVIADA,
+    ASSINATURA_VISUALIZADA,
+    ASSINATURA_ASSINADA,
+    ASSINATURA_RECUSADA,
+    DOCUMENTO_ASSINADO_BAIXADO
 }

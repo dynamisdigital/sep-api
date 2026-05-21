@@ -44,6 +44,7 @@ class EnviarParaAssinaturaUseCaseTest {
     private CcbGenerator ccbGenerator;
     private AssinaturaDigitalProvider provider;
     private HashContratoService hashService;
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
     private EnviarParaAssinaturaUseCase useCase;
 
     private Contrato contrato;
@@ -59,9 +60,17 @@ class EnviarParaAssinaturaUseCaseTest {
         ccbGenerator = mock(CcbGenerator.class);
         provider = mock(AssinaturaDigitalProvider.class);
         hashService = new HashContratoService();
+        eventPublisher = mock(org.springframework.context.ApplicationEventPublisher.class);
 
         useCase = new EnviarParaAssinaturaUseCase(
-                loader, envelopeRepository, propostaRepository, usuarioRepository, ccbGenerator, provider, hashService);
+                loader,
+                envelopeRepository,
+                propostaRepository,
+                usuarioRepository,
+                ccbGenerator,
+                provider,
+                hashService,
+                eventPublisher);
 
         proposta = PropostaCredito.criar(
                 UUID.randomUUID(), UUID.randomUUID(), TipoOperacao.CAPITAL_GIRO, Money.brl("10000"), 12);

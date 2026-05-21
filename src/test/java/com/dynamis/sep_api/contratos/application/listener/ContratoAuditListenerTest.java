@@ -1,9 +1,15 @@
 package com.dynamis.sep_api.contratos.application.listener;
 
+import com.dynamis.sep_api.contratos.domain.event.AssinaturaEnviadaEvent;
+import com.dynamis.sep_api.contratos.domain.event.AssinaturaVisualizadaEvent;
+import com.dynamis.sep_api.contratos.domain.event.CcbGeradaEvent;
 import com.dynamis.sep_api.contratos.domain.event.ContratoAceitoEvent;
+import com.dynamis.sep_api.contratos.domain.event.ContratoAssinadoEvent;
 import com.dynamis.sep_api.contratos.domain.event.ContratoCanceladoEvent;
 import com.dynamis.sep_api.contratos.domain.event.ContratoGeradoEvent;
 import com.dynamis.sep_api.contratos.domain.event.ContratoNovaVersaoEvent;
+import com.dynamis.sep_api.contratos.domain.event.ContratoRecusadoEvent;
+import com.dynamis.sep_api.contratos.domain.event.DocumentoAssinadoBaixadoEvent;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -138,6 +145,158 @@ class ContratoAuditListenerTest {
                         any(),
                         org.mockito.ArgumentMatchers.argThat(
                                 (String json) -> !json.contains("conteudoTexto") && !json.contains("clausulas")));
+    }
+
+    // ============== Sprint 11 Task 11.8: ciclo de assinatura digital ==============
+
+    @Test
+    void aoGerarCcb_gravaComHashPdfGerado() {
+        UUID contratoId = UUID.randomUUID();
+        UUID tomadorId = UUID.randomUUID();
+        String hashPdf = "a".repeat(64);
+
+        listener.aoGerarCcb(
+                new CcbGeradaEvent(contratoId, UUID.randomUUID(), tomadorId, UUID.randomUUID(), 1, hashPdf));
+
+        verify(auditLogService)
+                .gravar(
+                        eq(TipoEventoSeguranca.CCB_GERADA),
+                        eq(tomadorId),
+                        matches(".*\"contratoId\":\"" + contratoId + "\".*\"hashPdfGerado\":\"" + hashPdf + "\".*"));
+    }
+
+    @Test
+    void aoEnviarAssinatura_gravaComIdEnvelopeExternoEHash() {
+        UUID contratoId = UUID.randomUUID();
+        UUID tomadorId = UUID.randomUUID();
+        UUID envelopeId = UUID.randomUUID();
+        String hashPdf = "b".repeat(64);
+
+        listener.aoEnviarAssinatura(new AssinaturaEnviadaEvent(
+                contratoId,
+                UUID.randomUUID(),
+                tomadorId,
+                UUID.randomUUID(),
+                envelopeId,
+                "ext-123",
+                "clicksign",
+                hashPdf));
+
+        verify(auditLogService)
+                .gravar(
+                        eq(TipoEventoSeguranca.ASSINATURA_ENVIADA),
+                        eq(tomadorId),
+                        matches(".*\"envelopeId\":\"" + envelopeId
+                                + "\".*\"idEnvelopeExterno\":\"ext-123\".*\"provider\":\"clicksign\".*\"hashPdfEnviado\":\""
+                                + hashPdf + "\".*"));
+    }
+
+    @Test
+    void aoVisualizarAssinatura_gravaInformativo() {
+        UUID contratoId = UUID.randomUUID();
+        UUID tomadorId = UUID.randomUUID();
+        UUID envelopeId = UUID.randomUUID();
+
+        listener.aoVisualizarAssinatura(new AssinaturaVisualizadaEvent(
+                contratoId, tomadorId, envelopeId, "clicksign", OffsetDateTime.parse("2026-05-21T12:00:00Z")));
+
+        verify(auditLogService)
+                .gravar(
+                        eq(TipoEventoSeguranca.ASSINATURA_VISUALIZADA),
+                        eq(tomadorId),
+                        matches(".*\"envelopeId\":\"" + envelopeId + "\".*\"provider\":\"clicksign\".*"));
+    }
+
+    @Test
+    void aoAssinar_gravaComHashPdfAssinadoEDocumentoId() {
+        UUID contratoId = UUID.randomUUID();
+        UUID tomadorId = UUID.randomUUID();
+        UUID envelopeId = UUID.randomUUID();
+        UUID documentoId = UUID.randomUUID();
+        String hashAssinado = "c".repeat(64);
+
+        listener.aoAssinar(new ContratoAssinadoEvent(
+                contratoId, UUID.randomUUID(), tomadorId, UUID.randomUUID(), envelopeId, documentoId, hashAssinado));
+
+        verify(auditLogService)
+                .gravar(
+                        eq(TipoEventoSeguranca.ASSINATURA_ASSINADA),
+                        eq(tomadorId),
+                        matches(".*\"envelopeId\":\"" + envelopeId + "\".*\"documentoAssinadoId\":\"" + documentoId
+                                + "\".*\"hashPdfAssinado\":\"" + hashAssinado + "\".*"));
+    }
+
+    @Test
+    void aoRecusar_gravaAssinaturaRecusada() {
+        UUID contratoId = UUID.randomUUID();
+        UUID tomadorId = UUID.randomUUID();
+        UUID envelopeId = UUID.randomUUID();
+
+        listener.aoRecusar(
+                new ContratoRecusadoEvent(contratoId, UUID.randomUUID(), tomadorId, UUID.randomUUID(), envelopeId));
+
+        verify(auditLogService)
+                .gravar(
+                        eq(TipoEventoSeguranca.ASSINATURA_RECUSADA),
+                        eq(tomadorId),
+                        matches(".*\"envelopeId\":\"" + envelopeId + "\".*"));
+    }
+
+    @Test
+    void aoBaixarDocumentoAssinado_gravaIpUserAgentEmColunasDedicadas() {
+        UUID contratoId = UUID.randomUUID();
+        UUID baixadoPorId = UUID.randomUUID();
+        UUID envelopeId = UUID.randomUUID();
+        UUID documentoId = UUID.randomUUID();
+
+        listener.aoBaixarDocumentoAssinado(new DocumentoAssinadoBaixadoEvent(
+                contratoId, envelopeId, documentoId, baixadoPorId, "198.51.100.7", "curl/8.5"));
+
+        // ip + user-agent vivem em colunas dedicadas (3o e 4o args); JSONB sem PII
+        verify(auditLogService)
+                .gravar(
+                        eq(TipoEventoSeguranca.DOCUMENTO_ASSINADO_BAIXADO),
+                        eq(baixadoPorId),
+                        eq("198.51.100.7"),
+                        eq("curl/8.5"),
+                        org.mockito.ArgumentMatchers.argThat(
+                                (String json) -> json.contains("\"documentoAssinadoId\":\"" + documentoId + "\"")
+                                        && !json.contains("ipOrigem")
+                                        && !json.contains("userAgentOrigem")));
+    }
+
+    @Test
+    void assinaturaEventos_naoVazamConteudoIntegralOuPdf() {
+        // Defesa em profundidade: nenhum dos novos eventos pode carregar conteudo PDF, CCB
+        // completa ou conteudoTexto de versao
+        listener.aoGerarCcb(new CcbGeradaEvent(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1, HASH));
+        listener.aoEnviarAssinatura(new AssinaturaEnviadaEvent(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "ext-1",
+                "clicksign",
+                HASH));
+        listener.aoAssinar(new ContratoAssinadoEvent(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                HASH));
+
+        verify(auditLogService, times(3))
+                .gravar(
+                        any(),
+                        any(),
+                        org.mockito.ArgumentMatchers.argThat((String json) -> !json.contains("conteudoTexto")
+                                && !json.contains("clausulas")
+                                && !json.contains("pdf")
+                                && !json.contains("PDF")));
     }
 
     @Test

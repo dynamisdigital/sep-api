@@ -252,7 +252,7 @@ class ContratoAssinaturaControllerTest {
         mockMvc.perform(get("/api/v1/contratos/{id}/documento-assinado", outro.getId()))
                 .andExpect(status().isForbidden());
 
-        verify(baixarDocumentoAssinadoUseCase, never()).executar(any());
+        verify(baixarDocumentoAssinadoUseCase, never()).executar(any(), any(), any(), any());
     }
 
     @Test
@@ -267,7 +267,7 @@ class ContratoAssinaturaControllerTest {
                 OffsetDateTime.now(),
                 null,
                 UUID.randomUUID().toString());
-        when(baixarDocumentoAssinadoUseCase.executar(c.getId()))
+        when(baixarDocumentoAssinadoUseCase.executar(eq(c.getId()), any(), any(), any()))
                 .thenReturn(new BaixarDocumentoAssinadoUseCase.Resultado(doc, pdf));
 
         mockMvc.perform(get("/api/v1/contratos/{id}/documento-assinado", c.getId()))
@@ -345,7 +345,7 @@ class ContratoAssinaturaControllerTest {
         UsuarioAutenticado p = autenticar(UUID.randomUUID(), Role.CLIENTE);
         Contrato c = contratoDe(p.id());
         when(consultarContratoUseCase.porId(c.getId())).thenReturn(c);
-        when(baixarDocumentoAssinadoUseCase.executar(c.getId()))
+        when(baixarDocumentoAssinadoUseCase.executar(eq(c.getId()), any(), any(), any()))
                 .thenThrow(new ContratoAssinaturaIndisponivelException(c.getId(), "status=ACEITO"));
 
         mockMvc.perform(get("/api/v1/contratos/{id}/documento-assinado", c.getId()))

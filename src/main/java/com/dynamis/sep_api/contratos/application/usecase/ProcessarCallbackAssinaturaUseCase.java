@@ -3,6 +3,7 @@ package com.dynamis.sep_api.contratos.application.usecase;
 import com.dynamis.sep_api.contratos.application.port.out.AssinaturaDigitalProvider;
 import com.dynamis.sep_api.contratos.application.port.out.DocumentoAssinadoStorage;
 import com.dynamis.sep_api.contratos.application.service.HashContratoService;
+import com.dynamis.sep_api.contratos.domain.event.AssinaturaVisualizadaEvent;
 import com.dynamis.sep_api.contratos.domain.event.ContratoAssinadoEvent;
 import com.dynamis.sep_api.contratos.domain.event.ContratoRecusadoEvent;
 import com.dynamis.sep_api.contratos.domain.exception.ContratoEstadoInvalidoException;
@@ -126,7 +127,15 @@ public class ProcessarCallbackAssinaturaUseCase {
             case ASSINADO -> finalizarComoAssinado(envelope, contrato, callback);
             case RECUSADO -> finalizarComoRecusado(envelope, contrato, callback);
             case EXPIRADO -> envelope.marcarExpirado(callback.dataEvento());
-            case VISUALIZADO -> envelope.marcarVisualizado(callback.dataEvento());
+            case VISUALIZADO -> {
+                envelope.marcarVisualizado(callback.dataEvento());
+                eventPublisher.publishEvent(new AssinaturaVisualizadaEvent(
+                        contrato.getId(),
+                        contrato.getTomadorId(),
+                        envelope.getId(),
+                        envelope.getProvider(),
+                        callback.dataEvento()));
+            }
             case ENVIADO, RASCUNHO -> log.debug(
                     "Callback informativo ignorado status={} envelopeId={}", callback.status(), envelope.getId());
                 // Fix M3 review Task 11.5: default defende contra adicao futura de StatusEnvelope sem

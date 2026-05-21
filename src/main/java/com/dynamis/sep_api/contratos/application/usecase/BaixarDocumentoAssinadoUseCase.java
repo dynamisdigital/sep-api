@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.contratos.application.usecase;
 
 import com.dynamis.sep_api.contratos.application.port.out.DocumentoAssinadoStorage;
+import com.dynamis.sep_api.contratos.domain.event.DocumentoAssinadoBaixadoEvent;
 import com.dynamis.sep_api.contratos.domain.exception.ContratoAssinaturaIndisponivelException;
 import com.dynamis.sep_api.contratos.domain.model.Contrato;
 import com.dynamis.sep_api.contratos.domain.model.DocumentoAssinado;
@@ -8,6 +9,7 @@ import com.dynamis.sep_api.contratos.domain.model.EnvelopeAssinatura;
 import com.dynamis.sep_api.contratos.domain.vo.StatusFormalizacao;
 import com.dynamis.sep_api.contratos.infrastructure.persistence.DocumentoAssinadoRepository;
 import com.dynamis.sep_api.contratos.infrastructure.persistence.EnvelopeAssinaturaRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,21 +30,25 @@ public class BaixarDocumentoAssinadoUseCase {
     private final EnvelopeAssinaturaRepository envelopeRepository;
     private final DocumentoAssinadoRepository documentoRepository;
     private final DocumentoAssinadoStorage storage;
+    private final ApplicationEventPublisher eventPublisher;
 
     public BaixarDocumentoAssinadoUseCase(
             ContratoLoaderService contratoLoader,
             EnvelopeAssinaturaRepository envelopeRepository,
             DocumentoAssinadoRepository documentoRepository,
-            DocumentoAssinadoStorage storage) {
+            DocumentoAssinadoStorage storage,
+            ApplicationEventPublisher eventPublisher) {
         this.contratoLoader = contratoLoader;
         this.envelopeRepository = envelopeRepository;
         this.documentoRepository = documentoRepository;
         this.storage = storage;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional(readOnly = true)
-    public Resultado executar(UUID contratoId) {
+    public Resultado executar(UUID contratoId, UUID baixadoPorId, String ipOrigem, String userAgentOrigem) {
         Objects.requireNonNull(contratoId, "contratoId obrigatorio");
+        Objects.requireNonNull(baixadoPorId, "baixadoPorId obrigatorio");
         Contrato contrato = contratoLoader.carregar(contratoId);
         if (contrato.getStatus() != StatusFormalizacao.ASSINADO) {
             throw new ContratoAssinaturaIndisponivelException(contratoId, "status=" + contrato.getStatus());
@@ -57,6 +63,8 @@ public class BaixarDocumentoAssinadoUseCase {
         byte[] bytes = storage.carregar(pathStorage)
                 .orElseThrow(
                         () -> new ContratoAssinaturaIndisponivelException(contratoId, motivoBlobAusente(pathStorage)));
+        eventPublisher.publishEvent(new DocumentoAssinadoBaixadoEvent(
+                contratoId, envelope.getId(), documento.getId(), baixadoPorId, ipOrigem, userAgentOrigem));
         return new Resultado(documento, bytes);
     }
 

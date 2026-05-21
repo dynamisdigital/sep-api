@@ -392,10 +392,13 @@ public class ContratoController {
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     public ResponseEntity<byte[]> baixarDocumentoAssinado(
-            @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UsuarioAutenticado principal,
+            HttpServletRequest servletRequest) {
         Contrato contrato = consultarContratoUseCase.porId(id);
         garantirOwnershipOuOperador(contrato, principal);
-        BaixarDocumentoAssinadoUseCase.Resultado resultado = baixarDocumentoAssinadoUseCase.executar(id);
+        BaixarDocumentoAssinadoUseCase.Resultado resultado = baixarDocumentoAssinadoUseCase.executar(
+                id, principal.id(), extrairIp(servletRequest), servletRequest.getHeader("User-Agent"));
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"contrato-" + id + "-assinado.pdf\"")
