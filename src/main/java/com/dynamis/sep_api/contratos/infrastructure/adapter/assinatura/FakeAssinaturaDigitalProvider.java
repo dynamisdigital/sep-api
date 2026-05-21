@@ -61,8 +61,11 @@ public class FakeAssinaturaDigitalProvider implements AssinaturaDigitalProvider 
         return new StatusEnvelopeProvider(status, OffsetDateTime.now());
     }
 
-    /** Hook pra testes simularem transicoes (visualizado, recusado, expirado). */
-    public void setStatus(String idEnvelopeExterno, StatusEnvelope status) {
+    /**
+     * Hook pra testes simularem transicoes (visualizado, recusado, expirado). Visibilidade
+     * package-private intencional — testes do mesmo pacote acessam; prod code nao tem como.
+     */
+    void setStatus(String idEnvelopeExterno, StatusEnvelope status) {
         statusPorEnvelope.put(idEnvelopeExterno, status);
     }
 }

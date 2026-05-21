@@ -22,6 +22,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath;
+import static com.github.tomakehurst.wiremock.client.WireMock.notFound;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.serverError;
@@ -98,7 +100,10 @@ class ClicksignAssinaturaDigitalProviderIT {
                 .withHeader("Idempotency-Key", equalTo("idemp-1")));
         wireMock.verify(postRequestedFor(urlEqualTo("/api/v1/lists"))
                 .withHeader("Authorization", equalTo("Bearer test-token-xyz"))
-                .withHeader("Idempotency-Key", equalTo("idemp-1:signer")));
+                .withHeader("Idempotency-Key", equalTo("idemp-1"))
+                .withRequestBody(matchingJsonPath("$.list.signer_email", equalTo("tomador@example.com")))
+                .withRequestBody(matchingJsonPath("$.list.signer_name", equalTo("Tomador Teste")))
+                .withRequestBody(matchingJsonPath("$.list.document_key", equalTo("doc-key-123"))));
     }
 
     @Test
@@ -176,6 +181,40 @@ class ClicksignAssinaturaDigitalProviderIT {
 
         // 3 tentativas configuradas (maxAttempts=3)
         wireMock.verify(3, postRequestedFor(urlEqualTo("/api/v1/documents")));
+    }
+
+    @Test
+    void baixarDocumentoAssinado_404_propaga4xx() {
+        wireMock.stubFor(get(urlEqualTo("/api/v1/documents/doc-404/download")).willReturn(notFound()));
+
+        assertThatThrownBy(() -> provider.baixarDocumentoAssinado("doc-404"))
+                .isInstanceOf(org.springframework.web.client.HttpClientErrorException.class);
+    }
+
+    @Test
+    void baixarDocumentoAssinado_corpoVazio_lancaRespostaInvalida() {
+        wireMock.stubFor(get(urlEqualTo("/api/v1/documents/doc-empty/download"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/pdf")
+                        .withBody(new byte[0])));
+
+        assertThatThrownBy(() -> provider.baixarDocumentoAssinado("doc-empty"))
+                .isInstanceOf(ClicksignRespostaInvalidaException.class)
+                .hasMessageContaining("vazio");
+    }
+
+    @Test
+    void consultarStatus_responseSemDocument_lancaRespostaInvalida() {
+        wireMock.stubFor(get(urlEqualTo("/api/v1/documents/doc-null"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{}")));
+
+        assertThatThrownBy(() -> provider.consultarStatus("doc-null"))
+                .isInstanceOf(ClicksignRespostaInvalidaException.class)
+                .hasMessageContaining("document");
     }
 
     @Test

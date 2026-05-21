@@ -113,7 +113,10 @@ app:
     provider: ${APP_ASSINATURA_PROVIDER:fake}
     clicksign:
       base-url: ${APP_CLICKSIGN_BASE_URL:https://sandbox.clicksign.com}
-      access-token: ${APP_CLICKSIGN_ACCESS_TOKEN:}
+      # Sem default — exige APP_CLICKSIGN_ACCESS_TOKEN quando provider=clicksign
+      # (Fake nao precisa). Se faltar, Spring falha na startup com property
+      # nao resolvida; previne envio com Bearer "" em producao.
+      access-token: ${APP_CLICKSIGN_ACCESS_TOKEN:#{null}}
       webhook:
         hmac-secret: ${APP_WEBHOOK_SECRET_CLICKSIGN:dev-clicksign-webhook-secret-change-me}
   celcoin:

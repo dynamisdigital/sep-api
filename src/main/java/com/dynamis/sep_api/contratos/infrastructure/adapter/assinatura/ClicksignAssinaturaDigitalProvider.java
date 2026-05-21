@@ -44,7 +44,7 @@ import java.util.Objects;
  * idEnvelopeExterno.
  */
 @Component
-@ConditionalOnProperty(name = "app.assinatura.provider", havingValue = "clicksign")
+@ConditionalOnProperty(name = "app.assinatura.provider", havingValue = "clicksign", matchIfMissing = false)
 public class ClicksignAssinaturaDigitalProvider implements AssinaturaDigitalProvider {
 
     private static final Logger log = LoggerFactory.getLogger(ClicksignAssinaturaDigitalProvider.class);
@@ -56,6 +56,11 @@ public class ClicksignAssinaturaDigitalProvider implements AssinaturaDigitalProv
 
     public ClicksignAssinaturaDigitalProvider(
             RestClientFactory factory, ClicksignAssinaturaProperties properties, ClicksignAssinaturaMapper mapper) {
+        Objects.requireNonNull(properties.baseUrl(), "app.assinatura.clicksign.base-url obrigatorio");
+        if (properties.accessToken() == null || properties.accessToken().isBlank()) {
+            throw new IllegalStateException(
+                    "app.assinatura.clicksign.access-token obrigatorio quando app.assinatura.provider=clicksign");
+        }
         this.restClient = factory.forProvider(RESILIENCE_INSTANCE, properties.baseUrl());
         this.properties = properties;
         this.mapper = mapper;
@@ -100,13 +105,23 @@ public class ClicksignAssinaturaDigitalProvider implements AssinaturaDigitalProv
         }
     }
 
+    /**
+     * Vincula o signatario ao documento no provider. Usa o MESMO {@code idempotencyKey} do envio
+     * pra preservar contrato unico de idempotencia da Task 11.5 (Idempotency-Key derivado de
+     * {@code contratoId + numeroVersao}). Retry parcial (documents OK, lists falhou) reusa a
+     * chave; Clicksign cobre dedup interna.
+     *
+     * <p>{@code retrieve().toBodilessEntity()} propaga {@link RestClientResponseException} em
+     * 4xx/5xx (RestClient default), o que aciona Resilience4j retry no metodo publico
+     * {@code enviarParaAssinatura}; nao engole erros.
+     */
     private void vincularSignatario(String documentKey, RequisicaoEnvioAssinatura req) {
         ClicksignSignerRequest body = new ClicksignSignerRequest(new ClicksignSignerRequest.List(
                 documentKey, req.signatarioEmail(), req.signatarioNome(), "contractor"));
         restClient
                 .post()
                 .uri("/api/v1/lists")
-                .headers(h -> headersComIdempotency(h, req.idempotencyKey() + ":signer"))
+                .headers(h -> headersComIdempotency(h, req.idempotencyKey()))
                 .body(body)
                 .retrieve()
                 .toBodilessEntity();
