@@ -54,12 +54,19 @@ public class ConsultarContratoUseCase {
     /**
      * Forca a inicializacao das colecoes lazy dentro da tx readOnly. Necessario porque
      * {@code Contrato.versoes} e {@code VersaoContrato.clausulas} sao dois bags @OneToMany —
-     * Hibernate nao consegue fetch ambos via {@code @EntityGraph} (MultipleBagFetchException). Com
-     * a init aqui, o objeto sai do use case ja com as colecoes carregadas e o mapper web nao
-     * depende de Open Session in View.
+     * Hibernate nao consegue fetch ambos via {@code @EntityGraph} (MultipleBagFetchException).
+     *
+     * <p>Estrategia: 2 queries totais — Hibernate ja carregou {@code versoes} ao acessar o
+     * agregado; aqui executamos {@code findByContratoIdComClausulas} que faz JOIN FETCH das
+     * clausulas em uma unica query. Como estamos na mesma {@code PersistenceContext}, as
+     * instancias retornadas sao as mesmas ja referenciadas pelo agregado — as colecoes lazy
+     * dentro de cada {@code VersaoContrato} ficam inicializadas. Evita o N+1 que existia ao
+     * iterar versoes e tocar {@code getClausulas().size()} em cada uma.
      */
     private void inicializarLazy(Contrato contrato) {
-        contrato.getVersoes().forEach(v -> v.getClausulas().size());
+        if (!contrato.getVersoes().isEmpty()) {
+            versaoRepository.findByContratoIdComClausulas(contrato.getId());
+        }
     }
 
     @Transactional(readOnly = true)

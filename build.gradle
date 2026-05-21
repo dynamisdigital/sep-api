@@ -30,6 +30,7 @@ ext {
 	set('restAssuredVersion', '5.5.0')
 	set('wiremockVersion', '3.9.2')
 	set('wiremockSpringBootVersion', '3.1.0')
+	set('thymeleafVersion', '3.1.3.RELEASE')
 }
 
 // Sprint 5 Task 5.2: googleauth 1.5.0 puxa httpclient 4.5.12 transitivamente.
@@ -86,7 +87,9 @@ dependencies {
 	// Thymeleaf standalone para renderizar templates de contrato (Sprint 10 Task 10.2).
 	// Usamos a lib standalone (sem spring-boot-starter-thymeleaf) pra evitar plugar view
 	// resolver em Spring MVC; o engine fica encapsulado no adapter do modulo `contratos`.
-	implementation 'org.thymeleaf:thymeleaf'
+	// Versao pinada explicitamente — fix post-merge Sprint 10 — garante build reprodutivel
+	// independente de alteracoes futuras no Spring Boot BOM.
+	implementation "org.thymeleaf:thymeleaf:${thymeleafVersion}"
 
 	// Testes
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
