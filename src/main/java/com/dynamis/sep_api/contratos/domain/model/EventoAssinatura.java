@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.contratos.domain.model;
 
 import com.dynamis.sep_api.contratos.domain.vo.StatusEnvelope;
+import com.dynamis.sep_api.shared.audit.EntidadeAuditavel;
 import com.fasterxml.uuid.Generators;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -18,12 +19,15 @@ import java.util.UUID;
  * vira um {@code EventoAssinatura} sanitizado. Unique em {@code (envelope_id, id_evento_externo)}
  * garante idempotencia.
  *
+ * <p>Estende {@link EntidadeAuditavel} para registrar quem persistiu o evento e quando — exigencia
+ * de trilha LGPD/CMN 4.656/2018 (consistente com {@code VersaoContrato}/{@code AceiteContrato}).
+ *
  * <p>NAO persistir payload bruto completo se contiver PII desnecessaria; salvar apenas
  * {@code payloadResumo} truncado (max 1000 chars).
  */
 @Entity
 @Table(name = "evento_assinatura")
-public class EventoAssinatura {
+public class EventoAssinatura extends EntidadeAuditavel {
 
     public static final int PAYLOAD_RESUMO_MAX = 1000;
 

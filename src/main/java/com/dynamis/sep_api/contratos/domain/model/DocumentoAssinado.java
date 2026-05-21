@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.contratos.domain.model;
 
+import com.dynamis.sep_api.contratos.domain.vo.HashValidator;
 import com.dynamis.sep_api.shared.audit.EntidadeAuditavel;
 import com.fasterxml.uuid.Generators;
 import jakarta.persistence.Basic;
@@ -66,15 +67,12 @@ public class DocumentoAssinado extends EntidadeAuditavel {
     public static DocumentoAssinado criar(
             UUID envelopeId, String hashSha256, OffsetDateTime dataAssinatura, String selo, byte[] conteudo) {
         Objects.requireNonNull(envelopeId, "envelopeId obrigatorio");
-        Objects.requireNonNull(hashSha256, "hashSha256 obrigatorio");
         Objects.requireNonNull(dataAssinatura, "dataAssinatura obrigatoria");
         Objects.requireNonNull(conteudo, "conteudo obrigatorio");
         if (conteudo.length == 0) {
             throw new IllegalArgumentException("conteudo do PDF assinado nao pode ser vazio");
         }
-        if (!hashSha256.matches("^[a-f0-9]{64}$")) {
-            throw new IllegalArgumentException("hashSha256 invalido: deve ser 64 chars hex lowercase");
-        }
+        HashValidator.requireValid(hashSha256, "hashSha256");
         UUID id = Generators.timeBasedReorderedGenerator().generate();
         return new DocumentoAssinado(id, envelopeId, hashSha256, dataAssinatura, selo, conteudo);
     }

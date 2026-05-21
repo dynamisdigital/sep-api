@@ -161,6 +161,10 @@ public class Contrato extends EntidadeAuditavel {
     /**
      * Sprint 11: transiciona {@code EM_ASSINATURA -> RECUSADO} quando o signatario recusa a
      * assinatura. Estado final.
+     *
+     * <p>Nao confundir com {@code StatusEnvelope.RECUSADO} (no envelope, da camada do provider):
+     * sao VOs distintos, vivendo em entidades distintas, e geram eventos de auditoria com tipos
+     * diferentes ({@code CONTRATO_RECUSADO} vs. {@code ASSINATURA_RECUSADA} — Task 11.8).
      */
     public void marcarRecusado() {
         if (!status.permiteFinalizarAssinatura()) {
