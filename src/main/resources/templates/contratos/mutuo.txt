@@ -1,0 +1,20 @@
+CONTRATO DE MUTUO
+
+Pelo presente instrumento particular, na melhor forma de direito, as partes
+identificadas abaixo celebram o presente Contrato de Mutuo, regido pelas
+clausulas e condicoes a seguir, com fundamento na Resolucao CMN n. 4.656/2018
+e demais normas aplicaveis as Sociedades de Emprestimo entre Pessoas (SEP).
+
+PROPOSTA: [(${propostaId})]
+TOMADOR: [(${tomadorId})]
+TIPO DE OPERACAO: [(${tipoOperacao})]
+VALOR SOLICITADO: R$ [(${valorSolicitado})]
+PRAZO: [(${prazoMeses})] meses
+DATA DE GERACAO: [(${dataGeracao})]
+
+[(${clausulasPadrao})]
+
+E, por estarem assim justas e contratadas, as partes firmam o presente contrato
+em meio eletronico, na forma da Medida Provisoria n. 2.200-2/2001 e da Lei
+n. 14.063/2020, sendo o aceite eletronico complementado por assinatura digital
+em etapa subsequente da formalizacao.

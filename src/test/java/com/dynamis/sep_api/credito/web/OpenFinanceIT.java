@@ -82,6 +82,9 @@ class OpenFinanceIT {
     PropostaCreditoRepository propostaRepository;
 
     @Autowired
+    com.dynamis.sep_api.contratos.infrastructure.persistence.ContratoRepository contratoRepository;
+
+    @Autowired
     ConsentimentoOpenFinanceRepository consentimentoRepository;
 
     @Autowired
@@ -136,6 +139,8 @@ class OpenFinanceIT {
         if (!url.contains("sep_test")) {
             throw new IllegalStateException("OpenFinanceIT exige sep_test; URL atual: " + url);
         }
+        // contrato.proposta_id REFERENCES proposta_credito — limpar contratos primeiro (Sprint 10).
+        contratoRepository.deleteAll();
         movimentacaoRepository.deleteAll();
         consentimentoRepository.deleteAll();
         decisaoRepository.deleteAll();
