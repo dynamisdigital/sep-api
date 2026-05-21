@@ -1,7 +1,10 @@
 package com.dynamis.sep_api.contratos.web.controller;
 
+import com.dynamis.sep_api.contratos.application.usecase.BaixarDocumentoAssinadoUseCase;
 import com.dynamis.sep_api.contratos.application.usecase.CancelarContratoUseCase;
 import com.dynamis.sep_api.contratos.application.usecase.ConsultarContratoUseCase;
+import com.dynamis.sep_api.contratos.application.usecase.ConsultarStatusAssinaturaUseCase;
+import com.dynamis.sep_api.contratos.application.usecase.EnviarParaAssinaturaUseCase;
 import com.dynamis.sep_api.contratos.application.usecase.RegistrarAceiteUseCase;
 import com.dynamis.sep_api.contratos.application.usecase.command.CancelarContratoCommand;
 import com.dynamis.sep_api.contratos.application.usecase.command.RegistrarAceiteCommand;
@@ -9,7 +12,9 @@ import com.dynamis.sep_api.contratos.domain.exception.ContratoOwnershipException
 import com.dynamis.sep_api.contratos.domain.model.Contrato;
 import com.dynamis.sep_api.contratos.web.dto.CancelarContratoRequest;
 import com.dynamis.sep_api.contratos.web.dto.ContratoResponse;
+import com.dynamis.sep_api.contratos.web.dto.EnviarAssinaturaRequest;
 import com.dynamis.sep_api.contratos.web.dto.RegistrarAceiteRequest;
+import com.dynamis.sep_api.contratos.web.dto.StatusAssinaturaResponse;
 import com.dynamis.sep_api.contratos.web.dto.VersaoContratoResponse;
 import com.dynamis.sep_api.contratos.web.mapper.ContratoWebMapper;
 import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp;
@@ -24,6 +29,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -69,16 +76,25 @@ public class ContratoController {
     private final ConsultarContratoUseCase consultarContratoUseCase;
     private final RegistrarAceiteUseCase registrarAceiteUseCase;
     private final CancelarContratoUseCase cancelarContratoUseCase;
+    private final EnviarParaAssinaturaUseCase enviarParaAssinaturaUseCase;
+    private final ConsultarStatusAssinaturaUseCase consultarStatusAssinaturaUseCase;
+    private final BaixarDocumentoAssinadoUseCase baixarDocumentoAssinadoUseCase;
     private final ContratoWebMapper mapper;
 
     public ContratoController(
             ConsultarContratoUseCase consultarContratoUseCase,
             RegistrarAceiteUseCase registrarAceiteUseCase,
             CancelarContratoUseCase cancelarContratoUseCase,
+            EnviarParaAssinaturaUseCase enviarParaAssinaturaUseCase,
+            ConsultarStatusAssinaturaUseCase consultarStatusAssinaturaUseCase,
+            BaixarDocumentoAssinadoUseCase baixarDocumentoAssinadoUseCase,
             ContratoWebMapper mapper) {
         this.consultarContratoUseCase = consultarContratoUseCase;
         this.registrarAceiteUseCase = registrarAceiteUseCase;
         this.cancelarContratoUseCase = cancelarContratoUseCase;
+        this.enviarParaAssinaturaUseCase = enviarParaAssinaturaUseCase;
+        this.consultarStatusAssinaturaUseCase = consultarStatusAssinaturaUseCase;
+        this.baixarDocumentoAssinadoUseCase = baixarDocumentoAssinadoUseCase;
         this.mapper = mapper;
     }
 
@@ -251,6 +267,116 @@ public class ContratoController {
         return ResponseEntity.ok(mapper.toResponse(
                 contrato,
                 consultarContratoUseCase.buscarAceiteDaVersaoVigente(contrato).orElse(null)));
+    }
+
+    @PostMapping("/{id}/assinar")
+    @PreAuthorize("hasAnyRole('FINANCEIRO','ADMIN')")
+    @RequireStepUp
+    @Operation(
+            summary = "Enviar contrato para assinatura digital",
+            description = "FINANCEIRO/ADMIN dispara envio manual ao provider (Clicksign). Idempotente:"
+                    + " envelope existente para a versao vigente eh devolvido sem chamar o provider novamente."
+                    + " Disparo automatico apos aceite ocorre via ContratoAceitoListener (Sprint 11 Task 11.5);"
+                    + " este endpoint serve para reprocessamento quando o auto-envio falhar (runbook em CONTRATOS.md).")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "202",
+                description = "Envio aceito; envelope criado ou idempotente",
+                content = @Content(schema = @Schema(implementation = StatusAssinaturaResponse.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Sem role FINANCEIRO/ADMIN ou sem step-up",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Contrato nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "409",
+                description = "Contrato fora de ACEITO/EM_ASSINATURA",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<StatusAssinaturaResponse> enviarParaAssinatura(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) EnviarAssinaturaRequest request,
+            @AuthenticationPrincipal UsuarioAutenticado principal) {
+        enviarParaAssinaturaUseCase.executar(id, "manual:" + principal.id() + ":" + id);
+        return ResponseEntity.accepted()
+                .body(mapper.toStatusAssinaturaResponse(consultarStatusAssinaturaUseCase.executar(id)));
+    }
+
+    @GetMapping("/{id}/assinatura/status")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Consultar status da assinatura",
+            description = "Snapshot do envelope (statusEnvelope) + status do contrato. Fonte: estado local;"
+                    + " webhook (Task 11.6) eh fonte de verdade operacional. Ownership ou FINANCEIRO/ADMIN.")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Status retornado",
+                content = @Content(schema = @Schema(implementation = StatusAssinaturaResponse.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Contrato de outro tomador",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Contrato nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<StatusAssinaturaResponse> consultarStatusAssinatura(
+            @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        Contrato contrato = consultarContratoUseCase.porId(id);
+        garantirOwnershipOuOperador(contrato, principal);
+        return ResponseEntity.ok(mapper.toStatusAssinaturaResponse(consultarStatusAssinaturaUseCase.executar(id)));
+    }
+
+    @GetMapping("/{id}/documento-assinado")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Baixar PDF assinado",
+            description = "Retorna o PDF assinado armazenado pelo SEP (BYTEA inline; Epic 16 troca por S3/MinIO).")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "PDF assinado",
+                content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE)),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Contrato de outro tomador",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Contrato nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "409",
+                description = "Contrato ainda nao assinado ou documento indisponivel",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<byte[]> baixarDocumentoAssinado(
+            @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        Contrato contrato = consultarContratoUseCase.porId(id);
+        garantirOwnershipOuOperador(contrato, principal);
+        BaixarDocumentoAssinadoUseCase.Resultado resultado = baixarDocumentoAssinadoUseCase.executar(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"contrato-" + id + "-assinado.pdf\"")
+                .header("X-Document-Hash-Sha256", resultado.documento().getHashSha256())
+                .body(resultado.conteudo());
     }
 
     // ============== helpers ==============
