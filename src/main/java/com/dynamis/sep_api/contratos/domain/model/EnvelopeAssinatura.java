@@ -127,10 +127,15 @@ public class EnvelopeAssinatura extends EntidadeAuditavel {
      * Marca envelope como visualizado pelo signatario. Idempotente — multiplas chamadas mantem
      * estado {@code VISUALIZADO}. Atualiza {@code dataAtualizacaoProvider} a cada chamada para
      * preservar timestamp do ultimo evento recebido. No-op em estados finais (envelope ja
-     * concluido nao volta a ser "visualizado").
+     * concluido nao volta a ser "visualizado"). Rejeita {@code RASCUNHO}: callback de visualizacao
+     * pressupoe envio previo; caso futuro fluxo de duas fases comece a persistir RASCUNHO, o
+     * envio precisa preceder o callback.
      */
     public void marcarVisualizado(OffsetDateTime quando) {
         Objects.requireNonNull(quando, "quando obrigatorio");
+        if (status == StatusEnvelope.RASCUNHO) {
+            throw new ContratoEstadoInvalidoException("marcarVisualizado", null);
+        }
         if (status.isFinal()) {
             return;
         }
