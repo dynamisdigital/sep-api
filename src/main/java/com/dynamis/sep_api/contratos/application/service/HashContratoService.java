@@ -18,11 +18,23 @@ public class HashContratoService {
         if (conteudoTexto == null) {
             throw new IllegalArgumentException("conteudoTexto obrigatorio");
         }
+        return calcular(conteudoTexto.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Calcula SHA-256 hex lowercase de bytes arbitrarios (Sprint 11). Usado pra hash do PDF da
+     * CCB enviado (gravado em {@code envelope_assinatura.hash_pdf_enviado}) e do PDF assinado
+     * baixado do provider (gravado em {@code documento_assinado.hash_sha256}).
+     */
+    public String calcular(byte[] bytes) {
+        if (bytes == null) {
+            throw new IllegalArgumentException("bytes obrigatorio");
+        }
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(conteudoTexto.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder(bytes.length * 2);
-            for (byte b : bytes) {
+            byte[] hash = digest.digest(bytes);
+            StringBuilder hex = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
                 hex.append(String.format("%02x", b));
             }
             return hex.toString();

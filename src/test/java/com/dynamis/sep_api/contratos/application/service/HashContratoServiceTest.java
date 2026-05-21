@@ -32,6 +32,7 @@ class HashContratoServiceTest {
 
     @Test
     void calcular_recusaNull() {
-        assertThatThrownBy(() -> service.calcular(null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.calcular((String) null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.calcular((byte[]) null)).isInstanceOf(IllegalArgumentException.class);
     }
 }
