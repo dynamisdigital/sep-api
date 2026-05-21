@@ -109,6 +109,13 @@ app:
     provider: ${APP_PLD_PROVIDER:fake}
   open-finance:
     provider: ${APP_OPEN_FINANCE_PROVIDER:fake}
+  assinatura:
+    provider: ${APP_ASSINATURA_PROVIDER:fake}
+    clicksign:
+      base-url: ${APP_CLICKSIGN_BASE_URL:https://sandbox.clicksign.com}
+      access-token: ${APP_CLICKSIGN_ACCESS_TOKEN:}
+      webhook:
+        hmac-secret: ${APP_WEBHOOK_SECRET_CLICKSIGN:dev-clicksign-webhook-secret-change-me}
   celcoin:
     kyc:
       base-url: ${APP_CELCOIN_KYC_BASE_URL:https://sandbox.openfinance.celcoin.dev/onboarding/v1}
@@ -171,6 +178,8 @@ resilience4j:
         baseConfig: default
       celcoin-open-finance:
         baseConfig: default
+      clicksign-assinatura:
+        baseConfig: default
   retry:
     configs:
       default:
@@ -205,6 +214,13 @@ resilience4j:
           - org.springframework.web.client.ResourceAccessException
           - org.springframework.web.client.HttpServerErrorException
           - java.io.IOException
+      clicksign-assinatura:
+        maxAttempts: 3
+        waitDuration: 500ms
+        retryExceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
   timelimiter:
     configs:
       default:
@@ -217,6 +233,8 @@ resilience4j:
       celcoin-background-check:
         timeoutDuration: 30s
       celcoin-open-finance:
+        timeoutDuration: 30s
+      clicksign-assinatura:
         timeoutDuration: 30s
   ratelimiter:
     configs:
