@@ -284,6 +284,10 @@ public class ContratoController {
                 description = "Envio aceito; envelope criado ou idempotente",
                 content = @Content(schema = @Schema(implementation = StatusAssinaturaResponse.class))),
         @ApiResponse(
+                responseCode = "400",
+                description = "Body malformado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
                 responseCode = "401",
                 description = "Token ausente ou invalido",
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
@@ -321,6 +325,10 @@ public class ContratoController {
                 description = "Status retornado",
                 content = @Content(schema = @Schema(implementation = StatusAssinaturaResponse.class))),
         @ApiResponse(
+                responseCode = "400",
+                description = "Path param invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
                 responseCode = "401",
                 description = "Token ausente ou invalido",
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
@@ -350,6 +358,10 @@ public class ContratoController {
                 responseCode = "200",
                 description = "PDF assinado",
                 content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE)),
+        @ApiResponse(
+                responseCode = "400",
+                description = "Path param invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "Token ausente ou invalido",
