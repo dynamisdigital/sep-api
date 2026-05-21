@@ -129,12 +129,10 @@ public class ProcessarCallbackAssinaturaUseCase {
             case VISUALIZADO -> envelope.marcarVisualizado(callback.dataEvento());
             case ENVIADO, RASCUNHO -> log.debug(
                     "Callback informativo ignorado status={} envelopeId={}", callback.status(), envelope.getId());
-            // Fix M3 review Task 11.5: default defende contra adicao futura de StatusEnvelope sem
-            // update aqui — silent ignore mascararia o evento e o envelope ficaria fora de sync.
+                // Fix M3 review Task 11.5: default defende contra adicao futura de StatusEnvelope sem
+                // update aqui — silent ignore mascararia o evento e o envelope ficaria fora de sync.
             default -> log.warn(
-                    "Callback com status desconhecido status={} envelopeId={}",
-                    callback.status(),
-                    envelope.getId());
+                    "Callback com status desconhecido status={} envelopeId={}", callback.status(), envelope.getId());
         }
         return true;
     }
