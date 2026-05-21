@@ -69,6 +69,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>Step-up: usuarios criados com {@code mfaHabilitado=false} — {@code StepUpEnforcementAspect}
  * bypassa o token (mesmo padrao do {@code ContratoIT} Sprint 10).
+ *
+ * <p>Follow-up Sprint 11 (spec §11.9 linha 253): cenario E2E com {@code app.assinatura.provider=clicksign}
+ * + WireMock stubbing dos endpoints reais da Clicksign ({@code POST /api/v1/documents},
+ * {@code GET /api/v1/documents/{key}}). Hoje o wiring HTTP fica coberto isoladamente por
+ * {@code ClicksignAssinaturaDigitalProviderIT} (Task 11.4) e o ciclo E2E roda contra
+ * {@code FakeAssinaturaDigitalProvider}. Combinar os dois exige config cruzada (TestConfiguration
+ * + override do {@code @ConditionalOnProperty} fake/clicksign) que ficou para sprint de hardening.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -497,6 +504,32 @@ class AssinaturaIT {
         // Audit DOCUMENTO_ASSINADO_BAIXADO grava ip + user-agent
         pollUntilAsserted(() -> assertThat(auditLogRepository.findByUsuarioIdAndTipoOrderByDataEventoDesc(
                         cliente.id(), TipoEventoSeguranca.DOCUMENTO_ASSINADO_BAIXADO))
+                .hasSize(1));
+    }
+
+    @Test
+    void downloadDocumentoAssinado_financeiroAcessaContratoDeOutroCliente() {
+        Autenticado cliente = criarELogar(Role.CLIENTE);
+        EnvelopeCriado env = prepararContratoAceitoComEnvelope(cliente);
+
+        String payload = payloadClicksign("sign", env.idEnvelopeExterno());
+        postWebhook(payload, "sha256=" + hmacSha256Hex(payload)).then().statusCode(202);
+        pollUntilAsserted(() -> assertThat(contratoRepository
+                        .findById(env.contratoId())
+                        .orElseThrow()
+                        .getStatus())
+                .isEqualTo(StatusFormalizacao.ASSINADO));
+
+        Autenticado financeiro = criarELogar(Role.FINANCEIRO);
+        Response resp = RestAssured.given()
+                .header("Authorization", "Bearer " + financeiro.token())
+                .when()
+                .get("/api/v1/contratos/" + env.contratoId() + "/documento-assinado");
+
+        resp.then().statusCode(200).contentType("application/pdf");
+        assertThat(resp.asByteArray()).startsWith("%PDF".getBytes(StandardCharsets.UTF_8));
+        pollUntilAsserted(() -> assertThat(auditLogRepository.findByUsuarioIdAndTipoOrderByDataEventoDesc(
+                        financeiro.id(), TipoEventoSeguranca.DOCUMENTO_ASSINADO_BAIXADO))
                 .hasSize(1));
     }
 
