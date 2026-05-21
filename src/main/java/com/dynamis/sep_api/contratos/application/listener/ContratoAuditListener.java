@@ -184,6 +184,11 @@ public class ContratoAuditListener {
         payload.put("envelopeId", event.envelopeId().toString());
         payload.put("documentoAssinadoId", event.documentoAssinadoId().toString());
         payload.put("hashPdfAssinado", event.hashPdfAssinado());
+        // Spec §11.8: timestamp do provider eh exigencia regulatoria pra ASSINATURA_ASSINADA —
+        // momento real da assinatura, nao quando o callback chegou no SEP.
+        payload.put(
+                "dataAssinatura",
+                event.dataAssinatura() == null ? null : event.dataAssinatura().toString());
         auditLogService.gravar(
                 TipoEventoSeguranca.ASSINATURA_ASSINADA,
                 event.tomadorId(),

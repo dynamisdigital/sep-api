@@ -208,22 +208,31 @@ class ContratoAuditListenerTest {
     }
 
     @Test
-    void aoAssinar_gravaComHashPdfAssinadoEDocumentoId() {
+    void aoAssinar_gravaComHashPdfAssinadoDocumentoIdEDataAssinatura() {
         UUID contratoId = UUID.randomUUID();
         UUID tomadorId = UUID.randomUUID();
         UUID envelopeId = UUID.randomUUID();
         UUID documentoId = UUID.randomUUID();
         String hashAssinado = "c".repeat(64);
+        OffsetDateTime dataAssinatura = OffsetDateTime.parse("2026-05-21T15:30:00Z");
 
         listener.aoAssinar(new ContratoAssinadoEvent(
-                contratoId, UUID.randomUUID(), tomadorId, UUID.randomUUID(), envelopeId, documentoId, hashAssinado));
+                contratoId,
+                UUID.randomUUID(),
+                tomadorId,
+                UUID.randomUUID(),
+                envelopeId,
+                documentoId,
+                hashAssinado,
+                dataAssinatura));
 
         verify(auditLogService)
                 .gravar(
                         eq(TipoEventoSeguranca.ASSINATURA_ASSINADA),
                         eq(tomadorId),
                         matches(".*\"envelopeId\":\"" + envelopeId + "\".*\"documentoAssinadoId\":\"" + documentoId
-                                + "\".*\"hashPdfAssinado\":\"" + hashAssinado + "\".*"));
+                                + "\".*\"hashPdfAssinado\":\"" + hashAssinado
+                                + "\".*\"dataAssinatura\":\"2026-05-21T15:30Z\".*"));
     }
 
     @Test
@@ -287,8 +296,12 @@ class ContratoAuditListenerTest {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                HASH));
+                HASH,
+                OffsetDateTime.now()));
 
+        // Bloqueia conteudo textual + assinatura PDF binaria (header %PDF) + base64 PDF
+        // (JVByR... eh os primeiros chars de "%PDF" em base64) — defesa em profundidade contra
+        // regressao que envie bytes do documento no payload.
         verify(auditLogService, times(3))
                 .gravar(
                         any(),
@@ -296,7 +309,9 @@ class ContratoAuditListenerTest {
                         org.mockito.ArgumentMatchers.argThat((String json) -> !json.contains("conteudoTexto")
                                 && !json.contains("clausulas")
                                 && !json.contains("pdf")
-                                && !json.contains("PDF")));
+                                && !json.contains("PDF")
+                                && !json.contains("%PDF")
+                                && !json.contains("JVByR")));
     }
 
     @Test

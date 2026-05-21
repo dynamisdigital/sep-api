@@ -166,7 +166,8 @@ public class ProcessarCallbackAssinaturaUseCase {
                     envelope.getVersaoId(),
                     envelope.getId(),
                     documento.getId(),
-                    hash));
+                    hash,
+                    callback.dataEvento()));
             log.info(
                     "Contrato assinado contratoId={} envelopeId={} documentoId={}",
                     contrato.getId(),
