@@ -1,10 +1,13 @@
 -- =============================================================================
 -- V23 — Sprint 11 Task 11.2: tabelas do ciclo de assinatura digital + CCB.
 -- =============================================================================
--- Modulo `contratos` ganha 3 entidades:
---   envelope_assinatura  — vincula versao do contrato a um provider externo
---   evento_assinatura    — historico de callbacks recebidos (idempotente)
---   documento_assinado   — PDF assinado retornado pelo provider (1:1 envelope)
+-- Modulo `contratos` ganha 4 entidades:
+--   envelope_assinatura       — vincula versao do contrato a um provider externo
+--   evento_assinatura         — historico de callbacks recebidos (idempotente)
+--   documento_assinado        — metadados do PDF assinado (1:1 envelope ASSINADO)
+--   documento_assinado_blob   — binario do PDF (separado pra abstrair o storage
+--                               via port DocumentoAssinadoStorage; Epic 16 troca
+--                               por S3/MinIO sem mexer no dominio)
 --
 -- Adiciona estado RECUSADO ao check de contrato.status.
 --
@@ -76,7 +79,19 @@ CREATE TABLE evento_assinatura (
 
 CREATE INDEX idx_evento_assinatura_envelope_id ON evento_assinatura(envelope_id);
 
--- 4. documento_assinado -------------------------------------------------------
+-- 4. documento_assinado_blob --------------------------------------------------
+-- Tabela auxiliar pra binario do PDF; isolada pra abstrair storage via port.
+
+CREATE TABLE documento_assinado_blob (
+    id UUID PRIMARY KEY,
+    conteudo BYTEA NOT NULL,
+    data_criacao TIMESTAMP WITH TIME ZONE NOT NULL,
+    CONSTRAINT chk_doc_blob_conteudo_nao_vazio CHECK (octet_length(conteudo) > 0)
+);
+
+-- 5. documento_assinado -------------------------------------------------------
+-- Metadados do PDF assinado; path_storage e referencia opaca para o adapter de
+-- DocumentoAssinadoStorage recuperar os bytes.
 
 CREATE TABLE documento_assinado (
     id UUID PRIMARY KEY,
@@ -84,11 +99,11 @@ CREATE TABLE documento_assinado (
     hash_sha256 VARCHAR(64) NOT NULL,
     data_assinatura TIMESTAMP WITH TIME ZONE NOT NULL,
     selo VARCHAR(500),
-    conteudo BYTEA NOT NULL,
+    path_storage VARCHAR(255) NOT NULL,
     data_criacao TIMESTAMP WITH TIME ZONE NOT NULL,
     data_modificacao TIMESTAMP WITH TIME ZONE NOT NULL,
     criado_por VARCHAR(50) NOT NULL,
     modificado_por VARCHAR(50) NOT NULL,
     CONSTRAINT chk_doc_assinado_hash_hex CHECK (hash_sha256 ~ '^[a-f0-9]{64}$'),
-    CONSTRAINT chk_doc_assinado_conteudo_nao_vazio CHECK (octet_length(conteudo) > 0)
+    CONSTRAINT chk_doc_assinado_path_storage_nao_vazio CHECK (length(trim(path_storage)) > 0)
 );

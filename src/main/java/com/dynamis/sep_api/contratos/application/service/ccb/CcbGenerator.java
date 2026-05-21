@@ -1,6 +1,8 @@
 package com.dynamis.sep_api.contratos.application.service.ccb;
 
+import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDDocumentInformation;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
@@ -11,7 +13,9 @@ import org.springframework.stereotype.Component;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
+import java.util.TimeZone;
 
 /**
  * Gera a Cedula de Credito Bancario em PDF estruturado (Sprint 11 Task 11.3).
@@ -41,16 +45,39 @@ public class CcbGenerator {
     private static final float ENTRELINHA_SECAO = 18f;
     private static final float ESPACO_APOS_SECAO = 8f;
 
-    /** Gera o PDF da CCB a partir do template. */
+    /**
+     * Gera o PDF da CCB a partir do template. Para preservar determinismo binario (hash
+     * estavel em {@code EnvelopeAssinatura.hashPdfEnviado} em reenvios da mesma CCB), PDFBox
+     * grava metadata controlada: {@code CreationDate}/{@code ModDate} fixos numa epoch zero,
+     * IDs sem entropia. PDFs idencitos no input geram bytes identicos no output.
+     */
     public byte[] gerar(CcbTemplate template) {
         try (PDDocument doc = new PDDocument();
                 ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            limparMetadata(doc);
             renderizar(doc, template);
+            doc.setDocumentId(0L);
             doc.save(out);
             return out.toByteArray();
         } catch (IOException e) {
             throw new CcbGeracaoException("Falha ao gerar PDF da CCB", e);
         }
+    }
+
+    /**
+     * Zera metadata variavel (datas com {@code System.currentTimeMillis()}, autor, criador,
+     * producer). Mantem somente {@code Title} estatico — bytes do PDF passam a depender
+     * exclusivamente do conteudo textual do template.
+     */
+    private void limparMetadata(PDDocument doc) {
+        PDDocumentInformation info = new PDDocumentInformation();
+        info.setTitle("CCB");
+        Calendar epoch = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        epoch.setTimeInMillis(0L);
+        info.setCreationDate(epoch);
+        info.setModificationDate(epoch);
+        doc.setDocumentInformation(info);
+        doc.getDocumentCatalog().getCOSObject().removeItem(COSName.METADATA);
     }
 
     private void renderizar(PDDocument doc, CcbTemplate t) throws IOException {
