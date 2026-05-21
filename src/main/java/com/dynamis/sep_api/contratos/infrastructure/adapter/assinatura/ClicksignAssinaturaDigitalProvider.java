@@ -4,6 +4,9 @@ import com.dynamis.sep_api.contratos.application.port.out.AssinaturaDigitalProvi
 import com.dynamis.sep_api.contratos.application.port.out.dto.RequisicaoEnvioAssinatura;
 import com.dynamis.sep_api.contratos.application.port.out.dto.RespostaEnvioAssinatura;
 import com.dynamis.sep_api.contratos.application.port.out.dto.StatusEnvelopeProvider;
+import com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderException;
+import com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderHttpException;
+import com.dynamis.sep_api.contratos.application.port.out.exception.EnvelopeNaoEncontradoException;
 import com.dynamis.sep_api.contratos.infrastructure.adapter.assinatura.dto.ClicksignDocumentRequest;
 import com.dynamis.sep_api.contratos.infrastructure.adapter.assinatura.dto.ClicksignDocumentResponse;
 import com.dynamis.sep_api.contratos.infrastructure.adapter.assinatura.dto.ClicksignSignerRequest;
@@ -15,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -85,7 +89,7 @@ public class ClicksignAssinaturaDigitalProvider implements AssinaturaDigitalProv
                     .retrieve()
                     .body(ClicksignDocumentResponse.class);
             if (resp == null || resp.document() == null || resp.document().key() == null) {
-                throw new ClicksignRespostaInvalidaException("Resposta sem document.key");
+                throw new AssinaturaProviderException("Resposta da Clicksign sem document.key");
             }
             String key = resp.document().key();
             vincularSignatario(key, req);
@@ -101,7 +105,7 @@ public class ClicksignAssinaturaDigitalProvider implements AssinaturaDigitalProv
                     "Clicksign enviar falhou status={} correlationId={}",
                     ex.getStatusCode().value(),
                     correlationId);
-            throw ex;
+            throw traduzirHttp(ex, null);
         }
     }
 
@@ -132,16 +136,24 @@ public class ClicksignAssinaturaDigitalProvider implements AssinaturaDigitalProv
     @Retry(name = RESILIENCE_INSTANCE)
     public byte[] baixarDocumentoAssinado(String idEnvelopeExterno) {
         Objects.requireNonNull(idEnvelopeExterno, "idEnvelopeExterno obrigatorio");
-        byte[] bytes = restClient
-                .get()
-                .uri("/api/v1/documents/{key}/download", idEnvelopeExterno)
-                .headers(this::headersBase)
-                .retrieve()
-                .body(byte[].class);
-        if (bytes == null || bytes.length == 0) {
-            throw new ClicksignRespostaInvalidaException("PDF assinado vazio");
+        try {
+            byte[] bytes = restClient
+                    .get()
+                    .uri("/api/v1/documents/{key}/download", idEnvelopeExterno)
+                    .headers(this::headersBase)
+                    .retrieve()
+                    .body(byte[].class);
+            if (bytes == null || bytes.length == 0) {
+                throw new AssinaturaProviderException("PDF assinado vazio");
+            }
+            return bytes;
+        } catch (RestClientResponseException ex) {
+            log.warn(
+                    "Clicksign baixar falhou status={} idEnvelopeExterno={}",
+                    ex.getStatusCode().value(),
+                    idEnvelopeExterno);
+            throw traduzirHttp(ex, idEnvelopeExterno);
         }
-        return bytes;
     }
 
     @Override
@@ -149,18 +161,40 @@ public class ClicksignAssinaturaDigitalProvider implements AssinaturaDigitalProv
     @Retry(name = RESILIENCE_INSTANCE)
     public StatusEnvelopeProvider consultarStatus(String idEnvelopeExterno) {
         Objects.requireNonNull(idEnvelopeExterno, "idEnvelopeExterno obrigatorio");
-        ClicksignDocumentResponse resp = restClient
-                .get()
-                .uri("/api/v1/documents/{key}", idEnvelopeExterno)
-                .headers(this::headersBase)
-                .retrieve()
-                .body(ClicksignDocumentResponse.class);
-        if (resp == null || resp.document() == null) {
-            throw new ClicksignRespostaInvalidaException("Resposta sem document");
+        try {
+            ClicksignDocumentResponse resp = restClient
+                    .get()
+                    .uri("/api/v1/documents/{key}", idEnvelopeExterno)
+                    .headers(this::headersBase)
+                    .retrieve()
+                    .body(ClicksignDocumentResponse.class);
+            if (resp == null || resp.document() == null) {
+                throw new AssinaturaProviderException("Resposta sem document");
+            }
+            return new StatusEnvelopeProvider(
+                    mapper.toStatusEnvelope(resp.document().status()),
+                    mapper.parseUpdatedAt(resp.document().updatedAt()));
+        } catch (RestClientResponseException ex) {
+            log.warn(
+                    "Clicksign consultar falhou status={} idEnvelopeExterno={}",
+                    ex.getStatusCode().value(),
+                    idEnvelopeExterno);
+            throw traduzirHttp(ex, idEnvelopeExterno);
         }
-        return new StatusEnvelopeProvider(
-                mapper.toStatusEnvelope(resp.document().status()),
-                mapper.parseUpdatedAt(resp.document().updatedAt()));
+    }
+
+    /**
+     * Traduz {@link RestClientResponseException} para a hierarquia {@link AssinaturaProviderException}.
+     * 404 vira {@link EnvelopeNaoEncontradoException}; demais erros HTTP propagam {@link
+     * AssinaturaProviderHttpException} carregando {@code statusCode}. Use cases tratam apenas o
+     * port — sem acoplamento a tipos de framework.
+     */
+    private AssinaturaProviderException traduzirHttp(RestClientResponseException ex, String idEnvelopeExterno) {
+        int status = ex.getStatusCode().value();
+        if (status == HttpStatus.NOT_FOUND.value() && idEnvelopeExterno != null) {
+            return new EnvelopeNaoEncontradoException(idEnvelopeExterno, ex);
+        }
+        return new AssinaturaProviderHttpException(status, "Clicksign HTTP " + status, ex);
     }
 
     private void headersBase(HttpHeaders headers) {

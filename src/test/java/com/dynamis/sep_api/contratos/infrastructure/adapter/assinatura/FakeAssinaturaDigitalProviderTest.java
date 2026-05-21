@@ -3,12 +3,14 @@ package com.dynamis.sep_api.contratos.infrastructure.adapter.assinatura;
 import com.dynamis.sep_api.contratos.application.port.out.dto.RequisicaoEnvioAssinatura;
 import com.dynamis.sep_api.contratos.application.port.out.dto.RespostaEnvioAssinatura;
 import com.dynamis.sep_api.contratos.application.port.out.dto.StatusEnvelopeProvider;
+import com.dynamis.sep_api.contratos.application.port.out.exception.EnvelopeNaoEncontradoException;
 import com.dynamis.sep_api.contratos.domain.vo.StatusEnvelope;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FakeAssinaturaDigitalProviderTest {
 
@@ -33,10 +35,10 @@ class FakeAssinaturaDigitalProviderTest {
     }
 
     @Test
-    void consultarStatus_defaultAssinado() {
-        StatusEnvelopeProvider s = provider.consultarStatus("fake-env-unknown");
-
-        assertThat(s.status()).isEqualTo(StatusEnvelope.ASSINADO);
+    void consultarStatus_envelopeDesconhecido_lancaNaoEncontrado() {
+        assertThatThrownBy(() -> provider.consultarStatus("fake-env-unknown"))
+                .isInstanceOf(EnvelopeNaoEncontradoException.class)
+                .hasMessageContaining("fake-env-unknown");
     }
 
     @Test

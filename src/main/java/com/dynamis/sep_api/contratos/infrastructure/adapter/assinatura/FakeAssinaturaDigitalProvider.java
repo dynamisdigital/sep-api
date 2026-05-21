@@ -4,6 +4,7 @@ import com.dynamis.sep_api.contratos.application.port.out.AssinaturaDigitalProvi
 import com.dynamis.sep_api.contratos.application.port.out.dto.RequisicaoEnvioAssinatura;
 import com.dynamis.sep_api.contratos.application.port.out.dto.RespostaEnvioAssinatura;
 import com.dynamis.sep_api.contratos.application.port.out.dto.StatusEnvelopeProvider;
+import com.dynamis.sep_api.contratos.application.port.out.exception.EnvelopeNaoEncontradoException;
 import com.dynamis.sep_api.contratos.domain.vo.StatusEnvelope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,8 +25,10 @@ import java.util.concurrent.ConcurrentMap;
  *       {@code idempotencyKey} (reenvio com mesma chave devolve o mesmo id);
  *   <li>{@code baixarDocumentoAssinado} retorna PDF stub (magic {@code %PDF} + bytes) — IT da
  *       Task 11.9 sobrescreve quando precisa de PDF real;
- *   <li>{@code consultarStatus} retorna {@code ASSINADO} por padrao; testes podem mudar via
- *       {@link #setStatus(String, StatusEnvelope)}.
+ *   <li>{@code consultarStatus} retorna o estado registrado pelo envio; envelope desconhecido
+ *       lanca {@link EnvelopeNaoEncontradoException} (mesma semantica do adapter real em 404 —
+ *       evita mascarar bug de lookup com falso ASSINADO). Testes que precisam simular estado
+ *       diferente do default {@code ENVIADO} usam {@link #setStatus(String, StatusEnvelope)}.
  * </ul>
  */
 @Component
@@ -57,7 +60,10 @@ public class FakeAssinaturaDigitalProvider implements AssinaturaDigitalProvider 
 
     @Override
     public StatusEnvelopeProvider consultarStatus(String idEnvelopeExterno) {
-        StatusEnvelope status = statusPorEnvelope.getOrDefault(idEnvelopeExterno, StatusEnvelope.ASSINADO);
+        StatusEnvelope status = statusPorEnvelope.get(idEnvelopeExterno);
+        if (status == null) {
+            throw new EnvelopeNaoEncontradoException(idEnvelopeExterno);
+        }
         return new StatusEnvelopeProvider(status, OffsetDateTime.now());
     }
 

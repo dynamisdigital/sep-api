@@ -113,10 +113,12 @@ app:
     provider: ${APP_ASSINATURA_PROVIDER:fake}
     clicksign:
       base-url: ${APP_CLICKSIGN_BASE_URL:https://sandbox.clicksign.com}
-      # Sem default — exige APP_CLICKSIGN_ACCESS_TOKEN quando provider=clicksign
-      # (Fake nao precisa). Se faltar, Spring falha na startup com property
-      # nao resolvida; previne envio com Bearer "" em producao.
-      access-token: ${APP_CLICKSIGN_ACCESS_TOKEN:#{null}}
+      # Default vazio (nao "#{null}", que SpringBoot binda como texto literal em
+      # @ConfigurationProperties). Construtor do ClicksignAssinaturaDigitalProvider
+      # valida isBlank() e lanca IllegalStateException quando provider=clicksign
+      # sem APP_CLICKSIGN_ACCESS_TOKEN — previne `Bearer ` invalido em prod.
+      # Fake nao usa, entao manter blank em dev/test e ok.
+      access-token: ${APP_CLICKSIGN_ACCESS_TOKEN:}
       webhook:
         hmac-secret: ${APP_WEBHOOK_SECRET_CLICKSIGN:dev-clicksign-webhook-secret-change-me}
   celcoin:
@@ -223,7 +225,11 @@ resilience4j:
         retryExceptions:
           - org.springframework.web.client.ResourceAccessException
           - org.springframework.web.client.HttpServerErrorException
+          - com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderHttpException
           - java.io.IOException
+        # AssinaturaProviderHttpException eh a traducao de 4xx/5xx do adapter. Como Resilience4j
+        # nao tem predicate via YAML, retry vai disparar tambem em 4xx — aceito pra MVP da Sprint
+        # 11; ajuste com predicate Java (RetryConfig.retryOnException) fica como follow-up.
   timelimiter:
     configs:
       default:

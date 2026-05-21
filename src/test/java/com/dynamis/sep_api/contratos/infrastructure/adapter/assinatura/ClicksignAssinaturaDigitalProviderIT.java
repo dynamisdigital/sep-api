@@ -4,6 +4,9 @@ import com.dynamis.sep_api.contratos.application.port.out.AssinaturaDigitalProvi
 import com.dynamis.sep_api.contratos.application.port.out.dto.RequisicaoEnvioAssinatura;
 import com.dynamis.sep_api.contratos.application.port.out.dto.RespostaEnvioAssinatura;
 import com.dynamis.sep_api.contratos.application.port.out.dto.StatusEnvelopeProvider;
+import com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderException;
+import com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderHttpException;
+import com.dynamis.sep_api.contratos.application.port.out.exception.EnvelopeNaoEncontradoException;
 import com.dynamis.sep_api.contratos.domain.vo.StatusEnvelope;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,7 +17,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.web.client.HttpServerErrorException;
 
 import java.util.UUID;
 
@@ -173,26 +175,28 @@ class ClicksignAssinaturaDigitalProviderIT {
     }
 
     @Test
-    void enviar_5xx_aciona_retry() {
+    void enviar_5xx_traduzParaHttpException_apos_retry() {
         wireMock.stubFor(post(urlEqualTo("/api/v1/documents")).willReturn(serverError()));
 
         assertThatThrownBy(() -> provider.enviarParaAssinatura(new byte[] {1, 2, 3}, req("idemp-5xx"), "corr-5xx"))
-                .isInstanceOf(HttpServerErrorException.class);
+                .isInstanceOf(AssinaturaProviderHttpException.class)
+                .matches(e -> ((AssinaturaProviderHttpException) e).isServerError());
 
         // 3 tentativas configuradas (maxAttempts=3)
         wireMock.verify(3, postRequestedFor(urlEqualTo("/api/v1/documents")));
     }
 
     @Test
-    void baixarDocumentoAssinado_404_propaga4xx() {
+    void baixarDocumentoAssinado_404_traduzParaEnvelopeNaoEncontrado() {
         wireMock.stubFor(get(urlEqualTo("/api/v1/documents/doc-404/download")).willReturn(notFound()));
 
         assertThatThrownBy(() -> provider.baixarDocumentoAssinado("doc-404"))
-                .isInstanceOf(org.springframework.web.client.HttpClientErrorException.class);
+                .isInstanceOf(EnvelopeNaoEncontradoException.class)
+                .hasMessageContaining("doc-404");
     }
 
     @Test
-    void baixarDocumentoAssinado_corpoVazio_lancaRespostaInvalida() {
+    void baixarDocumentoAssinado_corpoVazio_lancaProviderException() {
         wireMock.stubFor(get(urlEqualTo("/api/v1/documents/doc-empty/download"))
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -200,12 +204,12 @@ class ClicksignAssinaturaDigitalProviderIT {
                         .withBody(new byte[0])));
 
         assertThatThrownBy(() -> provider.baixarDocumentoAssinado("doc-empty"))
-                .isInstanceOf(ClicksignRespostaInvalidaException.class)
+                .isInstanceOf(AssinaturaProviderException.class)
                 .hasMessageContaining("vazio");
     }
 
     @Test
-    void consultarStatus_responseSemDocument_lancaRespostaInvalida() {
+    void consultarStatus_responseSemDocument_lancaProviderException() {
         wireMock.stubFor(get(urlEqualTo("/api/v1/documents/doc-null"))
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -213,8 +217,17 @@ class ClicksignAssinaturaDigitalProviderIT {
                         .withBody("{}")));
 
         assertThatThrownBy(() -> provider.consultarStatus("doc-null"))
-                .isInstanceOf(ClicksignRespostaInvalidaException.class)
+                .isInstanceOf(AssinaturaProviderException.class)
                 .hasMessageContaining("document");
+    }
+
+    @Test
+    void consultarStatus_404_traduzParaEnvelopeNaoEncontrado() {
+        wireMock.stubFor(get(urlEqualTo("/api/v1/documents/doc-gone")).willReturn(notFound()));
+
+        assertThatThrownBy(() -> provider.consultarStatus("doc-gone"))
+                .isInstanceOf(EnvelopeNaoEncontradoException.class)
+                .hasMessageContaining("doc-gone");
     }
 
     @Test
