@@ -17,6 +17,7 @@ import com.dynamis.sep_api.contratos.infrastructure.persistence.EventoAssinatura
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -94,6 +95,10 @@ public class ProcessarCallbackAssinaturaUseCase {
                 .orElseThrow(() -> new ContratoEstadoInvalidoException(
                         "callback.envelopeAusente:" + callback.provider() + "/" + callback.idEnvelopeExterno(), null));
 
+        // Fix M2 review Task 11.5: dedup em duas camadas. existsBy = fast path; save+flush com
+        // catch DataIntegrityViolationException defende contra race se lock pessimista falhar ou
+        // expirar (UNIQUE em (envelope_id, id_evento_externo) na V23). Padrao identico a
+        // RegistrarWebhookEventUseCase (Sprint 4) e RegistrarAceiteUseCase (Sprint 10).
         if (eventoRepository.existsByEnvelopeIdAndIdEventoExterno(envelope.getId(), callback.idEventoExterno())) {
             log.info(
                     "Callback duplicado ignorado envelopeId={} idEventoExterno={}",
@@ -102,12 +107,20 @@ public class ProcessarCallbackAssinaturaUseCase {
             return false;
         }
 
-        eventoRepository.save(EventoAssinatura.criar(
-                envelope.getId(),
-                callback.idEventoExterno(),
-                callback.status(),
-                callback.payloadResumo(),
-                callback.dataEvento()));
+        try {
+            eventoRepository.saveAndFlush(EventoAssinatura.criar(
+                    envelope.getId(),
+                    callback.idEventoExterno(),
+                    callback.status(),
+                    callback.payloadResumo(),
+                    callback.dataEvento()));
+        } catch (DataIntegrityViolationException ex) {
+            log.info(
+                    "Callback duplicado detectado em save envelopeId={} idEventoExterno={}",
+                    envelope.getId(),
+                    callback.idEventoExterno());
+            return false;
+        }
 
         switch (callback.status()) {
             case ASSINADO -> finalizarComoAssinado(envelope, contrato, callback);
@@ -116,6 +129,12 @@ public class ProcessarCallbackAssinaturaUseCase {
             case VISUALIZADO -> envelope.marcarVisualizado(callback.dataEvento());
             case ENVIADO, RASCUNHO -> log.debug(
                     "Callback informativo ignorado status={} envelopeId={}", callback.status(), envelope.getId());
+            // Fix M3 review Task 11.5: default defende contra adicao futura de StatusEnvelope sem
+            // update aqui — silent ignore mascararia o evento e o envelope ficaria fora de sync.
+            default -> log.warn(
+                    "Callback com status desconhecido status={} envelopeId={}",
+                    callback.status(),
+                    envelope.getId());
         }
         return true;
     }
