@@ -1,5 +1,8 @@
 package com.dynamis.sep_api.contratos.web;
 
+import com.dynamis.sep_api.contratos.application.usecase.GerarContratoUseCase;
+import com.dynamis.sep_api.contratos.application.usecase.command.GerarContratoCommand;
+import com.dynamis.sep_api.contratos.domain.exception.PropostaNaoAprovadaException;
 import com.dynamis.sep_api.contratos.domain.vo.StatusFormalizacao;
 import com.dynamis.sep_api.contratos.infrastructure.persistence.AceiteContratoRepository;
 import com.dynamis.sep_api.contratos.infrastructure.persistence.ContratoRepository;
@@ -40,6 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * E2E backend do fluxo de formalizacao contratual (Sprint 10 Task 10.8). Sobe Spring Boot completo
@@ -117,6 +121,9 @@ class ContratoIT {
 
     @Autowired
     PasswordEncoder passwordEncoder;
+
+    @Autowired
+    GerarContratoUseCase gerarContratoUseCase;
 
     @Autowired
     org.springframework.core.env.Environment environment;
@@ -476,5 +483,63 @@ class ContratoIT {
                 .post("/api/v1/contratos/" + contratoId + "/cancelar")
                 .then()
                 .statusCode(400);
+    }
+
+    @Test
+    void regeneracaoEmAguardandoAceiteCriaNovaVersaoEMantemEstado() {
+        // Spec line 294: re-geracao em AGUARDANDO_ACEITE deve criar nova versao e manter estado.
+        // GerarContratoUseCase nao tem endpoint REST nesta sprint (so disparado pelo listener);
+        // chamamos diretamente via comando "manual" para cobrir o cenario E2E.
+        Autenticado cliente = criarClienteELogar();
+        UUID propostaId = criarPropostaAprovadaEAguardarContrato(cliente);
+        UUID contratoId =
+                contratoRepository.findByPropostaId(propostaId).orElseThrow().getId();
+        assertThat(contratoRepository.findById(contratoId).orElseThrow().getStatus())
+                .isEqualTo(StatusFormalizacao.AGUARDANDO_ACEITE);
+
+        gerarContratoUseCase.executar(GerarContratoCommand.manual(propostaId));
+
+        Integer size = RestAssured.given()
+                .header("Authorization", "Bearer " + cliente.token())
+                .when()
+                .get("/api/v1/contratos/" + contratoId + "/versoes")
+                .then()
+                .statusCode(200)
+                .extract()
+                .path("size()");
+        assertThat(size).isEqualTo(2);
+        assertThat(contratoRepository.findById(contratoId).orElseThrow().getStatus())
+                .isEqualTo(StatusFormalizacao.AGUARDANDO_ACEITE);
+        pollUntilAsserted(() -> assertThat(auditLogRepository.findByUsuarioIdAndTipoOrderByDataEventoDesc(
+                        cliente.id(), TipoEventoSeguranca.CONTRATO_NOVA_VERSAO))
+                .hasSize(1));
+    }
+
+    @Test
+    void geracaoComPropostaNaoAprovadaLanca422() {
+        // Spec line 293: geracao com proposta nao APROVADA deve falhar.
+        // GerarContratoUseCase nao tem endpoint REST; chamamos direto e validamos a excecao.
+        Autenticado cliente = criarClienteELogar();
+        UUID onbId = criarOnboardingAprovadoFinal(cliente.id());
+        String propostaId = RestAssured.given()
+                .header("Authorization", "Bearer " + cliente.token())
+                .contentType(ContentType.JSON)
+                .body("{\"solicitacaoOnboardingId\":\"" + onbId
+                        + "\",\"tipoOperacao\":\"OUTROS\",\"valorSolicitado\":10000.00,\"prazoMeses\":12}")
+                .when()
+                .post("/api/v1/credito/propostas")
+                .then()
+                .statusCode(201)
+                .extract()
+                .path("id");
+        UUID propId = UUID.fromString(propostaId);
+        // Aguardamos PRE_APROVADA (motor AFTER_COMMIT) — ainda nao APROVADA.
+        pollUntil(
+                () -> propostaRepository.findById(propId).orElseThrow().getStatus() == StatusProposta.PRE_APROVADA,
+                "PRE_APROVADA");
+
+        assertThatThrownBy(() -> gerarContratoUseCase.executar(GerarContratoCommand.manual(propId)))
+                .isInstanceOf(PropostaNaoAprovadaException.class);
+        assertThat(contratoRepository.findByPropostaId(propId)).isEmpty();
     }
 }
