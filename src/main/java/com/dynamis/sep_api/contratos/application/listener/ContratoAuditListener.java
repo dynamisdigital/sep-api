@@ -183,9 +183,11 @@ public class ContratoAuditListener {
         payload.put("versaoId", event.versaoId().toString());
         payload.put("envelopeId", event.envelopeId().toString());
         payload.put("documentoAssinadoId", event.documentoAssinadoId().toString());
+        // Spec §11.8: provider + id externo + hash + timestamp do provider sao exigencias
+        // regulatorias do ASSINATURA_ASSINADA (rastreabilidade externa + integridade local).
+        payload.put("provider", event.provider());
+        payload.put("idEnvelopeExterno", event.idEnvelopeExterno());
         payload.put("hashPdfAssinado", event.hashPdfAssinado());
-        // Spec §11.8: timestamp do provider eh exigencia regulatoria pra ASSINATURA_ASSINADA —
-        // momento real da assinatura, nao quando o callback chegou no SEP.
         payload.put(
                 "dataAssinatura",
                 event.dataAssinatura() == null ? null : event.dataAssinatura().toString());

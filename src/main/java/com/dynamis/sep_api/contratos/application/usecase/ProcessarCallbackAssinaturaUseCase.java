@@ -166,6 +166,8 @@ public class ProcessarCallbackAssinaturaUseCase {
                     envelope.getVersaoId(),
                     envelope.getId(),
                     documento.getId(),
+                    envelope.getProvider(),
+                    envelope.getIdEnvelopeExterno(),
                     hash,
                     callback.dataEvento()));
             log.info(

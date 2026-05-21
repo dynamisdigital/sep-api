@@ -208,7 +208,7 @@ class ContratoAuditListenerTest {
     }
 
     @Test
-    void aoAssinar_gravaComHashPdfAssinadoDocumentoIdEDataAssinatura() {
+    void aoAssinar_gravaComProviderIdExternoHashDocumentoIdEDataAssinatura() {
         UUID contratoId = UUID.randomUUID();
         UUID tomadorId = UUID.randomUUID();
         UUID envelopeId = UUID.randomUUID();
@@ -223,6 +223,8 @@ class ContratoAuditListenerTest {
                 UUID.randomUUID(),
                 envelopeId,
                 documentoId,
+                "clicksign",
+                "ext-doc-1",
                 hashAssinado,
                 dataAssinatura));
 
@@ -231,7 +233,8 @@ class ContratoAuditListenerTest {
                         eq(TipoEventoSeguranca.ASSINATURA_ASSINADA),
                         eq(tomadorId),
                         matches(".*\"envelopeId\":\"" + envelopeId + "\".*\"documentoAssinadoId\":\"" + documentoId
-                                + "\".*\"hashPdfAssinado\":\"" + hashAssinado
+                                + "\".*\"provider\":\"clicksign\".*\"idEnvelopeExterno\":\"ext-doc-1\".*\"hashPdfAssinado\":\""
+                                + hashAssinado
                                 + "\".*\"dataAssinatura\":\"2026-05-21T15:30Z\".*"));
     }
 
@@ -296,6 +299,8 @@ class ContratoAuditListenerTest {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 UUID.randomUUID(),
+                "clicksign",
+                "ext-1",
                 HASH,
                 OffsetDateTime.now()));
 

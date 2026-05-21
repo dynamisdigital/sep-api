@@ -18,5 +18,7 @@ public record ContratoAssinadoEvent(
         UUID versaoId,
         UUID envelopeId,
         UUID documentoAssinadoId,
+        String provider,
+        String idEnvelopeExterno,
         String hashPdfAssinado,
         OffsetDateTime dataAssinatura) {}

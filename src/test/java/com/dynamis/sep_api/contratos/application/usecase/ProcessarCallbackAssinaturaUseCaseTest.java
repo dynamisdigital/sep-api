@@ -4,6 +4,7 @@ import com.dynamis.sep_api.contratos.application.port.out.AssinaturaDigitalProvi
 import com.dynamis.sep_api.contratos.application.port.out.DocumentoAssinadoStorage;
 import com.dynamis.sep_api.contratos.application.service.HashContratoService;
 import com.dynamis.sep_api.contratos.application.usecase.ProcessarCallbackAssinaturaUseCase.CallbackAssinatura;
+import com.dynamis.sep_api.contratos.domain.event.AssinaturaVisualizadaEvent;
 import com.dynamis.sep_api.contratos.domain.event.ContratoAssinadoEvent;
 import com.dynamis.sep_api.contratos.domain.event.ContratoRecusadoEvent;
 import com.dynamis.sep_api.contratos.domain.model.Contrato;
@@ -17,6 +18,7 @@ import com.dynamis.sep_api.contratos.infrastructure.persistence.EnvelopeAssinatu
 import com.dynamis.sep_api.contratos.infrastructure.persistence.EventoAssinaturaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.OffsetDateTime;
@@ -153,7 +155,7 @@ class ProcessarCallbackAssinaturaUseCaseTest {
     }
 
     @Test
-    void executar_visualizado_naoTransicionaContrato() {
+    void executar_visualizado_naoTransicionaContratoEPublicaAssinaturaVisualizadaEvent() {
         when(eventoRepository.existsByEnvelopeIdAndIdEventoExterno(any(), any()))
                 .thenReturn(false);
 
@@ -162,7 +164,14 @@ class ProcessarCallbackAssinaturaUseCaseTest {
 
         assertThat(envelope.getStatus()).isEqualTo(StatusEnvelope.VISUALIZADO);
         assertThat(contrato.getStatus()).isEqualTo(StatusFormalizacao.EM_ASSINATURA);
-        verify(eventPublisher, never()).publishEvent(any());
+        ArgumentCaptor<AssinaturaVisualizadaEvent> captor = ArgumentCaptor.forClass(AssinaturaVisualizadaEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        AssinaturaVisualizadaEvent evento = captor.getValue();
+        assertThat(evento.contratoId()).isEqualTo(contrato.getId());
+        assertThat(evento.tomadorId()).isEqualTo(contrato.getTomadorId());
+        assertThat(evento.envelopeId()).isEqualTo(envelope.getId());
+        assertThat(evento.provider()).isEqualTo("clicksign");
+        assertThat(evento.dataEvento()).isEqualTo(AGORA);
     }
 
     @Test
