@@ -101,6 +101,9 @@ app:
       celcoin-kyb: ${APP_WEBHOOK_SECRET_CELCOIN_KYB:dev-kyb-webhook-secret-change-me}
       celcoin-pld: ${APP_WEBHOOK_SECRET_CELCOIN_PLD:dev-pld-webhook-secret-change-me}
       celcoin-open-finance: ${APP_WEBHOOK_SECRET_CELCOIN_OPEN_FINANCE:dev-open-finance-webhook-secret-change-me}
+      # clicksign-assinatura reusa APP_WEBHOOK_SECRET_CLICKSIGN (mesma env var de
+      # app.assinatura.clicksign.webhook.hmac-secret abaixo); HmacSignatureValidator generico
+      # exige entrada propria em app.webhooks.secrets.<provider>, daí a duplicacao no YAML.
       clicksign-assinatura: ${APP_WEBHOOK_SECRET_CLICKSIGN:dev-clicksign-webhook-secret-change-me}
   kyc:
     provider: ${APP_KYC_PROVIDER:fake}

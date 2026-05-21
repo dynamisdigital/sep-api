@@ -163,6 +163,35 @@ class AssinaturaWebhookControllerTest {
     }
 
     @Test
+    void retorna400QuandoBodyVazio() throws Exception {
+        mockMvc.perform(post("/api/v1/webhooks/assinatura/clicksign")
+                        .header("Idempotency-Key", "idem-empty")
+                        .header("Content-Hmac", "sha256=abc")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("   "))
+                .andExpect(status().isBadRequest());
+
+        verify(signatureValidator, never()).isValid(anyString(), anyString(), anyString());
+        verify(processarUseCase, never())
+                .executar(anyString(), anyString(), anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void retorna400QuandoBodyExcedeTamanhoMaximo() throws Exception {
+        String bodyGigante = "x".repeat(65 * 1024);
+        mockMvc.perform(post("/api/v1/webhooks/assinatura/clicksign")
+                        .header("Idempotency-Key", "idem-big")
+                        .header("Content-Hmac", "sha256=abc")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyGigante))
+                .andExpect(status().isBadRequest());
+
+        verify(signatureValidator, never()).isValid(anyString(), anyString(), anyString());
+        verify(processarUseCase, never())
+                .executar(anyString(), anyString(), anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
     void retorna400QuandoPayloadNaoJsonValido() throws Exception {
         mockMvc.perform(post("/api/v1/webhooks/assinatura/clicksign")
                         .header("Idempotency-Key", "idem-bad-json")

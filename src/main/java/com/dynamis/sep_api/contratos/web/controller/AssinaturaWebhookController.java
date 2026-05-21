@@ -52,8 +52,13 @@ public class AssinaturaWebhookController {
 
     static final String CODIGO_HEADER_OBRIGATORIO = "ASN-400-001";
     static final String CODIGO_PROVIDER_NAO_SUPORTADO = "ASN-400-002";
+    static final String CODIGO_PAYLOAD_TAMANHO = "ASN-400-003";
     private static final String HMAC_PREFIXO = "sha256=";
     private static final Set<String> PROVIDERS_SUPORTADOS = Set.of("clicksign");
+    // Webhook Clicksign tipico < 10KB; 64KB cobre payloads com metadata + selo + assinaturas
+    // multiplas. Defensivo contra DoS via body gigante (Spring default ~1MB sem limite explicito
+    // por endpoint).
+    private static final int PAYLOAD_MAX_BYTES = 64 * 1024;
 
     private final WebhookSignatureValidator signatureValidator;
     private final ProcessarWebhookAssinaturaUseCase processarUseCase;
@@ -107,6 +112,10 @@ public class AssinaturaWebhookController {
 
         if (payload == null || payload.isBlank()) {
             throw new ValidacaoException(CODIGO_HEADER_OBRIGATORIO, "Body do webhook e obrigatorio");
+        }
+        if (payload.length() > PAYLOAD_MAX_BYTES) {
+            throw new ValidacaoException(
+                    CODIGO_PAYLOAD_TAMANHO, "Body do webhook excede tamanho maximo de " + PAYLOAD_MAX_BYTES + " bytes");
         }
 
         String signature = extrairSignature(contentHmac, signaturePadrao);

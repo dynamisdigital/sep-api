@@ -104,15 +104,20 @@ public class ProcessarWebhookAssinaturaUseCase {
             return new Resultado(true, false);
         }
 
+        OffsetDateTime dataEvento;
+        if (occurredAt != null) {
+            dataEvento = occurredAt;
+        } else {
+            dataEvento = OffsetDateTime.now();
+            log.warn(
+                    "Webhook assinatura sem event.occurred_at — fallback OffsetDateTime.now() idempotencyKey={} documentKey={} eventName={}",
+                    idempotencyKey,
+                    documentKey,
+                    eventName);
+        }
         try {
             processarCallback.executar(new CallbackAssinatura(
-                    provider,
-                    documentKey,
-                    idEventoExterno,
-                    status,
-                    truncarPayload(payloadCru),
-                    null,
-                    occurredAt != null ? occurredAt : OffsetDateTime.now()));
+                    provider, documentKey, idEventoExterno, status, truncarPayload(payloadCru), null, dataEvento));
             evento.marcarProcessado();
         } catch (ContratoEstadoInvalidoException ex) {
             evento.marcarFalhou("estado invalido: " + ex.getMessage());
