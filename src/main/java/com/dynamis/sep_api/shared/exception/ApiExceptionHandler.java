@@ -1,5 +1,8 @@
 package com.dynamis.sep_api.shared.exception;
 
+import com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderException;
+import com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderHttpException;
+import com.dynamis.sep_api.contratos.application.port.out.exception.EnvelopeNaoEncontradoException;
 import com.dynamis.sep_api.identity.application.exception.ContaBloqueadaException;
 import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,6 +18,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -47,6 +51,14 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorResponseDto> handleUnreadableBody(
             HttpMessageNotReadableException ex, HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, "Bad Request", "Corpo da requisicao invalido", request);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponseDto> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        String tipo = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "tipo esperado";
+        String mensagem = "Path/query param '" + ex.getName() + "' invalido: nao eh " + tipo;
+        return build(HttpStatus.BAD_REQUEST, "Bad Request", mensagem, request);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -101,6 +113,38 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ContaBloqueadaException.class)
     public ResponseEntity<ErrorResponseDto> handleLocked(ContaBloqueadaException ex, HttpServletRequest request) {
         return build(HttpStatus.LOCKED, "Locked", ex.getMessage(), request);
+    }
+
+    /**
+     * Traduz falhas do provider de assinatura digital (Sprint 11) para HTTP coerente. Provider 5xx
+     * → 503 (operador pode retentar); 4xx → 422 (problema de contrato/permissao no envio, nao
+     * recuperavel sem mudar dados); demais (IO, parse, EnvelopeNaoEncontrado) → 502.
+     */
+    @ExceptionHandler(AssinaturaProviderException.class)
+    public ResponseEntity<ErrorResponseDto> handleAssinaturaProvider(
+            AssinaturaProviderException ex, HttpServletRequest request) {
+        HttpStatus status;
+        String error;
+        if (ex instanceof AssinaturaProviderHttpException http) {
+            if (http.isServerError()) {
+                status = HttpStatus.SERVICE_UNAVAILABLE;
+                error = "Service Unavailable";
+            } else if (http.isClientError()) {
+                status = HttpStatus.UNPROCESSABLE_ENTITY;
+                error = "Unprocessable Entity";
+            } else {
+                status = HttpStatus.BAD_GATEWAY;
+                error = "Bad Gateway";
+            }
+        } else if (ex instanceof EnvelopeNaoEncontradoException) {
+            status = HttpStatus.BAD_GATEWAY;
+            error = "Bad Gateway";
+        } else {
+            status = HttpStatus.BAD_GATEWAY;
+            error = "Bad Gateway";
+        }
+        log.warn("Falha do provider de assinatura ({}): {}", status, ex.getMessage());
+        return build(status, error, ex.getMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)

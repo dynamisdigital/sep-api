@@ -6,6 +6,10 @@ import com.dynamis.sep_api.contratos.domain.exception.PropostaNaoAprovadaExcepti
 import com.dynamis.sep_api.contratos.domain.vo.StatusFormalizacao;
 import com.dynamis.sep_api.contratos.infrastructure.persistence.AceiteContratoRepository;
 import com.dynamis.sep_api.contratos.infrastructure.persistence.ContratoRepository;
+import com.dynamis.sep_api.contratos.infrastructure.persistence.DocumentoAssinadoBlobRepository;
+import com.dynamis.sep_api.contratos.infrastructure.persistence.DocumentoAssinadoRepository;
+import com.dynamis.sep_api.contratos.infrastructure.persistence.EnvelopeAssinaturaRepository;
+import com.dynamis.sep_api.contratos.infrastructure.persistence.EventoAssinaturaRepository;
 import com.dynamis.sep_api.contratos.infrastructure.persistence.VersaoContratoRepository;
 import com.dynamis.sep_api.credito.domain.vo.StatusProposta;
 import com.dynamis.sep_api.credito.infrastructure.persistence.DecisaoCreditoRepository;
@@ -75,6 +79,10 @@ class ContratoIT {
     @DynamicPropertySource
     static void configurarTest(DynamicPropertyRegistry registry) {
         registry.add("app.security.rate-limit.login-per-minute-per-ip", () -> 1000);
+        // Sprint 11: desliga listener de envio automatico para assinatura digital — esses ITs
+        // validam apenas o ciclo de aceite/regeneracao/cancelamento (Sprint 10). Fluxo completo
+        // com envelope e testado no AssinaturaIT (Task 11.9).
+        registry.add("app.assinatura.auto-envio-pos-aceite", () -> "false");
     }
 
     @LocalServerPort
@@ -88,6 +96,18 @@ class ContratoIT {
 
     @Autowired
     AceiteContratoRepository aceiteContratoRepository;
+
+    @Autowired
+    EnvelopeAssinaturaRepository envelopeAssinaturaRepository;
+
+    @Autowired
+    EventoAssinaturaRepository eventoAssinaturaRepository;
+
+    @Autowired
+    DocumentoAssinadoRepository documentoAssinadoRepository;
+
+    @Autowired
+    DocumentoAssinadoBlobRepository documentoAssinadoBlobRepository;
 
     @Autowired
     PropostaCreditoRepository propostaRepository;
@@ -145,6 +165,12 @@ class ContratoIT {
             throw new IllegalStateException("ContratoIT deve rodar apenas no banco sep_test; URL atual: " + url + ". "
                     + "Crie o banco com: createdb -h localhost -U sep sep_test");
         }
+        // Sprint 11: envelope_assinatura.versao_id REFERENCES versao_contrato (ON DELETE RESTRICT)
+        // → limpar tabelas de assinatura ANTES de aceite/contrato/versao.
+        documentoAssinadoRepository.deleteAll();
+        documentoAssinadoBlobRepository.deleteAll();
+        eventoAssinaturaRepository.deleteAll();
+        envelopeAssinaturaRepository.deleteAll();
         // aceite_contrato.versao_id REFERENCES versao_contrato — limpar aceites primeiro
         aceiteContratoRepository.deleteAll();
         contratoRepository.deleteAll();

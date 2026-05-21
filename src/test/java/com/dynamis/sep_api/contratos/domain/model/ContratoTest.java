@@ -100,10 +100,85 @@ class ContratoTest {
         assertThat(StatusFormalizacao.ACEITO.permiteCancelamento()).isFalse();
         assertThat(StatusFormalizacao.CANCELADO.isFinal()).isTrue();
         assertThat(StatusFormalizacao.ASSINADO.isFinal()).isTrue();
+        assertThat(StatusFormalizacao.RECUSADO.isFinal()).isTrue();
         assertThat(StatusFormalizacao.GERADO.isFinal()).isFalse();
+        assertThat(StatusFormalizacao.ACEITO.permiteEnvioAssinatura()).isTrue();
+        assertThat(StatusFormalizacao.GERADO.permiteEnvioAssinatura()).isFalse();
+        assertThat(StatusFormalizacao.EM_ASSINATURA.permiteFinalizarAssinatura())
+                .isTrue();
+        assertThat(StatusFormalizacao.ACEITO.permiteFinalizarAssinatura()).isFalse();
+    }
+
+    @Test
+    void marcarEmAssinatura_apenasAPartirDeAceito() {
+        Contrato c = novoContrato();
+        c.adicionarVersao("v1", HASH_FAKE);
+        c.marcarAceito();
+
+        c.marcarEmAssinatura();
+        assertThat(c.getStatus()).isEqualTo(StatusFormalizacao.EM_ASSINATURA);
+
+        // Idempotente em EM_ASSINATURA
+        c.marcarEmAssinatura();
+        assertThat(c.getStatus()).isEqualTo(StatusFormalizacao.EM_ASSINATURA);
+    }
+
+    @Test
+    void marcarEmAssinatura_emEstadoInvalido_rejeita() {
+        Contrato c = novoContrato();
+        c.adicionarVersao("v1", HASH_FAKE);
+
+        // AGUARDANDO_ACEITE -> EM_ASSINATURA bloqueado
+        assertThatThrownBy(c::marcarEmAssinatura).isInstanceOf(ContratoEstadoInvalidoException.class);
+    }
+
+    @Test
+    void marcarAssinado_transicionaDeEmAssinatura() {
+        Contrato c = contratoEmAssinatura();
+
+        c.marcarAssinado();
+        assertThat(c.getStatus()).isEqualTo(StatusFormalizacao.ASSINADO);
+        assertThat(c.getStatus().isFinal()).isTrue();
+    }
+
+    @Test
+    void marcarAssinado_foraDeEmAssinatura_rejeita() {
+        Contrato c = novoContrato();
+        c.adicionarVersao("v1", HASH_FAKE);
+        c.marcarAceito();
+
+        assertThatThrownBy(c::marcarAssinado).isInstanceOf(ContratoEstadoInvalidoException.class);
+    }
+
+    @Test
+    void marcarRecusado_transicionaDeEmAssinatura() {
+        Contrato c = contratoEmAssinatura();
+
+        c.marcarRecusado();
+        assertThat(c.getStatus()).isEqualTo(StatusFormalizacao.RECUSADO);
+        assertThat(c.getStatus().isFinal()).isTrue();
+    }
+
+    @Test
+    void aposAssinado_naoPermiteOutraTransicao() {
+        Contrato c = contratoEmAssinatura();
+        c.marcarAssinado();
+
+        assertThatThrownBy(c::marcarAssinado).isInstanceOf(ContratoEstadoInvalidoException.class);
+        assertThatThrownBy(c::marcarRecusado).isInstanceOf(ContratoEstadoInvalidoException.class);
+        assertThatThrownBy(c::cancelar).isInstanceOf(ContratoEstadoInvalidoException.class);
+        assertThatThrownBy(c::marcarAceito).isInstanceOf(ContratoEstadoInvalidoException.class);
     }
 
     private Contrato novoContrato() {
         return Contrato.criar(UUID.randomUUID(), UUID.randomUUID(), TipoContrato.MUTUO);
+    }
+
+    private Contrato contratoEmAssinatura() {
+        Contrato c = novoContrato();
+        c.adicionarVersao("v1", HASH_FAKE);
+        c.marcarAceito();
+        c.marcarEmAssinatura();
+        return c;
     }
 }

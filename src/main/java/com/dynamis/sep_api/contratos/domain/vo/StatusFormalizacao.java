@@ -3,7 +3,7 @@ package com.dynamis.sep_api.contratos.domain.vo;
 import java.util.Set;
 
 /**
- * Estados do ciclo de formalizacao contratual (Sprint 10).
+ * Estados do ciclo de formalizacao contratual (Sprint 10 + Sprint 11).
  *
  * <p>Maquina de estados:
  *
@@ -11,12 +11,12 @@ import java.util.Set;
  *   GERADO            -> AGUARDANDO_ACEITE | CANCELADO
  *   AGUARDANDO_ACEITE -> AGUARDANDO_ACEITE (regeneracao) | ACEITO | CANCELADO
  *   ACEITO            -> EM_ASSINATURA (Sprint 11)
- *   EM_ASSINATURA     -> ASSINADO (Sprint 11)
- *   ASSINADO / CANCELADO = finais
+ *   EM_ASSINATURA     -> ASSINADO | RECUSADO (Sprint 11)
+ *   ASSINADO / RECUSADO / CANCELADO = finais
  * </pre>
  *
- * <p>{@code EM_ASSINATURA} e {@code ASSINADO} sao reservados para a Sprint 11 (assinatura digital
- * + CCB). Esta Sprint 10 cobre apenas ate {@code ACEITO}.
+ * <p>Sprint 11 (assinatura digital + CCB) introduz {@code RECUSADO} e habilita as transicoes
+ * {@code ACEITO -> EM_ASSINATURA -> ASSINADO|RECUSADO}.
  */
 public enum StatusFormalizacao {
     GERADO,
@@ -24,9 +24,10 @@ public enum StatusFormalizacao {
     ACEITO,
     EM_ASSINATURA,
     ASSINADO,
+    RECUSADO,
     CANCELADO;
 
-    private static final Set<StatusFormalizacao> FINAIS = Set.of(ASSINADO, CANCELADO);
+    private static final Set<StatusFormalizacao> FINAIS = Set.of(ASSINADO, RECUSADO, CANCELADO);
     private static final Set<StatusFormalizacao> PERMITEM_NOVA_VERSAO = Set.of(GERADO, AGUARDANDO_ACEITE);
     private static final Set<StatusFormalizacao> PERMITEM_CANCELAMENTO = Set.of(GERADO, AGUARDANDO_ACEITE);
 
@@ -44,5 +45,13 @@ public enum StatusFormalizacao {
 
     public boolean permiteCancelamento() {
         return PERMITEM_CANCELAMENTO.contains(this);
+    }
+
+    public boolean permiteEnvioAssinatura() {
+        return this == ACEITO;
+    }
+
+    public boolean permiteFinalizarAssinatura() {
+        return this == EM_ASSINATURA;
     }
 }

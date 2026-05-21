@@ -133,6 +133,46 @@ public class Contrato extends EntidadeAuditavel {
         this.status = StatusFormalizacao.CANCELADO;
     }
 
+    /**
+     * Sprint 11: transiciona {@code ACEITO -> EM_ASSINATURA} apos envio bem-sucedido do envelope ao
+     * provider de assinatura digital. Idempotente quando ja em {@code EM_ASSINATURA} (reenvio).
+     */
+    public void marcarEmAssinatura() {
+        if (status == StatusFormalizacao.EM_ASSINATURA) {
+            return;
+        }
+        if (!status.permiteEnvioAssinatura()) {
+            throw new ContratoEstadoInvalidoException("marcarEmAssinatura", status);
+        }
+        this.status = StatusFormalizacao.EM_ASSINATURA;
+    }
+
+    /**
+     * Sprint 11: transiciona {@code EM_ASSINATURA -> ASSINADO} quando o provider confirma a
+     * assinatura via callback. Estado final.
+     */
+    public void marcarAssinado() {
+        if (!status.permiteFinalizarAssinatura()) {
+            throw new ContratoEstadoInvalidoException("marcarAssinado", status);
+        }
+        this.status = StatusFormalizacao.ASSINADO;
+    }
+
+    /**
+     * Sprint 11: transiciona {@code EM_ASSINATURA -> RECUSADO} quando o signatario recusa a
+     * assinatura. Estado final.
+     *
+     * <p>Nao confundir com {@code StatusEnvelope.RECUSADO} (no envelope, da camada do provider):
+     * sao VOs distintos, vivendo em entidades distintas, e geram eventos de auditoria com tipos
+     * diferentes ({@code CONTRATO_RECUSADO} vs. {@code ASSINATURA_RECUSADA} — Task 11.8).
+     */
+    public void marcarRecusado() {
+        if (!status.permiteFinalizarAssinatura()) {
+            throw new ContratoEstadoInvalidoException("marcarRecusado", status);
+        }
+        this.status = StatusFormalizacao.RECUSADO;
+    }
+
     public Optional<VersaoContrato> versaoVigente() {
         return versoes.stream().max(Comparator.comparingInt(VersaoContrato::getNumero));
     }
