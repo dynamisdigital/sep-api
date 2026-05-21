@@ -37,6 +37,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -217,6 +218,6 @@ class GerarContratoUseCaseTest {
                         List.of(
                                 new ClausulaRenderizada(1, "OBJETO", "Texto."),
                                 new ClausulaRenderizada(2, "FORO", "SP."))));
-        when(hashService.calcular(any())).thenReturn(HASH);
+        when(hashService.calcular(anyString())).thenReturn(HASH);
     }
 }

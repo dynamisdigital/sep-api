@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.contratos.web.mapper;
 
+import com.dynamis.sep_api.contratos.application.usecase.ConsultarStatusAssinaturaUseCase.StatusAssinaturaContrato;
 import com.dynamis.sep_api.contratos.domain.model.AceiteContrato;
 import com.dynamis.sep_api.contratos.domain.model.ClausulaContratual;
 import com.dynamis.sep_api.contratos.domain.model.Contrato;
@@ -7,6 +8,7 @@ import com.dynamis.sep_api.contratos.domain.model.VersaoContrato;
 import com.dynamis.sep_api.contratos.web.dto.AceiteContratoResponse;
 import com.dynamis.sep_api.contratos.web.dto.ClausulaContratoResponse;
 import com.dynamis.sep_api.contratos.web.dto.ContratoResponse;
+import com.dynamis.sep_api.contratos.web.dto.StatusAssinaturaResponse;
 import com.dynamis.sep_api.contratos.web.dto.VersaoContratoResponse;
 import org.mapstruct.Mapper;
 
@@ -66,5 +68,15 @@ public interface ContratoWebMapper {
 
     default List<VersaoContratoResponse> toVersaoListResponse(List<VersaoContrato> versoes) {
         return versoes.stream().map(this::toVersaoResponse).toList();
+    }
+
+    default StatusAssinaturaResponse toStatusAssinaturaResponse(StatusAssinaturaContrato snapshot) {
+        return new StatusAssinaturaResponse(
+                snapshot.statusContrato().name(),
+                snapshot.statusEnvelope() == null
+                        ? null
+                        : snapshot.statusEnvelope().name(),
+                snapshot.idEnvelopeExterno(),
+                snapshot.dataAtualizacaoProvider());
     }
 }

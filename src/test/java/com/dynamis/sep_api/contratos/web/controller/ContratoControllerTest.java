@@ -1,7 +1,10 @@
 package com.dynamis.sep_api.contratos.web.controller;
 
+import com.dynamis.sep_api.contratos.application.usecase.BaixarDocumentoAssinadoUseCase;
 import com.dynamis.sep_api.contratos.application.usecase.CancelarContratoUseCase;
 import com.dynamis.sep_api.contratos.application.usecase.ConsultarContratoUseCase;
+import com.dynamis.sep_api.contratos.application.usecase.ConsultarStatusAssinaturaUseCase;
+import com.dynamis.sep_api.contratos.application.usecase.EnviarParaAssinaturaUseCase;
 import com.dynamis.sep_api.contratos.application.usecase.RegistrarAceiteUseCase;
 import com.dynamis.sep_api.contratos.domain.model.Contrato;
 import com.dynamis.sep_api.contratos.domain.vo.TipoContrato;
@@ -71,6 +74,15 @@ class ContratoControllerTest {
 
     @MockBean
     private CancelarContratoUseCase cancelarContratoUseCase;
+
+    @MockBean
+    private EnviarParaAssinaturaUseCase enviarParaAssinaturaUseCase;
+
+    @MockBean
+    private ConsultarStatusAssinaturaUseCase consultarStatusAssinaturaUseCase;
+
+    @MockBean
+    private BaixarDocumentoAssinadoUseCase baixarDocumentoAssinadoUseCase;
 
     @MockBean
     private ContratoWebMapper mapper;
