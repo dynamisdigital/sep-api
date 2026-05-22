@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.cobranca.application.usecase;
 
+import com.dynamis.sep_api.cobranca.application.dto.ParcelaAtualizadaResult;
 import com.dynamis.sep_api.cobranca.application.dto.RegistrarRecebimentoCommand;
 import com.dynamis.sep_api.cobranca.application.dto.RegistrarRecebimentoResult;
 import com.dynamis.sep_api.cobranca.application.port.out.ContratoCobrancaQueryPort;
@@ -46,6 +47,7 @@ class RegistrarRecebimentoUseCaseTest {
     private RecebimentoRepository recebimentoRepository;
     private RegistrarMovimentacaoEscrowPort escrowPort;
     private ContratoCobrancaQueryPort contratoQueryPort;
+    private CalcularValorAtualizadoParcelaUseCase calcularValorAtualizado;
     private ApplicationEventPublisher eventPublisher;
     private RegistrarRecebimentoUseCase useCase;
 
@@ -58,9 +60,15 @@ class RegistrarRecebimentoUseCaseTest {
         recebimentoRepository = mock(RecebimentoRepository.class);
         escrowPort = mock(RegistrarMovimentacaoEscrowPort.class);
         contratoQueryPort = mock(ContratoCobrancaQueryPort.class);
+        calcularValorAtualizado = mock(CalcularValorAtualizadoParcelaUseCase.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         useCase = new RegistrarRecebimentoUseCase(
-                parcelaRepository, recebimentoRepository, escrowPort, contratoQueryPort, eventPublisher);
+                parcelaRepository,
+                recebimentoRepository,
+                escrowPort,
+                contratoQueryPort,
+                calcularValorAtualizado,
+                eventPublisher);
     }
 
     @Test
@@ -253,9 +261,30 @@ class RegistrarRecebimentoUseCaseTest {
         when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
         when(parcelaRepository.saveAndFlush(parcela)).thenReturn(parcela);
         when(contratoQueryPort.propostaIdDoContrato(contratoId)).thenReturn(Optional.of(propostaId));
+        when(calcularValorAtualizado.calcular(parcela)).thenReturn(novoResultSemMora(parcela));
         when(escrowPort.registrarRecebimento(any(), any(), any(), any(), any(UUID.class)))
                 .thenReturn(
                         new MovimentacaoEscrowResult(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("100.00")));
+    }
+
+    private static ParcelaAtualizadaResult novoResultSemMora(ParcelaCobranca parcela) {
+        BigDecimal devido = parcela.valorTotal();
+        BigDecimal recebido = parcela.totalRecebido();
+        BigDecimal emAberto = devido.subtract(recebido);
+        if (emAberto.signum() < 0) {
+            emAberto = BigDecimal.ZERO;
+        }
+        return new ParcelaAtualizadaResult(
+                parcela.getId(),
+                parcela.getNumero(),
+                parcela.getStatus(),
+                parcela.getDataVencimento(),
+                parcela.composicaoOriginal(),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                devido,
+                recebido,
+                emAberto);
     }
 
     private static RegistrarRecebimentoCommand comando(UUID parcelaId, BigDecimal valor, String key) {

@@ -9,6 +9,7 @@ import com.dynamis.sep_api.cobranca.domain.event.ParcelaPagaEvent;
 import com.dynamis.sep_api.cobranca.domain.event.RecebimentoRegistradoEvent;
 import com.dynamis.sep_api.cobranca.domain.exception.ChaveIdempotenciaConflitanteException;
 import com.dynamis.sep_api.cobranca.domain.exception.ParcelaCobrancaNaoEncontradaException;
+import com.dynamis.sep_api.cobranca.domain.exception.ParcelaEstadoInvalidoException;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.model.Recebimento;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
@@ -54,6 +55,7 @@ public class RegistrarRecebimentoUseCase {
     private final RecebimentoRepository recebimentoRepository;
     private final RegistrarMovimentacaoEscrowPort escrowPort;
     private final ContratoCobrancaQueryPort contratoQueryPort;
+    private final CalcularValorAtualizadoParcelaUseCase calcularValorAtualizado;
     private final ApplicationEventPublisher eventPublisher;
 
     public RegistrarRecebimentoUseCase(
@@ -61,11 +63,13 @@ public class RegistrarRecebimentoUseCase {
             RecebimentoRepository recebimentoRepository,
             RegistrarMovimentacaoEscrowPort escrowPort,
             ContratoCobrancaQueryPort contratoQueryPort,
+            CalcularValorAtualizadoParcelaUseCase calcularValorAtualizado,
             ApplicationEventPublisher eventPublisher) {
         this.parcelaRepository = parcelaRepository;
         this.recebimentoRepository = recebimentoRepository;
         this.escrowPort = escrowPort;
         this.contratoQueryPort = contratoQueryPort;
+        this.calcularValorAtualizado = calcularValorAtualizado;
         this.eventPublisher = eventPublisher;
     }
 
@@ -108,9 +112,15 @@ public class RegistrarRecebimentoUseCase {
             return resultadoExistente(cmd, existentePosLock.get());
         }
 
-        // Sprint 12 Task 12.4: valor devido atualizado = valor total original (sem mora ainda).
-        // Task 12.5 substituira por CalcularValorAtualizadoParcelaUseCase pra incluir juros/multa.
-        BigDecimal valorDevidoAtualizado = parcela.valorTotal();
+        // Fail-fast: parcela em estado nao-recebivel evita calculo desnecessario de mora/multa.
+        if (!parcela.getStatus().permiteRecebimento()) {
+            throw new ParcelaEstadoInvalidoException("registrarRecebimento", parcela.getStatus());
+        }
+
+        // Sprint 12 Task 12.5: valor devido atualizado inclui juros mora + multa quando ha
+        // atraso. Calcula sobre a parcela ja lockada — evita re-query.
+        BigDecimal valorDevidoAtualizado =
+                calcularValorAtualizado.calcular(parcela).valorDevidoAtualizado();
 
         Recebimento recebimento = parcela.registrarRecebimento(
                 cmd.valorRecebido(),
