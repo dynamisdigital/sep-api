@@ -101,8 +101,15 @@ public class ParcelaCobranca {
         return new ParcelaCobranca(id, agenda, numero, composicao, dataVencimento);
     }
 
+    /**
+     * Registra um recebimento e ajusta o status comparando o total recebido contra o {@code
+     * valorDevidoAtualizado} fornecido pelo use case (Task 12.5 calcula esse valor incluindo juros
+     * de mora e multa quando ha atraso). Decisao deliberada: o agregado nao recalcula mora
+     * sozinho — fronteira de calculo fica no use case com {@code Clock} injetado.
+     */
     public Recebimento registrarRecebimento(
             BigDecimal valorRecebido,
+            BigDecimal valorDevidoAtualizado,
             OffsetDateTime dataRecebimento,
             String meioPagamento,
             String identificadorExterno,
@@ -111,6 +118,10 @@ public class ParcelaCobranca {
             UUID registradoPor) {
         if (!status.permiteRecebimento()) {
             throw new ParcelaEstadoInvalidoException("registrarRecebimento", status);
+        }
+        Objects.requireNonNull(valorDevidoAtualizado, "valorDevidoAtualizado obrigatorio");
+        if (valorDevidoAtualizado.signum() <= 0) {
+            throw new IllegalArgumentException("valorDevidoAtualizado deve ser positivo");
         }
         Recebimento recebimento = Recebimento.criar(
                 this,
@@ -122,7 +133,7 @@ public class ParcelaCobranca {
                 observacao,
                 registradoPor);
         recebimentos.add(recebimento);
-        recalcularStatusAposRecebimento();
+        recalcularStatusAposRecebimento(valorDevidoAtualizado);
         return recebimento;
     }
 
@@ -148,25 +159,17 @@ public class ParcelaCobranca {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
-    public BigDecimal valorEmAberto() {
-        BigDecimal aberto = valorTotal().subtract(totalRecebido());
-        if (aberto.signum() < 0) {
-            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        }
-        return aberto.setScale(2, RoundingMode.HALF_UP);
-    }
-
     public Optional<Recebimento> recebimentoPorIdempotencyKey(String idempotencyKey) {
         return recebimentos.stream()
                 .filter(r -> r.getIdempotencyKey().equals(idempotencyKey))
                 .findFirst();
     }
 
-    private void recalcularStatusAposRecebimento() {
-        BigDecimal aberto = valorEmAberto();
-        if (aberto.signum() == 0) {
+    private void recalcularStatusAposRecebimento(BigDecimal valorDevidoAtualizado) {
+        BigDecimal recebido = totalRecebido();
+        if (recebido.compareTo(valorDevidoAtualizado) >= 0) {
             this.status = StatusParcela.PAGA;
-        } else if (totalRecebido().signum() > 0) {
+        } else if (recebido.signum() > 0) {
             this.status = StatusParcela.PARCIALMENTE_PAGA;
         }
     }

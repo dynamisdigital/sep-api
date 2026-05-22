@@ -92,10 +92,19 @@ class RecebimentoRepositoryTest {
         operadorId = op.getId();
     }
 
+    private static final BigDecimal DEVIDO = new BigDecimal("100.00");
+
     @Test
     void findByIdempotencyKey_retornaExistente() {
         Recebimento r = parcela.registrarRecebimento(
-                new BigDecimal("40.00"), OffsetDateTime.now(), "TRANSFERENCIA", "comp-1", "key-A", null, operadorId);
+                new BigDecimal("40.00"),
+                DEVIDO,
+                OffsetDateTime.now(),
+                "TRANSFERENCIA",
+                "comp-1",
+                "key-A",
+                null,
+                operadorId);
         parcelaRepository.saveAndFlush(parcela);
 
         Recebimento achado = recebimentoRepository.findByIdempotencyKey("key-A").orElseThrow();
@@ -107,12 +116,26 @@ class RecebimentoRepositoryTest {
     @Test
     void uniqueIdempotencyKey_segundoFalha() {
         parcela.registrarRecebimento(
-                new BigDecimal("10.00"), OffsetDateTime.now(), "TRANSFERENCIA", null, "key-dup", null, operadorId);
+                new BigDecimal("10.00"),
+                DEVIDO,
+                OffsetDateTime.now(),
+                "TRANSFERENCIA",
+                null,
+                "key-dup",
+                null,
+                operadorId);
         parcelaRepository.saveAndFlush(parcela);
 
         ParcelaCobranca outraParcela = criarOutraParcelaIsolada();
         outraParcela.registrarRecebimento(
-                new BigDecimal("10.00"), OffsetDateTime.now(), "TRANSFERENCIA", null, "key-dup", null, operadorId);
+                new BigDecimal("10.00"),
+                new BigDecimal("50.00"),
+                OffsetDateTime.now(),
+                "TRANSFERENCIA",
+                null,
+                "key-dup",
+                null,
+                operadorId);
 
         assertThatThrownBy(() -> parcelaRepository.saveAndFlush(outraParcela))
                 .isInstanceOf(DataIntegrityViolationException.class);

@@ -23,8 +23,9 @@ public enum StatusParcela {
     INADIMPLENTE;
 
     private static final Set<StatusParcela> FINAIS = Set.of(PAGA);
-    private static final Set<StatusParcela> PERMITEM_RECEBIMENTO =
-            Set.of(PENDENTE, PARCIALMENTE_PAGA, ATRASADA, INADIMPLENTE);
+    // INADIMPLENTE NAO permite recebimento nesta sprint — regra fica pra Sprint 13
+    // (recuperacao/renegociacao define se reabre).
+    private static final Set<StatusParcela> PERMITEM_RECEBIMENTO = Set.of(PENDENTE, PARCIALMENTE_PAGA, ATRASADA);
 
     public boolean isFinal() {
         return FINAIS.contains(this);

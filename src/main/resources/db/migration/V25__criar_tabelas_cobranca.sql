@@ -1,5 +1,5 @@
 -- =============================================================================
--- V25 — Modulo Cobranca (Sprint 12 — Epic 7 parte 3)
+-- V25 — Modulo Cobranca (Sprint 12 — Epic 8 parte 1)
 -- =============================================================================
 -- Cria a base persistente do modulo cobranca: agenda de pagamento, parcelas
 -- planejadas e recebimentos manuais. Disparado por ContratoAssinadoEvent

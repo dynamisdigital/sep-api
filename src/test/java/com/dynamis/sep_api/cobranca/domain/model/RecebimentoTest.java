@@ -14,12 +14,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RecebimentoTest {
 
+    private static final BigDecimal DEVIDO = new BigDecimal("100.00");
+
     @Test
     void valorRecebidoZero_rejeita() {
         ParcelaCobranca p = novaParcela();
 
         assertThatThrownBy(() -> p.registrarRecebimento(
-                        BigDecimal.ZERO, OffsetDateTime.now(), "TRANSFERENCIA", null, "key-1", null, UUID.randomUUID()))
+                        BigDecimal.ZERO,
+                        DEVIDO,
+                        OffsetDateTime.now(),
+                        "TRANSFERENCIA",
+                        null,
+                        "key-1",
+                        null,
+                        UUID.randomUUID()))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -29,6 +38,7 @@ class RecebimentoTest {
 
         assertThatThrownBy(() -> p.registrarRecebimento(
                         new BigDecimal("10.00"),
+                        DEVIDO,
                         OffsetDateTime.now(),
                         "TRANSFERENCIA",
                         null,
@@ -44,7 +54,14 @@ class RecebimentoTest {
         ParcelaCobranca p = novaParcela();
 
         assertThatThrownBy(() -> p.registrarRecebimento(
-                        new BigDecimal("10.00"), OffsetDateTime.now(), " ", null, "key-1", null, UUID.randomUUID()))
+                        new BigDecimal("10.00"),
+                        DEVIDO,
+                        OffsetDateTime.now(),
+                        " ",
+                        null,
+                        "key-1",
+                        null,
+                        UUID.randomUUID()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("meioPagamento");
     }
@@ -54,7 +71,14 @@ class RecebimentoTest {
         ParcelaCobranca p = novaParcela();
 
         assertThatThrownBy(() -> p.registrarRecebimento(
-                        new BigDecimal("10.00"), OffsetDateTime.now(), "TRANSFERENCIA", null, "key-1", null, null))
+                        new BigDecimal("10.00"),
+                        DEVIDO,
+                        OffsetDateTime.now(),
+                        "TRANSFERENCIA",
+                        null,
+                        "key-1",
+                        null,
+                        null))
                 .isInstanceOf(NullPointerException.class);
     }
 

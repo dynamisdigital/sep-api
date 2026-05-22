@@ -23,6 +23,7 @@ class ParcelaCobrancaTest {
 
         p.registrarRecebimento(
                 new BigDecimal("100.00"),
+                new BigDecimal("100.00"),
                 OffsetDateTime.now(),
                 "TRANSFERENCIA",
                 "comp-123",
@@ -31,7 +32,7 @@ class ParcelaCobrancaTest {
                 UUID.randomUUID());
 
         assertThat(p.getStatus()).isEqualTo(StatusParcela.PAGA);
-        assertThat(p.valorEmAberto()).isEqualByComparingTo("0.00");
+        assertThat(p.totalRecebido()).isEqualByComparingTo("100.00");
     }
 
     @Test
@@ -39,18 +40,26 @@ class ParcelaCobrancaTest {
         ParcelaCobranca p = novaParcela("100.00");
 
         p.registrarRecebimento(
-                new BigDecimal("40.00"), OffsetDateTime.now(), "TRANSFERENCIA", null, "key-1", null, UUID.randomUUID());
+                new BigDecimal("40.00"),
+                new BigDecimal("100.00"),
+                OffsetDateTime.now(),
+                "TRANSFERENCIA",
+                null,
+                "key-1",
+                null,
+                UUID.randomUUID());
 
         assertThat(p.getStatus()).isEqualTo(StatusParcela.PARCIALMENTE_PAGA);
-        assertThat(p.valorEmAberto()).isEqualByComparingTo("60.00");
+        assertThat(p.totalRecebido()).isEqualByComparingTo("40.00");
     }
 
     @Test
-    void overpayment_marcaPagaESemSaldoNegativo() {
+    void overpayment_marcaPagaSemQuebrar() {
         ParcelaCobranca p = novaParcela("100.00");
 
         p.registrarRecebimento(
                 new BigDecimal("150.00"),
+                new BigDecimal("100.00"),
                 OffsetDateTime.now(),
                 "TRANSFERENCIA",
                 null,
@@ -59,14 +68,33 @@ class ParcelaCobrancaTest {
                 UUID.randomUUID());
 
         assertThat(p.getStatus()).isEqualTo(StatusParcela.PAGA);
-        assertThat(p.valorEmAberto()).isEqualByComparingTo("0.00");
         assertThat(p.totalRecebido()).isEqualByComparingTo("150.00");
+    }
+
+    @Test
+    void valorDevidoAtualizadoMaior_pagamentoDoOriginalNaoQuita() {
+        // Parcela 100 atrasada com 5 de mora — pagamento de 100 vira PARCIALMENTE_PAGA, nao PAGA.
+        ParcelaCobranca p = novaParcela("100.00");
+
+        p.registrarRecebimento(
+                new BigDecimal("100.00"),
+                new BigDecimal("105.00"),
+                OffsetDateTime.now(),
+                "TRANSFERENCIA",
+                null,
+                "key-1",
+                null,
+                UUID.randomUUID());
+
+        assertThat(p.getStatus()).isEqualTo(StatusParcela.PARCIALMENTE_PAGA);
+        assertThat(p.totalRecebido()).isEqualByComparingTo("100.00");
     }
 
     @Test
     void recebimentoEmPaga_rejeita() {
         ParcelaCobranca p = novaParcela("100.00");
         p.registrarRecebimento(
+                new BigDecimal("100.00"),
                 new BigDecimal("100.00"),
                 OffsetDateTime.now(),
                 "TRANSFERENCIA",
@@ -77,6 +105,7 @@ class ParcelaCobrancaTest {
 
         assertThatThrownBy(() -> p.registrarRecebimento(
                         new BigDecimal("10.00"),
+                        new BigDecimal("100.00"),
                         OffsetDateTime.now(),
                         "TRANSFERENCIA",
                         null,
@@ -84,6 +113,23 @@ class ParcelaCobrancaTest {
                         null,
                         UUID.randomUUID()))
                 .isInstanceOf(ParcelaEstadoInvalidoException.class);
+    }
+
+    @Test
+    void valorDevidoAtualizadoZero_rejeita() {
+        ParcelaCobranca p = novaParcela("100.00");
+
+        assertThatThrownBy(() -> p.registrarRecebimento(
+                        new BigDecimal("10.00"),
+                        BigDecimal.ZERO,
+                        OffsetDateTime.now(),
+                        "TRANSFERENCIA",
+                        null,
+                        "key-1",
+                        null,
+                        UUID.randomUUID()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("valorDevidoAtualizado");
     }
 
     @Test
@@ -99,7 +145,14 @@ class ParcelaCobrancaTest {
     void recebimentoPorIdempotencyKey_retornaExistente() {
         ParcelaCobranca p = novaParcela("100.00");
         Recebimento r = p.registrarRecebimento(
-                new BigDecimal("50.00"), OffsetDateTime.now(), "TRANSFERENCIA", null, "key-X", null, UUID.randomUUID());
+                new BigDecimal("50.00"),
+                new BigDecimal("100.00"),
+                OffsetDateTime.now(),
+                "TRANSFERENCIA",
+                null,
+                "key-X",
+                null,
+                UUID.randomUUID());
 
         assertThat(p.recebimentoPorIdempotencyKey("key-X")).contains(r);
         assertThat(p.recebimentoPorIdempotencyKey("outra")).isEmpty();

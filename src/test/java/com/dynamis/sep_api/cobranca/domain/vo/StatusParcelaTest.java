@@ -16,12 +16,13 @@ class StatusParcelaTest {
     }
 
     @Test
-    void permiteRecebimento_pagaRejeita() {
-        assertThat(StatusParcela.PAGA.permiteRecebimento()).isFalse();
+    void permiteRecebimento_apenasNaoFinaisENaoInadimplente() {
         assertThat(StatusParcela.PENDENTE.permiteRecebimento()).isTrue();
         assertThat(StatusParcela.PARCIALMENTE_PAGA.permiteRecebimento()).isTrue();
         assertThat(StatusParcela.ATRASADA.permiteRecebimento()).isTrue();
-        assertThat(StatusParcela.INADIMPLENTE.permiteRecebimento()).isTrue();
+        assertThat(StatusParcela.PAGA.permiteRecebimento()).isFalse();
+        // INADIMPLENTE reservado pra Sprint 13: nao permite recebimento ate regra ser definida.
+        assertThat(StatusParcela.INADIMPLENTE.permiteRecebimento()).isFalse();
     }
 
     @Test
