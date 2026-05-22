@@ -17,6 +17,7 @@ import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -75,6 +76,13 @@ public class PropostaCredito extends EntidadeAuditavel {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 40)
     private StatusProposta status;
+
+    /**
+     * Taxa de juros remuneratorios mensal aprovada (decimal — 0.02 = 2%). Sprint 12 Task 12.3
+     * adiciona via V26 como NULL pra registros legados; sprint posterior popula explicitamente.
+     */
+    @Column(name = "taxa_juros_mensal", precision = 8, scale = 6)
+    private BigDecimal taxaJurosMensal;
 
     protected PropostaCredito() {
         // requerido pelo Hibernate
@@ -208,5 +216,14 @@ public class PropostaCredito extends EntidadeAuditavel {
 
     public StatusProposta getStatus() {
         return status;
+    }
+
+    /**
+     * Taxa de juros aprovada — {@code Optional.empty()} para registros legados ou propostas ainda
+     * sem decisao com taxa estruturada. Consumido por {@code cobranca} (Sprint 12 Task 12.3) pra
+     * gerar agenda; quando ausente, cobranca aplica fallback de config com log warn.
+     */
+    public Optional<BigDecimal> getTaxaJurosMensal() {
+        return Optional.ofNullable(taxaJurosMensal);
     }
 }

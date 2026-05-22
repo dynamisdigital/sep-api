@@ -1,7 +1,9 @@
 package com.dynamis.sep_api.escrow.domain.model;
 
 import com.dynamis.sep_api.escrow.domain.vo.StatusMovimentacao;
+import com.dynamis.sep_api.escrow.domain.vo.TipoMovimentacao;
 import com.dynamis.sep_api.shared.audit.EntidadeAuditavel;
+import com.fasterxml.uuid.Generators;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -13,7 +15,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -44,7 +48,66 @@ public class MovimentacaoEscrow extends EntidadeAuditavel {
     @Column(name = "data_movimentacao", nullable = false)
     private OffsetDateTime dataMovimentacao;
 
+    @Column(name = "external_reference_id")
+    private UUID externalReferenceId;
+
     protected MovimentacaoEscrow() {}
+
+    private MovimentacaoEscrow(
+            UUID id,
+            Wallet wallet,
+            String tipo,
+            BigDecimal valor,
+            String idempotencyKey,
+            StatusMovimentacao status,
+            OffsetDateTime dataMovimentacao,
+            UUID externalReferenceId) {
+        this.id = id;
+        this.wallet = wallet;
+        this.tipo = tipo;
+        this.valor = valor;
+        this.idempotencyKey = idempotencyKey;
+        this.status = status;
+        this.dataMovimentacao = dataMovimentacao;
+        this.externalReferenceId = externalReferenceId;
+    }
+
+    /**
+     * Cria movimentacao de {@link TipoMovimentacao.Recebimento} (Sprint 12 Task 12.4). Como a
+     * cobranca registra manualmente apos confirmar a entrada do dinheiro, a movimentacao nasce em
+     * {@link StatusMovimentacao#LIQUIDADA}.
+     */
+    public static MovimentacaoEscrow criarRecebimento(
+            Wallet wallet,
+            BigDecimal valor,
+            String idempotencyKey,
+            OffsetDateTime dataMovimentacao,
+            UUID externalReferenceId) {
+        Objects.requireNonNull(wallet, "wallet obrigatoria");
+        Objects.requireNonNull(valor, "valor obrigatorio");
+        if (valor.signum() <= 0) {
+            throw new IllegalArgumentException("valor deve ser positivo");
+        }
+        Objects.requireNonNull(idempotencyKey, "idempotencyKey obrigatoria");
+        if (idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException("idempotencyKey nao pode ser vazia");
+        }
+        Objects.requireNonNull(dataMovimentacao, "dataMovimentacao obrigatoria");
+        UUID id = Generators.timeBasedReorderedGenerator().generate();
+        return new MovimentacaoEscrow(
+                id,
+                wallet,
+                tipoLabel(new TipoMovimentacao.Recebimento()),
+                valor.setScale(2, RoundingMode.HALF_UP),
+                idempotencyKey,
+                StatusMovimentacao.LIQUIDADA,
+                dataMovimentacao,
+                externalReferenceId);
+    }
+
+    private static String tipoLabel(TipoMovimentacao tipo) {
+        return tipo.getClass().getSimpleName();
+    }
 
     public UUID getId() {
         return id;
@@ -72,5 +135,9 @@ public class MovimentacaoEscrow extends EntidadeAuditavel {
 
     public OffsetDateTime getDataMovimentacao() {
         return dataMovimentacao;
+    }
+
+    public UUID getExternalReferenceId() {
+        return externalReferenceId;
     }
 }
