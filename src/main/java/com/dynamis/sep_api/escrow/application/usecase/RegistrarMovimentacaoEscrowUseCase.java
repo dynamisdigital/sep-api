@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.escrow.application.usecase;
 
 import com.dynamis.sep_api.escrow.application.dto.RegistrarMovimentacaoEscrowCommand;
+import com.dynamis.sep_api.escrow.domain.event.MovimentacaoEscrowCriadaEvent;
 import com.dynamis.sep_api.escrow.domain.model.ContaEscrow;
 import com.dynamis.sep_api.escrow.domain.model.MovimentacaoEscrow;
 import com.dynamis.sep_api.escrow.domain.model.Wallet;
@@ -9,6 +10,7 @@ import com.dynamis.sep_api.escrow.domain.vo.TipoWallet;
 import com.dynamis.sep_api.escrow.infrastructure.persistence.ContaEscrowRepository;
 import com.dynamis.sep_api.escrow.infrastructure.persistence.MovimentacaoEscrowRepository;
 import com.dynamis.sep_api.escrow.infrastructure.persistence.WalletRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -42,16 +44,19 @@ public class RegistrarMovimentacaoEscrowUseCase {
     private final ContaEscrowRepository contaRepository;
     private final WalletRepository walletRepository;
     private final MovimentacaoEscrowRepository movimentacaoRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate txRequiresNew;
 
     public RegistrarMovimentacaoEscrowUseCase(
             ContaEscrowRepository contaRepository,
             WalletRepository walletRepository,
             MovimentacaoEscrowRepository movimentacaoRepository,
+            ApplicationEventPublisher eventPublisher,
             PlatformTransactionManager txManager) {
         this.contaRepository = contaRepository;
         this.walletRepository = walletRepository;
         this.movimentacaoRepository = movimentacaoRepository;
+        this.eventPublisher = eventPublisher;
         this.txRequiresNew = new TransactionTemplate(txManager);
         this.txRequiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -68,7 +73,16 @@ public class RegistrarMovimentacaoEscrowUseCase {
         wallet.creditar(cmd.valor());
         MovimentacaoEscrow movimentacao = MovimentacaoEscrow.criarRecebimento(
                 wallet, cmd.valor(), cmd.idempotencyKey(), cmd.dataMovimentacao(), cmd.externalReferenceId());
-        return movimentacaoRepository.save(movimentacao);
+        MovimentacaoEscrow salva = movimentacaoRepository.save(movimentacao);
+        eventPublisher.publishEvent(new MovimentacaoEscrowCriadaEvent(
+                salva.getId(),
+                wallet.getId(),
+                cmd.propostaId(),
+                salva.getValor(),
+                salva.getTipo(),
+                salva.getDataMovimentacao(),
+                salva.getExternalReferenceId()));
+        return salva;
     }
 
     private Wallet obterOuCriarWallet(UUID propostaId) {
