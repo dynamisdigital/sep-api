@@ -68,11 +68,16 @@ public class ContratoAssinadoListener {
             useCase.executar(cmd);
         } catch (RuntimeException ex) {
             // Assinatura ja commitada; falha aqui nao desfaz a assinatura. Operador deve
-            // reprocessar a geracao via endpoint manual (futuro). Log com contratoId pra
-            // correlacao manual.
+            // reprocessar a geracao via endpoint manual (futuro). Log com payload completo
+            // do evento pra correlacao operacional.
             log.warn(
-                    "Falha ao gerar agenda apos assinatura do contrato {} — reprocessamento manual necessario: {}",
+                    "Falha ao gerar agenda apos assinatura — reprocessamento manual necessario."
+                            + " contratoId={} propostaId={} tomadorId={} dataAssinatura={} excecao={}: {}",
                     event.contratoId(),
+                    event.propostaId(),
+                    event.tomadorId(),
+                    event.dataAssinatura(),
+                    ex.getClass().getSimpleName(),
                     ex.getMessage());
         }
     }
