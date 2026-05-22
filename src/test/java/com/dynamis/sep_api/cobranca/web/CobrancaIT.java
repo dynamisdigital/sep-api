@@ -146,6 +146,8 @@ class CobrancaIT {
         if (!url.contains("sep_test")) {
             throw new IllegalStateException("CobrancaIT deve rodar apenas no banco sep_test; URL atual: " + url);
         }
+        // Ordem FK-safe: filhos antes dos pais. Escrow tree separada da cobranca tree
+        // (recebimento->parcela->agenda->contrato; movimentacao->wallet->conta).
         recebimentoRepository.deleteAll();
         movimentacaoEscrowRepository.deleteAll();
         walletRepository.deleteAll();
@@ -221,7 +223,9 @@ class CobrancaIT {
     }
 
     private static void pollUntil(Supplier<Boolean> cond, String desc) {
-        long deadline = System.currentTimeMillis() + 5_000L;
+        // 10s deadline (era 5s) — listeners encadeados @TransactionalEventListener(AFTER_COMMIT)
+        // + REQUIRES_NEW podem demorar em CI sob carga.
+        long deadline = System.currentTimeMillis() + 10_000L;
         while (System.currentTimeMillis() < deadline) {
             if (Boolean.TRUE.equals(cond.get())) {
                 return;
@@ -506,21 +510,17 @@ class CobrancaIT {
                 .then()
                 .statusCode(200);
 
+        // Unico pollUntil cobre os 4 tipos em paralelo (era 4x 5s sequenciais = ate 20s worst).
         pollUntil(
-                () -> auditLogRepository.findAll().stream()
-                        .anyMatch(a -> a.getTipo() == TipoEventoSeguranca.AGENDA_GERADA),
-                "AGENDA_GERADA audit");
-        pollUntil(
-                () -> auditLogRepository.findAll().stream()
-                        .anyMatch(a -> a.getTipo() == TipoEventoSeguranca.RECEBIMENTO_REGISTRADO),
-                "RECEBIMENTO_REGISTRADO audit");
-        pollUntil(
-                () -> auditLogRepository.findAll().stream()
-                        .anyMatch(a -> a.getTipo() == TipoEventoSeguranca.PARCELA_PAGA),
-                "PARCELA_PAGA audit");
-        pollUntil(
-                () -> auditLogRepository.findAll().stream()
-                        .anyMatch(a -> a.getTipo() == TipoEventoSeguranca.MOVIMENTACAO_ESCROW_CRIADA),
-                "MOVIMENTACAO_ESCROW_CRIADA audit");
+                () -> {
+                    var tipos = auditLogRepository.findAll().stream()
+                            .map(a -> a.getTipo())
+                            .collect(java.util.stream.Collectors.toSet());
+                    return tipos.contains(TipoEventoSeguranca.AGENDA_GERADA)
+                            && tipos.contains(TipoEventoSeguranca.RECEBIMENTO_REGISTRADO)
+                            && tipos.contains(TipoEventoSeguranca.PARCELA_PAGA)
+                            && tipos.contains(TipoEventoSeguranca.MOVIMENTACAO_ESCROW_CRIADA);
+                },
+                "audit log com AGENDA_GERADA + RECEBIMENTO_REGISTRADO + PARCELA_PAGA + MOVIMENTACAO_ESCROW_CRIADA");
     }
 }
