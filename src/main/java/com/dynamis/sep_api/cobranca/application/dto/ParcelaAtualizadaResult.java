@@ -24,6 +24,7 @@ import java.util.UUID;
  */
 public record ParcelaAtualizadaResult(
         UUID parcelaId,
+        UUID contratoId,
         int numero,
         StatusParcela status,
         LocalDate dataVencimento,
@@ -36,6 +37,7 @@ public record ParcelaAtualizadaResult(
 
     public ParcelaAtualizadaResult {
         Objects.requireNonNull(parcelaId, "parcelaId obrigatorio");
+        Objects.requireNonNull(contratoId, "contratoId obrigatorio");
         Objects.requireNonNull(status, "status obrigatorio");
         Objects.requireNonNull(dataVencimento, "dataVencimento obrigatoria");
         Objects.requireNonNull(composicaoOriginal, "composicaoOriginal obrigatoria");

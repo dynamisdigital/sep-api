@@ -72,6 +72,7 @@ public class CalcularValorAtualizadoParcelaUseCase {
         if (parcela.getStatus() == StatusParcela.PAGA) {
             return new ParcelaAtualizadaResult(
                     parcela.getId(),
+                    parcela.getAgenda().getContratoId(),
                     parcela.getNumero(),
                     parcela.getStatus(),
                     parcela.getDataVencimento(),
@@ -97,6 +98,7 @@ public class CalcularValorAtualizadoParcelaUseCase {
 
         return new ParcelaAtualizadaResult(
                 parcela.getId(),
+                parcela.getAgenda().getContratoId(),
                 parcela.getNumero(),
                 parcela.getStatus(),
                 parcela.getDataVencimento(),

@@ -276,6 +276,7 @@ class RegistrarRecebimentoUseCaseTest {
         }
         return new ParcelaAtualizadaResult(
                 parcela.getId(),
+                parcela.getAgenda().getContratoId(),
                 parcela.getNumero(),
                 parcela.getStatus(),
                 parcela.getDataVencimento(),

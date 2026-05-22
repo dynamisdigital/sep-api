@@ -97,6 +97,9 @@ public class RegistrarRecebimentoUseCase {
                 parcela.getId(),
                 parcela.getStatus(),
                 existente.getValorRecebido(),
+                existente.getDataRecebimento(),
+                existente.getMeioPagamento(),
+                existente.getIdentificadorExterno(),
                 mov.movimentacaoId(),
                 false);
     }
@@ -163,6 +166,9 @@ public class RegistrarRecebimentoUseCase {
                 parcela.getId(),
                 parcela.getStatus(),
                 cmd.valorRecebido(),
+                recebimento.getDataRecebimento(),
+                recebimento.getMeioPagamento(),
+                recebimento.getIdentificadorExterno(),
                 mov.movimentacaoId(),
                 true);
     }

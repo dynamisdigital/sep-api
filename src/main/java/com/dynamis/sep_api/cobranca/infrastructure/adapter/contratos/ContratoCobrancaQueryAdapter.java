@@ -30,4 +30,9 @@ public class ContratoCobrancaQueryAdapter implements ContratoCobrancaQueryPort {
         }
         return propostaId;
     }
+
+    @Override
+    public Optional<UUID> tomadorIdDoContrato(UUID contratoId) {
+        return contratoRepository.findById(contratoId).map(c -> c.getTomadorId());
+    }
 }

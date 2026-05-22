@@ -1,16 +1,16 @@
-package com.dynamis.sep_api.cobranca.application.dto;
+package com.dynamis.sep_api.cobranca.web.dto;
 
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-/**
- * Resultado do {@code RegistrarRecebimentoUseCase}. {@code novo} indica se este recebimento foi
- * de fato persistido (false = reapresentacao idempotente da mesma {@code idempotencyKey}).
- */
-public record RegistrarRecebimentoResult(
+@Schema(
+        description =
+                "Recebimento registrado em parcela (Sprint 12). 'novo'=false quando idempotencia retorna o mesmo recebimento.")
+public record RecebimentoResponse(
         UUID recebimentoId,
         UUID parcelaId,
         StatusParcela statusParcela,

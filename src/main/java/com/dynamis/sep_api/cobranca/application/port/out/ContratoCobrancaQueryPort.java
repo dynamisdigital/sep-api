@@ -10,4 +10,6 @@ import java.util.UUID;
 public interface ContratoCobrancaQueryPort {
 
     Optional<UUID> propostaIdDoContrato(UUID contratoId);
+
+    Optional<UUID> tomadorIdDoContrato(UUID contratoId);
 }
