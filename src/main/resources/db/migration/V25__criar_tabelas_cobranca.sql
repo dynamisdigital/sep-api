@@ -58,7 +58,7 @@ CREATE TABLE parcela_cobranca (
     CONSTRAINT fk_parcela_cobranca_agenda FOREIGN KEY (agenda_id) REFERENCES agenda_pagamento (id),
     CONSTRAINT uq_parcela_cobranca_agenda_numero UNIQUE (agenda_id, numero),
     CONSTRAINT chk_parcela_numero CHECK (numero > 0),
-    CONSTRAINT chk_parcela_principal CHECK (principal >= 0),
+    CONSTRAINT chk_parcela_principal CHECK (principal > 0),
     CONSTRAINT chk_parcela_juros CHECK (juros >= 0),
     CONSTRAINT chk_parcela_multa CHECK (multa >= 0),
     CONSTRAINT chk_parcela_encargos CHECK (encargos >= 0),
