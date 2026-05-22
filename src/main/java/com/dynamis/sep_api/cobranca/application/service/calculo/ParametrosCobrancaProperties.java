@@ -47,6 +47,16 @@ public class ParametrosCobrancaProperties {
     @DecimalMin("0.0")
     private BigDecimal multaAtraso = new BigDecimal("0.02");
 
+    /**
+     * Taxa de juros remuneratorios mensal default da operacao quando a proposta nao persistir taxa
+     * propria. Placeholder Sprint 12 ate Sprint posterior (ou Epic 16) adicionar coluna {@code
+     * taxa_juros_mensal} em {@code proposta_credito}/{@code decisao_credito}. 2% am eh ordem de
+     * grandeza tipica de capital de giro PJ.
+     */
+    @NotNull
+    @DecimalMin("0.0")
+    private BigDecimal taxaJurosMensalDefault = new BigDecimal("0.02");
+
     @NotBlank
     private String jobAtrasoCron = "0 0 2 * * *";
 
@@ -88,6 +98,14 @@ public class ParametrosCobrancaProperties {
 
     public void setMultaAtraso(BigDecimal multaAtraso) {
         this.multaAtraso = multaAtraso;
+    }
+
+    public BigDecimal getTaxaJurosMensalDefault() {
+        return taxaJurosMensalDefault;
+    }
+
+    public void setTaxaJurosMensalDefault(BigDecimal taxaJurosMensalDefault) {
+        this.taxaJurosMensalDefault = taxaJurosMensalDefault;
     }
 
     public String getJobAtrasoCron() {
