@@ -113,6 +113,26 @@ class CalculadoraPriceTest {
     }
 
     @Test
+    void price_n_1_parcela_unica_concentraTudo() {
+        ParametrosCalculo p = new ParametrosCalculo(
+                new BigDecimal("1000"),
+                new BigDecimal("0.02"),
+                1,
+                LocalDate.of(2026, 1, 1),
+                SistemaAmortizacao.PRICE,
+                30,
+                30);
+
+        ResultadoCalculo r = price.calcular(p);
+
+        assertThat(r.parcelas()).hasSize(1);
+        ParcelaCalculada unica = r.parcelas().get(0);
+        assertThat(unica.principal()).isEqualByComparingTo("1000.00");
+        assertThat(unica.juros()).isEqualByComparingTo("20.00");
+        assertThat(unica.total()).isEqualByComparingTo("1020.00");
+    }
+
+    @Test
     void price_vencimentos_30_em_30_dias_a_partir_da_data_base() {
         LocalDate dataBase = LocalDate.of(2026, 1, 15);
         ParametrosCalculo p = new ParametrosCalculo(

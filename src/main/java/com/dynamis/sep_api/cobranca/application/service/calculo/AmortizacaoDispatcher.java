@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Roteia {@link ParametrosCalculo} pra implementacao correta de {@link CalculadoraAmortizacao}.
@@ -19,8 +20,10 @@ public class AmortizacaoDispatcher {
     private final Map<SistemaAmortizacao, CalculadoraAmortizacao> calculadoras;
 
     public AmortizacaoDispatcher(List<CalculadoraAmortizacao> calculadoras) {
+        Objects.requireNonNull(calculadoras, "calculadoras obrigatoria");
         this.calculadoras = new EnumMap<>(SistemaAmortizacao.class);
         for (CalculadoraAmortizacao c : calculadoras) {
+            Objects.requireNonNull(c, "calculadora nao pode ser null");
             if (this.calculadoras.put(c.sistema(), c) != null) {
                 throw new IllegalStateException("Duas calculadoras registradas para o mesmo sistema: " + c.sistema());
             }

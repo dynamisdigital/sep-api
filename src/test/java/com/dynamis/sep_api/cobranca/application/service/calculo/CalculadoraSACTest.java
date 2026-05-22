@@ -86,6 +86,24 @@ class CalculadoraSACTest {
     }
 
     @Test
+    void sac_n_1_parcela_unica_concentraTudo() {
+        ParametrosCalculo p = new ParametrosCalculo(
+                new BigDecimal("1000"),
+                new BigDecimal("0.02"),
+                1,
+                LocalDate.of(2026, 1, 1),
+                SistemaAmortizacao.SAC,
+                30,
+                30);
+
+        ResultadoCalculo r = sac.calcular(p);
+
+        assertThat(r.parcelas()).hasSize(1);
+        assertThat(r.parcelas().get(0).principal()).isEqualByComparingTo("1000.00");
+        assertThat(r.parcelas().get(0).juros()).isEqualByComparingTo("20.00");
+    }
+
+    @Test
     void sac_residual_consolidadoUltimaParcela() {
         // 100 / 3 = 33.333... — residual deve fechar com a soma.
         ParametrosCalculo p = new ParametrosCalculo(

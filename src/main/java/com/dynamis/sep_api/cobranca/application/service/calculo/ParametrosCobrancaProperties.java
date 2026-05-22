@@ -1,7 +1,12 @@
 package com.dynamis.sep_api.cobranca.application.service.calculo;
 
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.validation.annotation.Validated;
 
 import java.math.BigDecimal;
 
@@ -22,13 +27,27 @@ import java.math.BigDecimal;
  */
 @Configuration
 @ConfigurationProperties(prefix = "app.cobranca")
+@Validated
 public class ParametrosCobrancaProperties {
 
+    @NotNull
     private SistemaAmortizacao amortizacaoDefault = SistemaAmortizacao.PRICE;
+
+    @Min(1)
     private int primeiraParcelaDias = 30;
+
+    @Min(1)
     private int periodicidadeDias = 30;
+
+    @NotNull
+    @DecimalMin("0.0")
     private BigDecimal jurosMoraMensal = new BigDecimal("0.01");
+
+    @NotNull
+    @DecimalMin("0.0")
     private BigDecimal multaAtraso = new BigDecimal("0.02");
+
+    @NotBlank
     private String jobAtrasoCron = "0 0 2 * * *";
 
     public SistemaAmortizacao getAmortizacaoDefault() {
