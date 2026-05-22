@@ -9,6 +9,7 @@ import com.dynamis.sep_api.escrow.domain.vo.TipoWallet;
 import com.dynamis.sep_api.escrow.infrastructure.persistence.ContaEscrowRepository;
 import com.dynamis.sep_api.escrow.infrastructure.persistence.MovimentacaoEscrowRepository;
 import com.dynamis.sep_api.escrow.infrastructure.persistence.WalletRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,19 +50,40 @@ public class RegistrarMovimentacaoEscrowUseCase {
     }
 
     private MovimentacaoEscrow criarNovaMovimentacao(RegistrarMovimentacaoEscrowCommand cmd) {
-        Wallet wallet = walletRepository
-                .findByPropostaIdForUpdate(cmd.propostaId())
-                .orElseGet(() -> criarWalletParaProposta(cmd.propostaId()));
+        Wallet wallet = obterOuCriarWallet(cmd.propostaId());
         wallet.creditar(cmd.valor());
         MovimentacaoEscrow movimentacao = MovimentacaoEscrow.criarRecebimento(
                 wallet, cmd.valor(), cmd.idempotencyKey(), cmd.dataMovimentacao(), cmd.externalReferenceId());
         return movimentacaoRepository.save(movimentacao);
     }
 
-    private Wallet criarWalletParaProposta(java.util.UUID propostaId) {
-        ContaEscrow conta = contaRepository
-                .findFirstByTitular(TITULAR_PADRAO)
-                .orElseGet(() -> contaRepository.save(ContaEscrow.criar(TITULAR_PADRAO, StatusContaEscrow.ATIVA)));
-        return walletRepository.save(Wallet.criar(conta, propostaId, TipoWallet.PROPOSTA));
+    private Wallet obterOuCriarWallet(java.util.UUID propostaId) {
+        return walletRepository.findByPropostaIdForUpdate(propostaId).orElseGet(() -> {
+            ContaEscrow conta = obterOuCriarContaTecnica();
+            try {
+                return walletRepository.saveAndFlush(Wallet.criar(conta, propostaId, TipoWallet.PROPOSTA));
+            } catch (DataIntegrityViolationException ex) {
+                // Outra tx concorrente criou wallet pra mesma proposta (UNIQUE PARCIAL V28).
+                // Re-busca em estado consistente.
+                return walletRepository
+                        .findByPropostaIdForUpdate(propostaId)
+                        .orElseThrow(() -> new IllegalStateException(
+                                "Corrida em wallet sem registro persistido para proposta " + propostaId, ex));
+            }
+        });
+    }
+
+    private ContaEscrow obterOuCriarContaTecnica() {
+        return contaRepository.findFirstByTitular(TITULAR_PADRAO).orElseGet(() -> {
+            try {
+                return contaRepository.saveAndFlush(ContaEscrow.criar(TITULAR_PADRAO, StatusContaEscrow.ATIVA));
+            } catch (DataIntegrityViolationException ex) {
+                // Outra tx criou primeiro (UNIQUE titular V28). Re-busca.
+                return contaRepository
+                        .findFirstByTitular(TITULAR_PADRAO)
+                        .orElseThrow(() -> new IllegalStateException(
+                                "Corrida em conta_escrow sem registro persistido para titular " + TITULAR_PADRAO, ex));
+            }
+        });
     }
 }

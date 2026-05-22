@@ -47,8 +47,8 @@ class RegistrarMovimentacaoEscrowUseCaseTest {
         when(walletRepository.findByPropostaIdForUpdate(propostaId)).thenReturn(Optional.empty());
         when(contaRepository.findFirstByTitular(RegistrarMovimentacaoEscrowUseCase.TITULAR_PADRAO))
                 .thenReturn(Optional.empty());
-        when(contaRepository.save(any(ContaEscrow.class))).thenAnswer(i -> i.getArgument(0));
-        when(walletRepository.save(any(Wallet.class))).thenAnswer(i -> i.getArgument(0));
+        when(contaRepository.saveAndFlush(any(ContaEscrow.class))).thenAnswer(i -> i.getArgument(0));
+        when(walletRepository.saveAndFlush(any(Wallet.class))).thenAnswer(i -> i.getArgument(0));
         when(movimentacaoRepository.save(any(MovimentacaoEscrow.class))).thenAnswer(i -> i.getArgument(0));
 
         MovimentacaoEscrow mov = useCase.registrarRecebimento(novoCmd(propostaId, key, "100.00"));
@@ -57,8 +57,8 @@ class RegistrarMovimentacaoEscrowUseCaseTest {
         assertThat(mov.getIdempotencyKey()).isEqualTo(key);
         assertThat(mov.getWallet().getPropostaId()).isEqualTo(propostaId);
         assertThat(mov.getWallet().getSaldo()).isEqualByComparingTo("100.00");
-        verify(contaRepository).save(any(ContaEscrow.class));
-        verify(walletRepository).save(any(Wallet.class));
+        verify(contaRepository).saveAndFlush(any(ContaEscrow.class));
+        verify(walletRepository).saveAndFlush(any(Wallet.class));
         verify(movimentacaoRepository).save(any(MovimentacaoEscrow.class));
     }
 
@@ -75,8 +75,8 @@ class RegistrarMovimentacaoEscrowUseCaseTest {
 
         useCase.registrarRecebimento(novoCmd(propostaId, key, "50.00"));
 
-        verify(contaRepository, never()).save(any());
-        verify(walletRepository, never()).save(any());
+        verify(contaRepository, never()).saveAndFlush(any());
+        verify(walletRepository, never()).saveAndFlush(any());
         assertThat(wallet.getSaldo()).isEqualByComparingTo("50.00");
     }
 
