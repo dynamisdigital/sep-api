@@ -7,6 +7,7 @@ import com.dynamis.sep_api.cobranca.application.port.out.RegistrarMovimentacaoEs
 import com.dynamis.sep_api.cobranca.application.port.out.RegistrarMovimentacaoEscrowPort.MovimentacaoEscrowResult;
 import com.dynamis.sep_api.cobranca.domain.event.ParcelaPagaEvent;
 import com.dynamis.sep_api.cobranca.domain.event.RecebimentoRegistradoEvent;
+import com.dynamis.sep_api.cobranca.domain.exception.ChaveIdempotenciaConflitanteException;
 import com.dynamis.sep_api.cobranca.domain.exception.ParcelaCobrancaNaoEncontradaException;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.model.Recebimento;
@@ -18,18 +19,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Registra recebimento manual de parcela (Sprint 12 Task 12.4) com:
  *
  * <ul>
- *   <li>Idempotencia por {@code Idempotency-Key} — chamadas repetidas retornam o mesmo
- *       {@code Recebimento} sem criar nova movimentacao escrow nem duplicar credito.
+ *   <li>Idempotencia por {@code Idempotency-Key} verificada em duas camadas: pre-lock (atalho
+ *       quando ja existe) e pos-lock (cobre corrida entre threads concorrentes com a mesma key).
+ *   <li>Validacao de consistencia da chave: reapresentacao com {@code parcelaId} ou
+ *       {@code valorRecebido} divergente do recebimento existente lanca
+ *       {@link ChaveIdempotenciaConflitanteException} (HTTP 409) — evita confundir abuso ou erro
+ *       de cliente com retry legitimo.
  *   <li>Lock pessimista na parcela ({@link ParcelaCobrancaRepository#findByIdForUpdate(UUID)})
- *       serializando dois recebimentos concorrentes sobre a mesma parcela.
+ *       serializando dois recebimentos distintos sobre a mesma parcela.
  *   <li>Estado da parcela calculado contra {@code valorTotal()} da composicao original. Task 12.5
- *       substituira por {@code CalcularValorAtualizadoParcelaUseCase} pra considerar mora.
+ *       substituira por {@code CalcularValorAtualizadoParcelaUseCase} pra incluir juros/multa.
  *   <li>Movimentacao no escrow segregada via {@link RegistrarMovimentacaoEscrowPort} com mesma
  *       {@code idempotencyKey} — fluxo escrow herda a defesa de duplicacao.
  * </ul>
@@ -65,30 +71,42 @@ public class RegistrarRecebimentoUseCase {
 
     @Transactional
     public RegistrarRecebimentoResult executar(RegistrarRecebimentoCommand cmd) {
-        return recebimentoRepository
-                .findByIdempotencyKey(cmd.idempotencyKey())
-                .map(existente -> resultadoExistente(existente))
-                .orElseGet(() -> criarNovoRecebimento(cmd));
+        Optional<Recebimento> existentePreLock = recebimentoRepository.findByIdempotencyKey(cmd.idempotencyKey());
+        if (existentePreLock.isPresent()) {
+            return resultadoExistente(cmd, existentePreLock.get());
+        }
+        return criarNovoRecebimento(cmd);
     }
 
-    private RegistrarRecebimentoResult resultadoExistente(Recebimento r) {
-        ParcelaCobranca parcela = r.getParcela();
-        // Movimentacao escrow ja existente — a port eh idempotente por idempotencyKey,
-        // entao buscar via port garante o id mesmo nesta reapresentacao.
-        UUID propostaId = contratoQueryPort
-                .propostaIdDoContrato(parcela.getAgenda().getContratoId())
-                .orElseThrow(() -> new IllegalStateException("Contrato sem propostaId associado: "
-                        + parcela.getAgenda().getContratoId()));
+    private RegistrarRecebimentoResult resultadoExistente(RegistrarRecebimentoCommand cmd, Recebimento existente) {
+        validarConsistenciaIdempotencia(cmd, existente);
+        ParcelaCobranca parcela = existente.getParcela();
+        UUID propostaId = resolverPropostaId(parcela.getAgenda().getContratoId());
         MovimentacaoEscrowResult mov = escrowPort.registrarRecebimento(
-                propostaId, r.getValorRecebido(), r.getIdempotencyKey(), r.getDataRecebimento(), r.getId());
+                propostaId,
+                existente.getValorRecebido(),
+                existente.getIdempotencyKey(),
+                existente.getDataRecebimento(),
+                existente.getId());
         return new RegistrarRecebimentoResult(
-                r.getId(), parcela.getId(), parcela.getStatus(), r.getValorRecebido(), mov.movimentacaoId(), false);
+                existente.getId(),
+                parcela.getId(),
+                parcela.getStatus(),
+                existente.getValorRecebido(),
+                mov.movimentacaoId(),
+                false);
     }
 
     private RegistrarRecebimentoResult criarNovoRecebimento(RegistrarRecebimentoCommand cmd) {
         ParcelaCobranca parcela = parcelaRepository
                 .findByIdForUpdate(cmd.parcelaId())
                 .orElseThrow(() -> ParcelaCobrancaNaoEncontradaException.porId(cmd.parcelaId()));
+
+        // Re-check pos-lock: outra thread pode ter persistido entre o pre-check e o lock.
+        Optional<Recebimento> existentePosLock = recebimentoRepository.findByIdempotencyKey(cmd.idempotencyKey());
+        if (existentePosLock.isPresent()) {
+            return resultadoExistente(cmd, existentePosLock.get());
+        }
 
         // Sprint 12 Task 12.4: valor devido atualizado = valor total original (sem mora ainda).
         // Task 12.5 substituira por CalcularValorAtualizadoParcelaUseCase pra incluir juros/multa.
@@ -106,9 +124,7 @@ public class RegistrarRecebimentoUseCase {
         parcelaRepository.saveAndFlush(parcela);
 
         UUID contratoId = parcela.getAgenda().getContratoId();
-        UUID propostaId = contratoQueryPort
-                .propostaIdDoContrato(contratoId)
-                .orElseThrow(() -> new IllegalStateException("Contrato sem propostaId associado: " + contratoId));
+        UUID propostaId = resolverPropostaId(contratoId);
 
         MovimentacaoEscrowResult mov = escrowPort.registrarRecebimento(
                 propostaId, cmd.valorRecebido(), cmd.idempotencyKey(), cmd.dataRecebimento(), recebimento.getId());
@@ -139,5 +155,27 @@ public class RegistrarRecebimentoUseCase {
                 cmd.valorRecebido(),
                 mov.movimentacaoId(),
                 true);
+    }
+
+    private void validarConsistenciaIdempotencia(RegistrarRecebimentoCommand cmd, Recebimento existente) {
+        if (!existente.getParcela().getId().equals(cmd.parcelaId())) {
+            throw new ChaveIdempotenciaConflitanteException(String.format(
+                    "Idempotency-Key '%s' ja foi usada com parcela diferente (recebimento=%s, parcela esperada=%s, parcela informada=%s)",
+                    cmd.idempotencyKey(),
+                    existente.getId(),
+                    existente.getParcela().getId(),
+                    cmd.parcelaId()));
+        }
+        if (existente.getValorRecebido().compareTo(cmd.valorRecebido()) != 0) {
+            throw new ChaveIdempotenciaConflitanteException(String.format(
+                    "Idempotency-Key '%s' ja foi usada com valor diferente (esperado=%s, informado=%s)",
+                    cmd.idempotencyKey(), existente.getValorRecebido(), cmd.valorRecebido()));
+        }
+    }
+
+    private UUID resolverPropostaId(UUID contratoId) {
+        return contratoQueryPort
+                .propostaIdDoContrato(contratoId)
+                .orElseThrow(() -> new IllegalStateException("Contrato sem propostaId associado: " + contratoId));
     }
 }

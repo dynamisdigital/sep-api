@@ -7,6 +7,7 @@ import com.dynamis.sep_api.cobranca.application.port.out.RegistrarMovimentacaoEs
 import com.dynamis.sep_api.cobranca.application.port.out.RegistrarMovimentacaoEscrowPort.MovimentacaoEscrowResult;
 import com.dynamis.sep_api.cobranca.domain.event.ParcelaPagaEvent;
 import com.dynamis.sep_api.cobranca.domain.event.RecebimentoRegistradoEvent;
+import com.dynamis.sep_api.cobranca.domain.exception.ChaveIdempotenciaConflitanteException;
 import com.dynamis.sep_api.cobranca.domain.exception.ParcelaCobrancaNaoEncontradaException;
 import com.dynamis.sep_api.cobranca.domain.exception.ParcelaEstadoInvalidoException;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
@@ -164,6 +165,75 @@ class RegistrarRecebimentoUseCaseTest {
 
         assertThatThrownBy(() -> useCase.executar(comando(parcelaId, new BigDecimal("10.00"), KEY)))
                 .isInstanceOf(ParcelaCobrancaNaoEncontradaException.class);
+    }
+
+    @Test
+    void idempotente_keyComParcelaDiferente_lancaConflito() {
+        ParcelaCobranca parcela = novaParcela("100.00");
+        ParcelaCobranca outraParcela = novaParcela("100.00");
+        Recebimento existente = parcela.registrarRecebimento(
+                new BigDecimal("100.00"),
+                parcela.valorTotal(),
+                OffsetDateTime.now(),
+                "TRANSFERENCIA",
+                null,
+                KEY,
+                null,
+                OPERADOR_ID);
+        when(recebimentoRepository.findByIdempotencyKey(KEY)).thenReturn(Optional.of(existente));
+
+        assertThatThrownBy(() -> useCase.executar(comando(outraParcela.getId(), new BigDecimal("100.00"), KEY)))
+                .isInstanceOf(ChaveIdempotenciaConflitanteException.class)
+                .hasMessageContaining("parcela diferente");
+    }
+
+    @Test
+    void idempotente_keyComValorDiferente_lancaConflito() {
+        ParcelaCobranca parcela = novaParcela("100.00");
+        Recebimento existente = parcela.registrarRecebimento(
+                new BigDecimal("100.00"),
+                parcela.valorTotal(),
+                OffsetDateTime.now(),
+                "TRANSFERENCIA",
+                null,
+                KEY,
+                null,
+                OPERADOR_ID);
+        when(recebimentoRepository.findByIdempotencyKey(KEY)).thenReturn(Optional.of(existente));
+
+        assertThatThrownBy(() -> useCase.executar(comando(parcela.getId(), new BigDecimal("40.00"), KEY)))
+                .isInstanceOf(ChaveIdempotenciaConflitanteException.class)
+                .hasMessageContaining("valor diferente");
+    }
+
+    @Test
+    void corridaPosLock_chaveJaCriadaPorOutraThread_retornaIdempotente() {
+        ParcelaCobranca parcela = novaParcela("100.00");
+        // Pre-check vazio; pos-lock encontra recebimento ja criado por outra thread.
+        Recebimento existente = parcela.registrarRecebimento(
+                new BigDecimal("100.00"),
+                parcela.valorTotal(),
+                OffsetDateTime.now(),
+                "TRANSFERENCIA",
+                null,
+                KEY,
+                null,
+                OPERADOR_ID);
+        when(recebimentoRepository.findByIdempotencyKey(KEY))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(existente));
+        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(contratoQueryPort.propostaIdDoContrato(parcela.getAgenda().getContratoId()))
+                .thenReturn(Optional.of(UUID.randomUUID()));
+        when(escrowPort.registrarRecebimento(any(), any(), eq(KEY), any(), any(UUID.class)))
+                .thenReturn(
+                        new MovimentacaoEscrowResult(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("100.00")));
+
+        RegistrarRecebimentoResult r = useCase.executar(comando(parcela.getId(), new BigDecimal("100.00"), KEY));
+
+        assertThat(r.novo()).isFalse();
+        verify(parcelaRepository, never()).saveAndFlush(any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test

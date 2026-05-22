@@ -11,6 +11,8 @@ import com.dynamis.sep_api.escrow.infrastructure.persistence.MovimentacaoEscrowR
 import com.dynamis.sep_api.escrow.infrastructure.persistence.WalletRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -36,7 +38,10 @@ class RegistrarMovimentacaoEscrowUseCaseTest {
         contaRepository = mock(ContaEscrowRepository.class);
         walletRepository = mock(WalletRepository.class);
         movimentacaoRepository = mock(MovimentacaoEscrowRepository.class);
-        useCase = new RegistrarMovimentacaoEscrowUseCase(contaRepository, walletRepository, movimentacaoRepository);
+        PlatformTransactionManager txManager = mock(PlatformTransactionManager.class);
+        when(txManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        useCase = new RegistrarMovimentacaoEscrowUseCase(
+                contaRepository, walletRepository, movimentacaoRepository, txManager);
     }
 
     @Test
