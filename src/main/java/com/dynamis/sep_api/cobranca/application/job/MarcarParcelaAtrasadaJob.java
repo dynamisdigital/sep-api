@@ -25,6 +25,12 @@ import java.util.List;
  * consulta).
  *
  * <p>{@link StatusParcela#INADIMPLENTE} eh reservado pra Sprint 13 — este job nao alcanca.
+ *
+ * <p><b>Concorrencia em multi-instance:</b> Sprint 12 opera em single-instance ({@code dev-local}).
+ * Em deploy clustered (Epic 15 AWS), duas instancias com cron sincronizado poderiam ler o mesmo
+ * conjunto {@code PENDENTE} e publicar eventos duplicados. Mitigacao planejada: ShedLock ou
+ * advisory lock PostgreSQL coordenando uma execucao por janela. Nao introduzido nesta sprint pra
+ * manter escopo single-instance.
  */
 @Component
 public class MarcarParcelaAtrasadaJob {
