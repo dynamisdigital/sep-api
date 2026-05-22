@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -38,6 +40,7 @@ class GerarAgendaPagamentoUseCaseTest {
     private AmortizacaoDispatcher dispatcher;
     private ParametrosCobrancaProperties properties;
     private ApplicationEventPublisher eventPublisher;
+    private PlatformTransactionManager txManager;
     private GerarAgendaPagamentoUseCase useCase;
 
     @BeforeEach
@@ -46,7 +49,9 @@ class GerarAgendaPagamentoUseCaseTest {
         dispatcher = new AmortizacaoDispatcher(List.of(new CalculadoraPrice(), new CalculadoraSAC()));
         properties = new ParametrosCobrancaProperties();
         eventPublisher = mock(ApplicationEventPublisher.class);
-        useCase = new GerarAgendaPagamentoUseCase(agendaRepository, dispatcher, properties, eventPublisher);
+        txManager = mock(PlatformTransactionManager.class);
+        when(txManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        useCase = new GerarAgendaPagamentoUseCase(agendaRepository, dispatcher, properties, eventPublisher, txManager);
     }
 
     @Test

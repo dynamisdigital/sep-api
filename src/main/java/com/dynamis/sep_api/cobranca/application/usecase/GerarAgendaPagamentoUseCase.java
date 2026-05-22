@@ -16,23 +16,27 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Gera a {@link AgendaPagamento} de um contrato assinado de forma idempotente (Sprint 12 Task
- * 12.3). Idempotencia tem duas camadas:
+ * 12.3). Idempotencia em duas camadas:
  *
  * <ol>
- *   <li>{@link AgendaPagamentoRepository#existsByContratoId(java.util.UUID)} antes do calculo —
- *       cobre concorrencia sequencial.
- *   <li>{@code UNIQUE contrato_id} no banco + {@link DataIntegrityViolationException} — cobre
- *       corrida concorrente entre listener AFTER_COMMIT e endpoint de reprocessamento manual.
+ *   <li>Consulta pre-save em tx read-only — atende ao caso comum sequencial.
+ *   <li>Constraint {@code UNIQUE contrato_id} + {@link DataIntegrityViolationException}: a
+ *       transacao de write eh isolada via {@link TransactionTemplate}, garantindo que o rollback
+ *       PostgreSQL ("current transaction is aborted") nao contamine a consulta de recuperacao.
  * </ol>
  *
- * <p>{@link AgendaGeradaEvent} eh publicado apenas quando uma nova agenda eh persistida; carga
- * repetida retorna a agenda existente sem republicar o evento (cf. Task 12.7 audit log).
+ * <p>{@link AgendaGeradaEvent} eh publicado dentro da mesma transacao do save bem-sucedido.
+ * Corridas concorrentes que perdem o save (UNIQUE violation) recuperam a agenda existente em uma
+ * tx nova sem republicar o evento.
  */
 @Service
 public class GerarAgendaPagamentoUseCase {
@@ -43,49 +47,69 @@ public class GerarAgendaPagamentoUseCase {
     private final AmortizacaoDispatcher dispatcher;
     private final ParametrosCobrancaProperties properties;
     private final ApplicationEventPublisher eventPublisher;
+    private final TransactionTemplate txWrite;
+    private final TransactionTemplate txReadOnly;
 
     public GerarAgendaPagamentoUseCase(
             AgendaPagamentoRepository agendaRepository,
             AmortizacaoDispatcher dispatcher,
             ParametrosCobrancaProperties properties,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            PlatformTransactionManager txManager) {
         this.agendaRepository = agendaRepository;
         this.dispatcher = dispatcher;
         this.properties = properties;
         this.eventPublisher = eventPublisher;
+        this.txWrite = new TransactionTemplate(txManager);
+        this.txReadOnly = new TransactionTemplate(txManager);
+        this.txReadOnly.setReadOnly(true);
     }
 
-    @Transactional
     public AgendaPagamento executar(GerarAgendaPagamentoCommand cmd) {
-        return agendaRepository
-                .findByContratoId(cmd.contratoId())
-                .map(existente -> {
-                    log.info(
-                            "Agenda ja existente para contrato {} — retornando idempotente (agendaId={})",
-                            cmd.contratoId(),
-                            existente.getId());
-                    return existente;
-                })
-                .orElseGet(() -> criarPersistirEPublicar(cmd));
+        Optional<AgendaPagamento> existente = buscarPorContrato(cmd.contratoId());
+        if (existente.isPresent()) {
+            log.info(
+                    "Agenda ja existente para contrato {} — retornando idempotente (agendaId={})",
+                    cmd.contratoId(),
+                    existente.get().getId());
+            return existente.get();
+        }
+
+        try {
+            return criarPersistirEPublicar(cmd);
+        } catch (DataIntegrityViolationException ex) {
+            // Corrida concorrente: outra transacao gravou primeiro. Tx de write ja foi rolled
+            // back (PostgreSQL aborta a tx no UNIQUE violation). Recupera em tx nova read-only.
+            log.info(
+                    "Conflito UNIQUE contrato_id={} ao gerar agenda — recuperando existente (corrida concorrente)",
+                    cmd.contratoId());
+            return buscarPorContrato(cmd.contratoId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "DataIntegrityViolationException sem agenda persistida para contrato " + cmd.contratoId(),
+                            ex));
+        }
+    }
+
+    private Optional<AgendaPagamento> buscarPorContrato(UUID contratoId) {
+        return txReadOnly.execute(status -> agendaRepository.findByContratoId(contratoId));
     }
 
     private AgendaPagamento criarPersistirEPublicar(GerarAgendaPagamentoCommand cmd) {
-        ResultadoCalculo calculo = dispatcher.calcular(new ParametrosCalculo(
-                cmd.valorFinanciado(),
-                cmd.taxaMensal(),
-                cmd.numeroParcelas(),
-                cmd.dataBase(),
-                cmd.sistema(),
-                properties.getPrimeiraParcelaDias(),
-                properties.getPeriodicidadeDias()));
+        return txWrite.execute(status -> {
+            ResultadoCalculo calculo = dispatcher.calcular(new ParametrosCalculo(
+                    cmd.valorFinanciado(),
+                    cmd.taxaMensal(),
+                    cmd.numeroParcelas(),
+                    cmd.dataBase(),
+                    cmd.sistema(),
+                    properties.getPrimeiraParcelaDias(),
+                    properties.getPeriodicidadeDias()));
 
-        List<ParcelaPlanejada> planejadas = calculo.parcelas().stream()
-                .map(GerarAgendaPagamentoUseCase::toPlanejada)
-                .toList();
+            List<ParcelaPlanejada> planejadas = calculo.parcelas().stream()
+                    .map(GerarAgendaPagamentoUseCase::toPlanejada)
+                    .toList();
 
-        AgendaPagamento agenda = AgendaPagamento.criar(cmd.contratoId(), planejadas);
-
-        try {
+            AgendaPagamento agenda = AgendaPagamento.criar(cmd.contratoId(), planejadas);
             AgendaPagamento salva = agendaRepository.saveAndFlush(agenda);
             eventPublisher.publishEvent(new AgendaGeradaEvent(
                     salva.getId(),
@@ -96,18 +120,7 @@ public class GerarAgendaPagamentoUseCase {
                     salva.getValorTotal(),
                     salva.getDataGeracao()));
             return salva;
-        } catch (DataIntegrityViolationException ex) {
-            // Corrida concorrente: outra transacao gravou primeiro. Recupera idempotente sem
-            // republicar evento (essa outra transacao ja publicou).
-            log.info(
-                    "Conflito UNIQUE contrato_id={} ao gerar agenda — recuperando existente (corrida)",
-                    cmd.contratoId());
-            return agendaRepository
-                    .findByContratoId(cmd.contratoId())
-                    .orElseThrow(() -> new IllegalStateException(
-                            "DataIntegrityViolationException sem agenda persistida para contrato " + cmd.contratoId(),
-                            ex));
-        }
+        });
     }
 
     private static ParcelaPlanejada toPlanejada(ParcelaCalculada c) {

@@ -1,18 +1,17 @@
 package com.dynamis.sep_api.cobranca.application.listener;
 
 import com.dynamis.sep_api.cobranca.application.dto.GerarAgendaPagamentoCommand;
+import com.dynamis.sep_api.cobranca.application.port.out.PropostaCobrancaQueryPort;
+import com.dynamis.sep_api.cobranca.application.port.out.PropostaCobrancaView;
 import com.dynamis.sep_api.cobranca.application.service.calculo.ParametrosCobrancaProperties;
 import com.dynamis.sep_api.cobranca.application.service.calculo.SistemaAmortizacao;
 import com.dynamis.sep_api.cobranca.application.usecase.GerarAgendaPagamentoUseCase;
 import com.dynamis.sep_api.contratos.domain.event.ContratoAssinadoEvent;
-import com.dynamis.sep_api.credito.domain.model.PropostaCredito;
-import com.dynamis.sep_api.credito.domain.vo.Money;
-import com.dynamis.sep_api.credito.domain.vo.TipoOperacao;
-import com.dynamis.sep_api.credito.infrastructure.persistence.PropostaCreditoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,39 +26,30 @@ import static org.mockito.Mockito.when;
 class ContratoAssinadoListenerTest {
 
     private GerarAgendaPagamentoUseCase useCase;
-    private PropostaCreditoRepository propostaRepository;
+    private PropostaCobrancaQueryPort propostaQueryPort;
     private ParametrosCobrancaProperties properties;
     private ContratoAssinadoListener listener;
 
     @BeforeEach
     void setup() {
         useCase = mock(GerarAgendaPagamentoUseCase.class);
-        propostaRepository = mock(PropostaCreditoRepository.class);
+        propostaQueryPort = mock(PropostaCobrancaQueryPort.class);
         properties = new ParametrosCobrancaProperties();
-        listener = new ContratoAssinadoListener(useCase, propostaRepository, properties);
+        listener = new ContratoAssinadoListener(useCase, propostaQueryPort, properties);
     }
 
     @Test
-    void aoAssinar_invocaUseCaseComDadosDaProposta() {
+    void usaTaxaEstruturadaQuandoPropostaPersistirTaxa() {
         UUID contratoId = UUID.randomUUID();
         UUID propostaId = UUID.randomUUID();
         UUID tomadorId = UUID.randomUUID();
+        BigDecimal taxaAprovada = new BigDecimal("0.025");
         OffsetDateTime dataAssinatura = OffsetDateTime.parse("2026-05-01T10:00:00-03:00");
-        PropostaCredito proposta =
-                PropostaCredito.criar(tomadorId, UUID.randomUUID(), TipoOperacao.CAPITAL_GIRO, Money.brl("10000"), 12);
-        when(propostaRepository.findById(propostaId)).thenReturn(Optional.of(proposta));
+        when(propostaQueryPort.buscarPorId(propostaId))
+                .thenReturn(Optional.of(
+                        new PropostaCobrancaView(propostaId, new BigDecimal("10000"), 12, Optional.of(taxaAprovada))));
 
-        listener.aoAssinar(new ContratoAssinadoEvent(
-                contratoId,
-                propostaId,
-                tomadorId,
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                "clicksign",
-                "env-x",
-                "abcdef",
-                dataAssinatura));
+        listener.aoAssinar(novoEvento(contratoId, propostaId, tomadorId, dataAssinatura));
 
         ArgumentCaptor<GerarAgendaPagamentoCommand> captor = ArgumentCaptor.forClass(GerarAgendaPagamentoCommand.class);
         verify(useCase).executar(captor.capture());
@@ -69,27 +59,31 @@ class ContratoAssinadoListenerTest {
         assertThat(cmd.tomadorId()).isEqualTo(tomadorId);
         assertThat(cmd.valorFinanciado()).isEqualByComparingTo("10000");
         assertThat(cmd.numeroParcelas()).isEqualTo(12);
-        assertThat(cmd.taxaMensal()).isEqualByComparingTo(properties.getTaxaJurosMensalDefault());
+        assertThat(cmd.taxaMensal()).isEqualByComparingTo(taxaAprovada);
         assertThat(cmd.dataBase()).isEqualTo(dataAssinatura.toLocalDate());
         assertThat(cmd.sistema()).isEqualTo(SistemaAmortizacao.PRICE);
     }
 
     @Test
+    void usaTaxaDefaultDeConfigQuandoPropostaSemTaxa() {
+        UUID propostaId = UUID.randomUUID();
+        when(propostaQueryPort.buscarPorId(propostaId))
+                .thenReturn(Optional.of(
+                        new PropostaCobrancaView(propostaId, new BigDecimal("10000"), 12, Optional.empty())));
+
+        listener.aoAssinar(novoEvento(UUID.randomUUID(), propostaId, UUID.randomUUID(), OffsetDateTime.now()));
+
+        ArgumentCaptor<GerarAgendaPagamentoCommand> captor = ArgumentCaptor.forClass(GerarAgendaPagamentoCommand.class);
+        verify(useCase).executar(captor.capture());
+        assertThat(captor.getValue().taxaMensal()).isEqualByComparingTo(properties.getTaxaJurosMensalDefault());
+    }
+
+    @Test
     void propostaInexistente_loga_nao_relanca() {
         UUID propostaId = UUID.randomUUID();
-        when(propostaRepository.findById(propostaId)).thenReturn(Optional.empty());
+        when(propostaQueryPort.buscarPorId(propostaId)).thenReturn(Optional.empty());
 
-        listener.aoAssinar(new ContratoAssinadoEvent(
-                UUID.randomUUID(),
-                propostaId,
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                "clicksign",
-                "env-x",
-                "abcdef",
-                OffsetDateTime.now()));
+        listener.aoAssinar(novoEvento(UUID.randomUUID(), propostaId, UUID.randomUUID(), OffsetDateTime.now()));
 
         verify(useCase, never()).executar(any());
     }
@@ -97,23 +91,27 @@ class ContratoAssinadoListenerTest {
     @Test
     void useCaseLancaExcecao_loga_nao_relanca() {
         UUID propostaId = UUID.randomUUID();
-        PropostaCredito proposta = PropostaCredito.criar(
-                UUID.randomUUID(), UUID.randomUUID(), TipoOperacao.CAPITAL_GIRO, Money.brl("10000"), 12);
-        when(propostaRepository.findById(propostaId)).thenReturn(Optional.of(proposta));
+        when(propostaQueryPort.buscarPorId(propostaId))
+                .thenReturn(Optional.of(new PropostaCobrancaView(
+                        propostaId, new BigDecimal("10000"), 12, Optional.of(new BigDecimal("0.02")))));
         when(useCase.executar(any())).thenThrow(new RuntimeException("falha simulada"));
 
-        listener.aoAssinar(new ContratoAssinadoEvent(
-                UUID.randomUUID(),
+        listener.aoAssinar(novoEvento(UUID.randomUUID(), propostaId, UUID.randomUUID(), OffsetDateTime.now()));
+        // Comportamento esperado: log warn + sem propagar (REQUIRES_NEW).
+    }
+
+    private static ContratoAssinadoEvent novoEvento(
+            UUID contratoId, UUID propostaId, UUID tomadorId, OffsetDateTime dataAssinatura) {
+        return new ContratoAssinadoEvent(
+                contratoId,
                 propostaId,
-                UUID.randomUUID(),
+                tomadorId,
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 "clicksign",
                 "env-x",
                 "abcdef",
-                OffsetDateTime.now()));
-        // Sem assertThatThrownBy — relancamento aqui desfaria nada (REQUIRES_NEW), mas regra eh
-        // engolir a excecao pra trilha de assinatura nao falhar em cascata.
+                dataAssinatura);
     }
 }
