@@ -32,6 +32,11 @@ package com.dynamis.sep_api.shared.audit;
  * {@code DOCUMENTO_ASSINADO_BAIXADO}). Mesma exigencia regulatoria (CMN 4.656/2018 + Lei
  * 10.931/2004 CCB + LGPD); {@code DOCUMENTO_ASSINADO_BAIXADO} grava ip+user-agent pra trilha de
  * acesso ao documento legal. Check constraint atualizado em V24.
+ *
+ * <p>Sprint 12 Task 12.7: adicionados 6 eventos do ciclo de cobranca ({@code AGENDA_GERADA},
+ * {@code PARCELA_CRIADA}, {@code RECEBIMENTO_REGISTRADO}, {@code PARCELA_PAGA},
+ * {@code PARCELA_ATRASADA}, {@code MOVIMENTACAO_ESCROW_CRIADA}). Exigencia regulatoria: CMN
+ * 4.656/2018 Art. 9 + Art. 11 + segregacao patrimonial. Check constraint atualizado em V29.
  */
 public enum TipoEventoSeguranca {
     LOGIN_OK,
@@ -79,5 +84,11 @@ public enum TipoEventoSeguranca {
     ASSINATURA_VISUALIZADA,
     ASSINATURA_ASSINADA,
     ASSINATURA_RECUSADA,
-    DOCUMENTO_ASSINADO_BAIXADO
+    DOCUMENTO_ASSINADO_BAIXADO,
+    AGENDA_GERADA,
+    PARCELA_CRIADA,
+    RECEBIMENTO_REGISTRADO,
+    PARCELA_PAGA,
+    PARCELA_ATRASADA,
+    MOVIMENTACAO_ESCROW_CRIADA
 }

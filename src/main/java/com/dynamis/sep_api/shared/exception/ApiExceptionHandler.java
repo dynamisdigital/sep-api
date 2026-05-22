@@ -16,6 +16,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -51,6 +52,13 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorResponseDto> handleUnreadableBody(
             HttpMessageNotReadableException ex, HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, "Bad Request", "Corpo da requisicao invalido", request);
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponseDto> handleMissingRequestHeader(
+            MissingRequestHeaderException ex, HttpServletRequest request) {
+        String mensagem = "Header obrigatorio ausente: " + ex.getHeaderName();
+        return build(HttpStatus.BAD_REQUEST, "Bad Request", mensagem, request);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

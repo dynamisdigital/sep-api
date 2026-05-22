@@ -26,3 +26,15 @@ management:
   endpoint:
     health:
       show-details: never
+
+app:
+  # Sprint 12: ITs deste perfil nao validam fluxo cobranca, entao listener
+  # ContratoAssinadoEvent->agenda fica desligado pra evitar FK leak no teardown
+  # de ContratoIT/AssinaturaIT/CreditoIT/OpenFinanceIT. CobrancaIT (Task 12.8)
+  # reabilita explicitamente via @TestPropertySource.
+  cobranca:
+    auto-geracao-pos-assinatura: false
+    # Job de atraso (Sprint 12 Task 12.5) tambem desligado pra evitar disparo
+    # de evento em janela aleatoria de IT. MarcarParcelaAtrasadaJobTest mocka
+    # Clock e chama o metodo direto.
+    scheduling-habilitado: false
