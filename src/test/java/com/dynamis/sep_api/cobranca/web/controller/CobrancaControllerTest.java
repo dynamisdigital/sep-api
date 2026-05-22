@@ -174,8 +174,9 @@ class CobrancaControllerTest {
         UUID contratoId = UUID.randomUUID();
         UUID parcelaId = UUID.randomUUID();
         autenticar(tomadorId, Role.CLIENTE);
-        when(calcularValorAtualizadoUseCase.executar(parcelaId)).thenReturn(novoResult(parcelaId, contratoId));
+        when(calcularValorAtualizadoUseCase.resolverContratoId(parcelaId)).thenReturn(Optional.of(contratoId));
         when(contratoQueryPort.tomadorIdDoContrato(contratoId)).thenReturn(Optional.of(tomadorId));
+        when(calcularValorAtualizadoUseCase.executar(parcelaId)).thenReturn(novoResult(parcelaId, contratoId));
         when(mapper.toValorAtualizadoResponse(any())).thenReturn(stubValorAtualizado(parcelaId));
 
         mockMvc.perform(get("/api/v1/cobranca/parcelas/{id}", parcelaId)).andExpect(status().isOk());
@@ -186,8 +187,17 @@ class CobrancaControllerTest {
         UUID parcelaId = UUID.randomUUID();
         UUID contratoId = UUID.randomUUID();
         autenticar(UUID.randomUUID(), Role.CLIENTE);
-        when(calcularValorAtualizadoUseCase.executar(parcelaId)).thenReturn(novoResult(parcelaId, contratoId));
+        when(calcularValorAtualizadoUseCase.resolverContratoId(parcelaId)).thenReturn(Optional.of(contratoId));
         when(contratoQueryPort.tomadorIdDoContrato(contratoId)).thenReturn(Optional.of(UUID.randomUUID()));
+
+        mockMvc.perform(get("/api/v1/cobranca/parcelas/{id}", parcelaId)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getParcelaClienteParaParcelaInexistente_unifica403() throws Exception {
+        UUID parcelaId = UUID.randomUUID();
+        autenticar(UUID.randomUUID(), Role.CLIENTE);
+        when(calcularValorAtualizadoUseCase.resolverContratoId(parcelaId)).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/v1/cobranca/parcelas/{id}", parcelaId)).andExpect(status().isForbidden());
     }
@@ -243,6 +253,16 @@ class CobrancaControllerTest {
     void postRecebimentoSemIdempotencyKey400() throws Exception {
         autenticar(UUID.randomUUID(), Role.FINANCEIRO);
         mockMvc.perform(post("/api/v1/cobranca/parcelas/{id}/recebimentos", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payloadRecebimento()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void postRecebimentoIdempotencyKeyComEspacos400() throws Exception {
+        autenticar(UUID.randomUUID(), Role.FINANCEIRO);
+        mockMvc.perform(post("/api/v1/cobranca/parcelas/{id}/recebimentos", UUID.randomUUID())
+                        .header("Idempotency-Key", "tem espaco")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payloadRecebimento()))
                 .andExpect(status().isBadRequest());

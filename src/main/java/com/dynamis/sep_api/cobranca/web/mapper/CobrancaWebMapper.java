@@ -72,6 +72,11 @@ public class CobrancaWebMapper {
                 result.novo());
     }
 
+    /**
+     * Mapeia {@code Recebimento} pra resposta de listagem. {@code movimentacaoEscrowId} fica
+     * {@code null} aqui — listagem em massa nao executa join com {@code movimentacao_escrow}
+     * (custaria N+1). Sprint 13 pode incluir join se for necessario correlacionar pelo cliente.
+     */
     public RecebimentoResponse toRecebimentoResponse(Recebimento recebimento) {
         return new RecebimentoResponse(
                 recebimento.getId(),

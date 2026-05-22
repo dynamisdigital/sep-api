@@ -38,6 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Endpoints REST do modulo {@code cobranca} (Sprint 12 Task 12.6).
@@ -59,6 +60,9 @@ import java.util.UUID;
 @RequestMapping("/api/v1/cobranca")
 @Tag(name = "cobranca", description = "Agenda de pagamento, parcelas, recebimentos e valores atualizados (Sprint 12).")
 public class CobrancaController {
+
+    /** Pattern conservador pra Idempotency-Key — recusa espacos, unicode, controle. */
+    private static final Pattern IDEMPOTENCY_KEY_PATTERN = Pattern.compile("[A-Za-z0-9._-]{1,100}");
 
     private final ConsultarAgendaPorContratoUseCase consultarAgendaUseCase;
     private final CalcularValorAtualizadoParcelaUseCase calcularValorAtualizadoUseCase;
@@ -146,8 +150,16 @@ public class CobrancaController {
     })
     public ResponseEntity<ValorAtualizadoParcelaResponse> consultarParcela(
             @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        // Sprint 12 Task 12.6 fix code review manual: resolver contratoId ANTES de calcular
+        // pra evitar enumeracao 404 vs 403 por CLIENTE. Cliente sem acesso recebe 403 mesmo
+        // quando a parcela nao existe.
+        if (!operadorInterno(principal)) {
+            UUID contratoId = calcularValorAtualizadoUseCase
+                    .resolverContratoId(id)
+                    .orElseThrow(() -> new CobrancaOwnershipException(id));
+            garantirOwnershipOuOperador(contratoId, principal);
+        }
         ParcelaAtualizadaResult atualizado = calcularValorAtualizadoUseCase.executar(id);
-        garantirOwnershipOuOperador(atualizado.contratoId(), principal);
         return ResponseEntity.ok(mapper.toValorAtualizadoResponse(atualizado));
     }
 
@@ -188,6 +200,7 @@ public class CobrancaController {
             @Valid @RequestBody RegistrarRecebimentoRequest request,
             @RequestHeader(name = "Idempotency-Key") String idempotencyKey,
             @AuthenticationPrincipal UsuarioAutenticado principal) {
+        validarIdempotencyKey(idempotencyKey);
         RegistrarRecebimentoResult result = registrarRecebimentoUseCase.executar(new RegistrarRecebimentoCommand(
                 id,
                 request.valorRecebido(),
@@ -204,7 +217,9 @@ public class CobrancaController {
     @PreAuthorize("hasAnyRole('FINANCEIRO','ADMIN')")
     @Operation(
             summary = "Listar recebimentos",
-            description = "Ordenacao default: dataRecebimento DESC. Restrito a FINANCEIRO/ADMIN.")
+            description = "Ordenacao default: dataRecebimento DESC. Restrito a FINANCEIRO/ADMIN. Sem"
+                    + " paginacao nesta sprint — volumes pequenos em dev-local; Sprint 13 ou Epic 15"
+                    + " (AWS multi-instance) adicionara Pageable + filtros (contratoId, intervalo, etc.).")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Lista de recebimentos"),
         @ApiResponse(
@@ -231,6 +246,18 @@ public class CobrancaController {
                 .orElseThrow(() -> new CobrancaOwnershipException(contratoId));
         if (!tomadorId.equals(principal.id())) {
             throw new CobrancaOwnershipException(contratoId);
+        }
+    }
+
+    /**
+     * Valida que a Idempotency-Key respeita {@code [A-Za-z0-9._-]{1,100}} — recusa espacos,
+     * caracteres unicode/controle e strings longas demais que poderiam causar truncamento ou
+     * comportamento divergente da UNIQUE constraint do DB.
+     */
+    private static void validarIdempotencyKey(String key) {
+        if (key == null || !IDEMPOTENCY_KEY_PATTERN.matcher(key).matches()) {
+            throw new com.dynamis.sep_api.shared.exception.ValidacaoException(
+                    "COB-400-001", "Header 'Idempotency-Key' invalido: aceita ate 100 caracteres em [A-Za-z0-9._-]");
         }
     }
 

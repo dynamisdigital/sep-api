@@ -60,6 +60,15 @@ public class CalcularValorAtualizadoParcelaUseCase {
     }
 
     /**
+     * Resolve apenas o {@code contratoId} da parcela sem retornar dados financeiros (Sprint 12
+     * Task 12.6 fix code review manual). Usado pelo controller para validar ownership ANTES de
+     * carregar/calcular — evita enumeracao 404 vs 403.
+     */
+    public java.util.Optional<UUID> resolverContratoId(UUID parcelaId) {
+        return parcelaRepository.findById(parcelaId).map(p -> p.getAgenda().getContratoId());
+    }
+
+    /**
      * Variante para callers que ja tem a parcela em mao (Sprint 12 Task 12.4 — chamado pelo
      * {@code RegistrarRecebimentoUseCase} apos {@code findByIdForUpdate}). Evita re-query e
      * preserva o estado lockado.
