@@ -98,6 +98,25 @@ class CobrancaControllerTest {
     @MockBean
     private UsuarioRepository usuarioRepository;
 
+    // Sprint 13 Task 13.7: 6 mocks novos pro contexto carregar com os endpoints adicionados.
+    @MockBean
+    private com.dynamis.sep_api.cobranca.application.usecase.ListarInadimplenciaUseCase listarInadimplenciaUseCase;
+
+    @MockBean
+    private com.dynamis.sep_api.cobranca.application.usecase.RegistrarContatoCobrancaUseCase registrarContatoUseCase;
+
+    @MockBean
+    private com.dynamis.sep_api.cobranca.application.usecase.IniciarRenegociacaoUseCase iniciarRenegociacaoUseCase;
+
+    @MockBean
+    private com.dynamis.sep_api.cobranca.application.usecase.AceitarRenegociacaoUseCase aceitarRenegociacaoUseCase;
+
+    @MockBean
+    private com.dynamis.sep_api.cobranca.application.usecase.RecusarRenegociacaoUseCase recusarRenegociacaoUseCase;
+
+    @MockBean
+    private com.dynamis.sep_api.cobranca.infrastructure.persistence.RenegociacaoRepository renegociacaoRepository;
+
     @AfterEach
     void clean() {
         SecurityContextHolder.clearContext();

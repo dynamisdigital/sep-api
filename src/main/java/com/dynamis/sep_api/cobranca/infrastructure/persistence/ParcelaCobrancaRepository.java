@@ -21,4 +21,10 @@ public interface ParcelaCobrancaRepository extends JpaRepository<ParcelaCobranca
     List<ParcelaCobranca> findByStatusAndDataVencimentoBefore(StatusParcela status, LocalDate dataLimite);
 
     List<ParcelaCobranca> findByAgenda_ContratoIdOrderByNumeroAsc(UUID contratoId);
+
+    /**
+     * Sprint 13 Task 13.7: listagem operacional pra GET /inadimplencia — filtra por conjunto
+     * de status (ATRASADA/INADIMPLENTE) ordenando por data de vencimento.
+     */
+    List<ParcelaCobranca> findByStatusInOrderByDataVencimentoAsc(java.util.Collection<StatusParcela> statuses);
 }
