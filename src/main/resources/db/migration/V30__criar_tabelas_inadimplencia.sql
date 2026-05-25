@@ -94,9 +94,18 @@ CREATE INDEX idx_evento_cobranca_tipo_data ON evento_cobranca (tipo, data_evento
 -- Idempotencia: nao reemitir notificacao automatica identica no mesmo dia.
 -- Cobre apenas NOTIFICACAO_AUTOMATICA (parcial) pois contato manual e
 -- renegociacao podem ter multiplos registros legitimos.
+--
+-- Inclui dias_atraso IS NOT NULL e canal/template NOT NULL como defesa em
+-- profundidade: SQL trata multiplos NULLs como distintos, entao um INSERT
+-- futuro com qualquer coluna nula bypassaria a constraint silenciosamente.
+-- O factory `notificacaoAutomatica` ja recebe primitivo int + enums + String
+-- obrigatorio, mas o predicate explicito fecha o gap se rota nova for criada.
 CREATE UNIQUE INDEX uq_evento_notificacao_idempotencia
     ON evento_cobranca (parcela_id, dias_atraso, canal, template)
-    WHERE tipo = 'NOTIFICACAO_AUTOMATICA';
+    WHERE tipo = 'NOTIFICACAO_AUTOMATICA'
+        AND dias_atraso IS NOT NULL
+        AND canal IS NOT NULL
+        AND template IS NOT NULL;
 
 COMMENT ON TABLE evento_cobranca IS 'Historico operacional de cobranca por parcela (Sprint 13). Nao persiste corpo da mensagem.';
 

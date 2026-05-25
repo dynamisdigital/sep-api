@@ -77,6 +77,12 @@ public class WorkflowCobranca extends EntidadeAuditavel {
         this.ativo = ativo;
     }
 
+    /**
+     * Templates aceitam apenas alfanumerico, hifen e underscore — proibe virgula (separador CSV)
+     * e brancos pra evitar quebra de parsing em {@link #getNotificacoes()}.
+     */
+    private static final java.util.regex.Pattern NOME_TEMPLATE = java.util.regex.Pattern.compile("^[A-Za-z0-9_-]+$");
+
     public static WorkflowCobranca criar(
             String nome,
             int diaAtraso,
@@ -91,6 +97,11 @@ public class WorkflowCobranca extends EntidadeAuditavel {
             throw new IllegalArgumentException("diaAtraso nao pode ser negativo");
         }
         Objects.requireNonNull(notificacoes, "notificacoes obrigatorio");
+        for (String t : notificacoes) {
+            if (t == null || !NOME_TEMPLATE.matcher(t).matches()) {
+                throw new IllegalArgumentException("nome de template invalido: '" + t + "' (aceito: [A-Za-z0-9_-]+)");
+            }
+        }
         String csv = String.join(",", notificacoes);
         return new WorkflowCobranca(
                 Generators.timeBasedReorderedGenerator().generate(),

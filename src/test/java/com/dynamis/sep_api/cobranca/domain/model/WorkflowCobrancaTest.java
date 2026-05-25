@@ -53,4 +53,28 @@ class WorkflowCobrancaTest {
 
         assertThat(w.isAtivo()).isFalse();
     }
+
+    @Test
+    void criar_templateComVirgula_rejeita() {
+        assertThatThrownBy(() -> WorkflowCobranca.criar("default", 0, List.of("email, urgente"), false, false, false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("template invalido");
+    }
+
+    @Test
+    void criar_templateComEspaco_rejeita() {
+        assertThatThrownBy(() -> WorkflowCobranca.criar("default", 0, List.of("email amigavel"), false, false, false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("template invalido");
+    }
+
+    @Test
+    void criar_templateNull_rejeita() {
+        java.util.List<String> comNull = new java.util.ArrayList<>();
+        comNull.add("email-amigavel");
+        comNull.add(null);
+        assertThatThrownBy(() -> WorkflowCobranca.criar("default", 0, comNull, false, false, false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("template invalido");
+    }
 }

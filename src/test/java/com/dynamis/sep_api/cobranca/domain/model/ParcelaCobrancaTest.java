@@ -220,6 +220,24 @@ class ParcelaCobrancaTest {
     }
 
     @Test
+    void recebimentoEmInadimplente_rejeita() {
+        ParcelaCobranca p = novaParcela("100.00");
+        p.marcarAtrasada();
+        p.marcarInadimplente();
+
+        assertThatThrownBy(() -> p.registrarRecebimento(
+                        new BigDecimal("10.00"),
+                        new BigDecimal("100.00"),
+                        OffsetDateTime.now(),
+                        "TRANSFERENCIA",
+                        null,
+                        "key-1",
+                        null,
+                        UUID.randomUUID()))
+                .isInstanceOf(ParcelaEstadoInvalidoException.class);
+    }
+
+    @Test
     void recebimentoEmEmNegociacao_rejeita() {
         ParcelaCobranca p = novaParcela("100.00");
         p.marcarAtrasada();
