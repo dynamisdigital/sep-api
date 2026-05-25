@@ -130,6 +130,9 @@ app:
       webhook:
         hmac-secret: ${APP_WEBHOOK_SECRET_CLICKSIGN:dev-clicksign-webhook-secret-change-me}
   cobranca:
+    # Email do time financeiro pra copia de comunicacao final de inadimplencia
+    # (Sprint 13 Task 13.5 — fix review manual). Vazio = nao envia copia.
+    financeiro-email: ${APP_COBRANCA_FINANCEIRO_EMAIL:}
     # Workflow default de cobranca (Sprint 13 Task 13.4). Etapas por dia de atraso —
     # `EscalarCobrancaUseCase` casa o numero de dias e dispara as notificacoes correspondentes.
     # Flags operacionais: `flag-contato-manual` sinaliza para o backoffice; `escalonar-backoffice`

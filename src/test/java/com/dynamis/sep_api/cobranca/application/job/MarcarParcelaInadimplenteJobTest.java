@@ -7,9 +7,12 @@ import com.dynamis.sep_api.cobranca.application.usecase.EscalarCobrancaUseCase;
 import com.dynamis.sep_api.cobranca.domain.event.ParcelaInadimplenteEvent;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento.ParcelaPlanejada;
+import com.dynamis.sep_api.cobranca.domain.model.EventoCobranca;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
+import com.dynamis.sep_api.cobranca.domain.vo.TipoEventoCobranca;
+import com.dynamis.sep_api.cobranca.infrastructure.persistence.EventoCobrancaRepository;
 import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
@@ -32,7 +35,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -47,6 +49,7 @@ class MarcarParcelaInadimplenteJobTest {
     private static final LocalDate VENCIMENTO_89_DIAS = LocalDate.of(2026, 3, 23);
 
     private ParcelaCobrancaRepository parcelaRepository;
+    private EventoCobrancaRepository eventoRepository;
     private ContratoCobrancaQueryPort contratoQuery;
     private UsuarioRepository usuarioRepository;
     private EscalarCobrancaUseCase escalarUseCase;
@@ -57,28 +60,27 @@ class MarcarParcelaInadimplenteJobTest {
     @BeforeEach
     void setup() {
         parcelaRepository = mock(ParcelaCobrancaRepository.class);
+        eventoRepository = mock(EventoCobrancaRepository.class);
         contratoQuery = mock(ContratoCobrancaQueryPort.class);
         usuarioRepository = mock(UsuarioRepository.class);
         escalarUseCase = mock(EscalarCobrancaUseCase.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         txTemplate = mock(TransactionTemplate.class);
-        // TransactionTemplate.executeWithoutResult delega para o Consumer; aqui simulamos
-        // execucao sincrona invocando a lambda recebida.
-        doAnswer(invocation -> {
-                    java.util.function.Consumer<org.springframework.transaction.TransactionStatus> action =
-                            invocation.getArgument(0);
-                    action.accept(null);
-                    return null;
-                })
-                .when(txTemplate)
-                .executeWithoutResult(any());
         when(txTemplate.execute(any())).thenAnswer(invocation -> {
             TransactionCallback<Object> callback = invocation.getArgument(0);
             return callback.doInTransaction(null);
         });
         when(escalarUseCase.escalar(any())).thenReturn(new EscalonamentoResult(true, false, false, true, 0));
         job = new MarcarParcelaInadimplenteJob(
-                parcelaRepository, contratoQuery, usuarioRepository, escalarUseCase, eventPublisher, txTemplate, CLOCK);
+                parcelaRepository,
+                eventoRepository,
+                contratoQuery,
+                usuarioRepository,
+                escalarUseCase,
+                eventPublisher,
+                txTemplate,
+                CLOCK,
+                "");
     }
 
     @Test
@@ -107,6 +109,25 @@ class MarcarParcelaInadimplenteJobTest {
     }
 
     @Test
+    void executar_gravaEventoCobrancaPARCELA_INADIMPLENTE() {
+        ParcelaCobranca parcela = parcelaCom(VENCIMENTO_97_DIAS);
+        when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
+                .thenReturn(List.of(parcela));
+        when(parcelaRepository.findById(any())).thenReturn(Optional.of(parcela));
+        when(parcelaRepository.findByIdForUpdate(any())).thenReturn(Optional.of(parcela));
+        when(contratoQuery.tomadorIdDoContrato(any())).thenReturn(Optional.of(UUID.randomUUID()));
+        when(usuarioRepository.findById(any())).thenReturn(Optional.of(Usuario.criar("x@y.com", "h", Role.CLIENTE)));
+
+        job.executar();
+
+        ArgumentCaptor<EventoCobranca> captor = ArgumentCaptor.forClass(EventoCobranca.class);
+        verify(eventoRepository).save(captor.capture());
+        assertThat(captor.getValue().getTipo()).isEqualTo(TipoEventoCobranca.PARCELA_INADIMPLENTE);
+        assertThat(captor.getValue().getDiasAtraso()).isEqualTo(97);
+        assertThat(captor.getValue().getParcelaId()).isEqualTo(parcela.getId());
+    }
+
+    @Test
     void executar_filtraDiasMenorQue90() {
         ParcelaCobranca parcela = parcelaCom(VENCIMENTO_89_DIAS);
         when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
@@ -117,6 +138,7 @@ class MarcarParcelaInadimplenteJobTest {
         assertThat(processadas).isZero();
         verify(parcelaRepository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any());
+        verify(escalarUseCase, never()).escalar(any());
     }
 
     @Test
@@ -138,41 +160,43 @@ class MarcarParcelaInadimplenteJobTest {
     }
 
     @Test
-    void executar_idempotente_parcelaJaInadimplenteNaoRepublica() {
-        ParcelaCobranca parcela = parcelaCom(VENCIMENTO_97_DIAS);
-        parcela.marcarInadimplente(); // ja transicionada por execucao previa
+    void executar_concorrencia_statusMudouEntreLeituraELock_pulaSemNotificar() {
+        // Fix review manual: notif so dispara apos transicao confirmada — race entre leitura
+        // e lock NAO deve gerar email final pra parcela que mudou pra PAGA/EM_NEGOCIACAO/etc.
+        ParcelaCobranca elegivel = parcelaCom(VENCIMENTO_97_DIAS);
+        UUID parcelaId = elegivel.getId();
         when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
-                .thenReturn(List.of());
+                .thenReturn(List.of(elegivel));
+        // findByIdForUpdate retorna parcela ja em EM_NEGOCIACAO (outra instancia abriu renegociacao).
+        ParcelaCobranca renegociada = parcelaCom(VENCIMENTO_97_DIAS);
+        renegociada.iniciarNegociacao();
+        when(parcelaRepository.findByIdForUpdate(parcelaId)).thenReturn(Optional.of(renegociada));
 
         int processadas = job.executar();
 
         assertThat(processadas).isZero();
+        verify(parcelaRepository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any());
+        verify(escalarUseCase, never()).escalar(any());
     }
 
     @Test
-    void executar_concorrencia_statusMudouEntreLeituraELock_pula() {
+    void executar_parcelaDeletadaEntreLeituraELock_naoNotifica() {
         ParcelaCobranca parcela = parcelaCom(VENCIMENTO_97_DIAS);
         UUID parcelaId = parcela.getId();
         when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
                 .thenReturn(List.of(parcela));
-        when(parcelaRepository.findById(parcelaId)).thenReturn(Optional.of(parcela));
-        // Outra instancia marcou primeiro — findByIdForUpdate retorna parcela ja INADIMPLENTE.
-        ParcelaCobranca clone = parcelaCom(VENCIMENTO_97_DIAS);
-        clone.marcarInadimplente();
-        when(parcelaRepository.findByIdForUpdate(parcelaId)).thenReturn(Optional.of(clone));
+        when(parcelaRepository.findByIdForUpdate(parcelaId)).thenReturn(Optional.empty());
 
         int processadas = job.executar();
 
-        assertThat(processadas).isEqualTo(1);
-        verify(parcelaRepository, never()).save(any());
+        assertThat(processadas).isZero();
+        verify(escalarUseCase, never()).escalar(any());
         verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
     void executar_invokaUseCaseComDias90FixoParaCasarEtapa() {
-        // Hotfix code review: workflow casa por dia exato. Se o job catch-up encontra parcelas
-        // com dias > 90 (97 neste teste), use case precisa receber 90 pra ativar etapa final.
         ParcelaCobranca parcela = parcelaCom(VENCIMENTO_97_DIAS);
         UUID parcelaId = parcela.getId();
         when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
@@ -188,30 +212,56 @@ class MarcarParcelaInadimplenteJobTest {
         verify(escalarUseCase, times(1)).escalar(captor.capture());
         assertThat(captor.getValue().diasAtraso()).isEqualTo(MarcarParcelaInadimplenteJob.DIAS_INADIMPLENCIA);
         assertThat(captor.getValue().emailTomador()).isEqualTo("x@y.com");
-        // Variaveis carregam o dias real pra mensagem (97), mas o command usa 90 pro use case.
         assertThat(captor.getValue().variaveis()).containsEntry("diasAtraso", 97);
     }
 
     @Test
-    void executar_parcelaDeletadaEntreNotificacaoELock_naoPublicaEvento() {
-        // Hotfix code review: race entre tentarNotificarFinal e transicionar. findById retorna
-        // a parcela na notificacao, mas findByIdForUpdate retorna empty (apagada/movida por
-        // concorrencia entre os dois passos). Notificacao foi tentada; transicao pula sem evento.
+    void executar_comFinanceiroEmail_notificaTomadorEFinanceiro() {
+        // Fix review manual: spec 13.5 pede notif financeiro + tomador. Property setada -> 2 chamadas.
         ParcelaCobranca parcela = parcelaCom(VENCIMENTO_97_DIAS);
         UUID parcelaId = parcela.getId();
         when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
                 .thenReturn(List.of(parcela));
         when(parcelaRepository.findById(parcelaId)).thenReturn(Optional.of(parcela));
-        when(parcelaRepository.findByIdForUpdate(parcelaId)).thenReturn(Optional.empty());
+        when(parcelaRepository.findByIdForUpdate(parcelaId)).thenReturn(Optional.of(parcela));
+        when(contratoQuery.tomadorIdDoContrato(any())).thenReturn(Optional.of(UUID.randomUUID()));
+        when(usuarioRepository.findById(any()))
+                .thenReturn(Optional.of(Usuario.criar("tomador@sep.com", "h", Role.CLIENTE)));
+
+        MarcarParcelaInadimplenteJob jobComFinanceiro = new MarcarParcelaInadimplenteJob(
+                parcelaRepository,
+                eventoRepository,
+                contratoQuery,
+                usuarioRepository,
+                escalarUseCase,
+                eventPublisher,
+                txTemplate,
+                CLOCK,
+                "financeiro@sep.com");
+
+        jobComFinanceiro.executar();
+
+        ArgumentCaptor<EscalarCobrancaCommand> captor = ArgumentCaptor.forClass(EscalarCobrancaCommand.class);
+        verify(escalarUseCase, times(2)).escalar(captor.capture());
+        assertThat(captor.getAllValues())
+                .extracting(EscalarCobrancaCommand::emailTomador)
+                .containsExactly("tomador@sep.com", "financeiro@sep.com");
+    }
+
+    @Test
+    void executar_semFinanceiroEmail_soNotificaTomador() {
+        ParcelaCobranca parcela = parcelaCom(VENCIMENTO_97_DIAS);
+        UUID parcelaId = parcela.getId();
+        when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
+                .thenReturn(List.of(parcela));
+        when(parcelaRepository.findById(parcelaId)).thenReturn(Optional.of(parcela));
+        when(parcelaRepository.findByIdForUpdate(parcelaId)).thenReturn(Optional.of(parcela));
         when(contratoQuery.tomadorIdDoContrato(any())).thenReturn(Optional.of(UUID.randomUUID()));
         when(usuarioRepository.findById(any())).thenReturn(Optional.of(Usuario.criar("x@y.com", "h", Role.CLIENTE)));
 
-        int processadas = job.executar();
+        job.executar();
 
-        assertThat(processadas).isEqualTo(1);
-        verify(escalarUseCase).escalar(any());
-        verify(parcelaRepository, never()).save(any());
-        verify(eventPublisher, never()).publishEvent(any());
+        verify(escalarUseCase, times(1)).escalar(any());
     }
 
     @Test
@@ -220,8 +270,7 @@ class MarcarParcelaInadimplenteJobTest {
         ParcelaCobranca p2 = parcelaCom(VENCIMENTO_97_DIAS);
         when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
                 .thenReturn(List.of(p1, p2));
-        when(parcelaRepository.findById(p1.getId())).thenReturn(Optional.of(p1));
-        when(parcelaRepository.findById(p2.getId())).thenReturn(Optional.of(p2));
+        when(parcelaRepository.findById(any())).thenReturn(Optional.of(p2));
         when(parcelaRepository.findByIdForUpdate(p1.getId())).thenThrow(new RuntimeException("lock timeout"));
         when(parcelaRepository.findByIdForUpdate(p2.getId())).thenReturn(Optional.of(p2));
         when(contratoQuery.tomadorIdDoContrato(any())).thenReturn(Optional.of(UUID.randomUUID()));

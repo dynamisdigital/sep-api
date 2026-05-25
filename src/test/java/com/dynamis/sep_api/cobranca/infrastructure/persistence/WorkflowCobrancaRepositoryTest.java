@@ -20,26 +20,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({JpaAuditingConfig.class, AuditorAwareImpl.class})
-@ActiveProfiles("dev")
-// Fix review manual Task 13.4: WorkflowCobrancaSeeder eh ApplicationRunner ativo no perfil dev e
-// commita rows em sep_dev no boot de @SpringBootTest da suite. @DataJpaTest com rollback nao
-// remove esse estado entre execucoes — sobrescreve via property pra garantir banco limpo.
-@org.springframework.test.context.TestPropertySource(properties = "app.cobranca.workflow-seed-habilitado=false")
+// Fix review manual Task 13.5: roda contra o banco sep_test isolado (em vez do sep_dev usado
+// por outros DataJpaTest). Sep_test tem `workflow-seed-habilitado=false` em application-test.yml,
+// entao nao ha rows commited pelo Seeder e o TRUNCATE seguro de dev nao impacta sep_dev local.
+@ActiveProfiles("test")
 class WorkflowCobrancaRepositoryTest {
 
     @Autowired
     private WorkflowCobrancaRepository repo;
 
-    @Autowired
-    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
-
     @BeforeEach
     void setup() {
-        // TRUNCATE via JdbcTemplate commita imediatamente — necessario porque outros
-        // @SpringBootTest (perfil dev) executaram o seeder e deixaram rows commited no sep_dev.
-        // O @Transactional do @DataJpaTest rolla rollback no fim do teste, entao deleteAll do
-        // repository nao limpa rows commited fora dessa tx.
-        jdbcTemplate.execute("TRUNCATE workflow_cobranca");
+        repo.deleteAll();
     }
 
     @Test
