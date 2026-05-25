@@ -21,6 +21,11 @@ import java.util.UUID;
  *
  * <p>Suporta filtros por status, dias minimos/maximos de atraso. Resolve tomadorId via
  * {@link ContratoCobrancaQueryPort} para evitar dependencia direta no modulo de contratos.
+ *
+ * <p><strong>Conhecido (Sprint 14):</strong> resolve tomadorId em loop ({@code N+1}). Aceitavel
+ * pra volume MVP (dezenas/centenas de parcelas em atraso). Pra produçao com milhares de parcelas,
+ * substituir por join SQL + paginacao (offset/limit ou cursor). Mesma estrategia aplicada em
+ * {@code CobrancaController.listarInadimplencia} apos Sprint 14 (Backoffice).
  */
 @Service
 public class ListarInadimplenciaUseCase {

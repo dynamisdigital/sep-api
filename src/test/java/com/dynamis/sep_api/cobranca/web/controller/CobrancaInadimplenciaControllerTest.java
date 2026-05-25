@@ -168,6 +168,27 @@ class CobrancaInadimplenciaControllerTest {
         mockMvc.perform(get("/api/v1/cobranca/inadimplencia")).andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void listarInadimplencia_aplicaFiltros() throws Exception {
+        autenticar(UUID.randomUUID(), Role.FINANCEIRO);
+        when(listarInadimplenciaUseCase.listar(any())).thenReturn(java.util.List.of());
+
+        mockMvc.perform(get("/api/v1/cobranca/inadimplencia")
+                        .param("dias_atraso_min", "5")
+                        .param("dias_atraso_max", "30")
+                        .param("status", "ATRASADA"))
+                .andExpect(status().isOk());
+
+        org.mockito.ArgumentCaptor<ListarInadimplenciaUseCase.Filtro> captor =
+                org.mockito.ArgumentCaptor.forClass(ListarInadimplenciaUseCase.Filtro.class);
+        verify(listarInadimplenciaUseCase).listar(captor.capture());
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().diasAtrasoMin())
+                .isEqualTo(5);
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().diasAtrasoMax())
+                .isEqualTo(30);
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().status()).containsExactly(StatusParcela.ATRASADA);
+    }
+
     // ============== POST /parcelas/{id}/contato ==============
 
     @Test

@@ -402,12 +402,18 @@ public class CobrancaController {
         return ResponseEntity.ok(com.dynamis.sep_api.cobranca.web.dto.RenegociacaoResponse.from(renegociacao));
     }
 
+    /**
+     * Step-up assimetrico vs aceite (spec 13.6 — fix code review): recusa NAO gera obrigacao
+     * financeira nova; apenas reverte status. Aceite cria nova {@code AgendaPagamento} substituta
+     * com novas condicoes, entao exige confirmacao reforçada (step-up). Documentado aqui pra
+     * evitar drift entre spec e codigo.
+     */
     @org.springframework.web.bind.annotation.PatchMapping("/renegociacoes/{id}/recusa")
     @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Recusa renegociacao",
             description =
-                    "Tomador recusa a proposta. Apenas ownership (sem step-up). Parcela volta ao status anterior (ATRASADA/INADIMPLENTE).")
+                    "Tomador recusa a proposta. Apenas ownership (sem step-up — recusa nao gera obrigacao financeira nova). Parcela volta ao status anterior (ATRASADA/INADIMPLENTE).")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Renegociacao recusada."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),

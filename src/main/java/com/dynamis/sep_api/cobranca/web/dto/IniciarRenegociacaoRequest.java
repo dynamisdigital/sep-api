@@ -3,6 +3,7 @@ package com.dynamis.sep_api.cobranca.web.dto;
 import com.dynamis.sep_api.cobranca.application.dto.IniciarRenegociacaoCommand;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -21,7 +22,9 @@ import java.util.UUID;
 public record IniciarRenegociacaoRequest(
         @NotNull @DecimalMin(value = "0.01", inclusive = true) @Schema(description = "Novo valor por parcela.")
                 BigDecimal novoValorParcela,
-        @NotNull @Schema(description = "Vencimento inicial da nova agenda.", example = "2026-07-10")
+        @NotNull
+                @FutureOrPresent(message = "novoVencimento nao pode estar no passado")
+                @Schema(description = "Vencimento inicial da nova agenda (>= hoje).", example = "2026-07-10")
                 LocalDate novoVencimento,
         @Min(1) @Schema(description = "Numero de parcelas substitutas (>= 1).") int numeroParcelas,
         @NotNull @PositiveOrZero @Schema(description = "Desconto sobre o valor original (>= 0).") BigDecimal desconto,
