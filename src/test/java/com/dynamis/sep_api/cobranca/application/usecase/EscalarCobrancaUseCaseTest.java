@@ -1,0 +1,179 @@
+package com.dynamis.sep_api.cobranca.application.usecase;
+
+import com.dynamis.sep_api.cobranca.application.dto.EscalarCobrancaCommand;
+import com.dynamis.sep_api.cobranca.application.dto.EscalonamentoResult;
+import com.dynamis.sep_api.cobranca.application.port.out.NotificationProvider;
+import com.dynamis.sep_api.cobranca.application.port.out.dto.Notificacao;
+import com.dynamis.sep_api.cobranca.application.port.out.dto.ResultadoNotificacao;
+import com.dynamis.sep_api.cobranca.application.service.workflow.WorkflowCobrancaProperties;
+import com.dynamis.sep_api.cobranca.application.service.workflow.WorkflowCobrancaProperties.EtapaProperties;
+import com.dynamis.sep_api.cobranca.application.service.workflow.WorkflowCobrancaResolver;
+import com.dynamis.sep_api.cobranca.domain.model.EventoCobranca;
+import com.dynamis.sep_api.cobranca.domain.vo.CanalNotificacao;
+import com.dynamis.sep_api.cobranca.domain.vo.StatusEventoCobranca;
+import com.dynamis.sep_api.cobranca.infrastructure.persistence.EventoCobrancaRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class EscalarCobrancaUseCaseTest {
+
+    private static final UUID PARCELA = UUID.randomUUID();
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-06-10T10:00:00Z"), ZoneOffset.UTC);
+
+    private EventoCobrancaRepository eventoRepository;
+    private NotificationProvider emailProvider;
+    private NotificationProvider smsProvider;
+    private EscalarCobrancaUseCase useCase;
+
+    @BeforeEach
+    void setup() {
+        eventoRepository = mock(EventoCobrancaRepository.class);
+        emailProvider = mock(NotificationProvider.class);
+        smsProvider = mock(NotificationProvider.class);
+        when(emailProvider.suporta(CanalNotificacao.EMAIL)).thenReturn(true);
+        when(emailProvider.suporta(CanalNotificacao.SMS)).thenReturn(false);
+        when(smsProvider.suporta(CanalNotificacao.SMS)).thenReturn(true);
+        when(smsProvider.suporta(CanalNotificacao.EMAIL)).thenReturn(false);
+        when(emailProvider.enviar(any())).thenReturn(ResultadoNotificacao.sucesso("smtp", "id-email"));
+        when(smsProvider.enviar(any())).thenReturn(ResultadoNotificacao.sucesso("zenvia", "id-sms"));
+
+        useCase = new EscalarCobrancaUseCase(
+                resolverComEtapas(), List.of(emailProvider, smsProvider), eventoRepository, CLOCK);
+    }
+
+    private static WorkflowCobrancaResolver resolverComEtapas() {
+        return new WorkflowCobrancaResolver(new WorkflowCobrancaProperties(List.of(
+                new EtapaProperties(0, List.of("email-amigavel"), false, false, false),
+                new EtapaProperties(5, List.of("email-amigavel", "sms-lembrete"), false, false, false),
+                new EtapaProperties(30, List.of("email-firme"), true, false, false),
+                new EtapaProperties(90, List.of(), false, false, true))));
+    }
+
+    @Test
+    void semEtapa_naoChamaProvider() {
+        EscalonamentoResult r = useCase.escalar(comando(3));
+
+        assertThat(r.tinhaEtapa()).isFalse();
+        assertThat(r.eventosCriados()).isZero();
+        verify(emailProvider, never()).enviar(any());
+        verify(smsProvider, never()).enviar(any());
+    }
+
+    @Test
+    void dia0_emailUnico_chamaEmailProviderEGravaEvento() {
+        EscalonamentoResult r = useCase.escalar(comando(0));
+
+        assertThat(r.tinhaEtapa()).isTrue();
+        assertThat(r.eventosCriados()).isEqualTo(1);
+        verify(emailProvider).enviar(any(Notificacao.class));
+        verify(eventoRepository).save(any(EventoCobranca.class));
+    }
+
+    @Test
+    void dia5_dispara2NotificacoesEmCanaisDiferentes() {
+        EscalonamentoResult r = useCase.escalar(comando(5));
+
+        assertThat(r.eventosCriados()).isEqualTo(2);
+        verify(emailProvider).enviar(any());
+        verify(smsProvider).enviar(any());
+    }
+
+    @Test
+    void notificacaoJaEnviada_skipsProvider() {
+        when(eventoRepository.existsByParcelaIdAndDiasAtrasoAndCanalAndTemplate(
+                        eq(PARCELA), eq(0), eq(CanalNotificacao.EMAIL), eq("cobranca-amigavel")))
+                .thenReturn(true);
+
+        EscalonamentoResult r = useCase.escalar(comando(0));
+
+        assertThat(r.tinhaEtapa()).isTrue();
+        assertThat(r.eventosCriados()).isZero();
+        verify(emailProvider, never()).enviar(any());
+    }
+
+    @Test
+    void destinatarioVazio_gravaFalhaSemChamarProvider() {
+        EscalonamentoResult r =
+                useCase.escalar(new EscalarCobrancaCommand(PARCELA, 0, null, null, Map.of("numeroParcela", 1), "corr"));
+
+        assertThat(r.eventosCriados()).isEqualTo(1);
+        verify(emailProvider, never()).enviar(any());
+        verify(eventoRepository).save(any(EventoCobranca.class));
+    }
+
+    @Test
+    void dia30_flagContatoManualPropagada() {
+        EscalonamentoResult r = useCase.escalar(comando(30));
+
+        assertThat(r.flagContatoManual()).isTrue();
+        assertThat(r.escalonarBackoffice()).isFalse();
+        assertThat(r.marcarInadimplente()).isFalse();
+    }
+
+    @Test
+    void dia90_marcarInadimplenteSemNotificacoes() {
+        EscalonamentoResult r = useCase.escalar(comando(90));
+
+        assertThat(r.tinhaEtapa()).isTrue();
+        assertThat(r.marcarInadimplente()).isTrue();
+        assertThat(r.eventosCriados()).isZero();
+        verify(emailProvider, never()).enviar(any());
+    }
+
+    @Test
+    void falhaNoProvider_persisteEventoComStatusFalha() {
+        when(emailProvider.enviar(any())).thenReturn(ResultadoNotificacao.falha("smtp", "down"));
+
+        EscalonamentoResult r = useCase.escalar(comando(0));
+
+        assertThat(r.eventosCriados()).isEqualTo(1);
+        verify(eventoRepository).save(any(EventoCobranca.class));
+        // Status carregado no evento — validado indiretamente via factory de EventoCobranca
+        // (notificacaoAutomatica recebe status como argumento). Assert direta seria fragil; o
+        // contrato esta coberto pela cadeia ResultadoNotificacao -> EventoCobranca.
+        assertThat(r.tinhaEtapa()).isTrue();
+    }
+
+    @Test
+    void semProviderParaCanal_falha() {
+        useCase = new EscalarCobrancaUseCase(resolverComEtapas(), List.of(emailProvider), eventoRepository, CLOCK);
+        // Etapa dia 5 exige SMS, mas sem provider SMS configurado -> IllegalStateException.
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> useCase.escalar(comando(5)));
+    }
+
+    @Test
+    void notificacaoUsaStatusFalhaQuandoProviderRetornaFalha() {
+        when(emailProvider.enviar(any())).thenReturn(ResultadoNotificacao.falha("smtp", "render erro"));
+
+        useCase.escalar(comando(0));
+
+        org.mockito.ArgumentCaptor<EventoCobranca> captor = org.mockito.ArgumentCaptor.forClass(EventoCobranca.class);
+        verify(eventoRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(StatusEventoCobranca.FALHA);
+    }
+
+    private EscalarCobrancaCommand comando(int dias) {
+        return new EscalarCobrancaCommand(
+                PARCELA,
+                dias,
+                "cliente@example.com",
+                "+5511999999999",
+                Map.of("numeroParcela", 1, "dataVencimento", "10/06/2026", "valor", "R$ 100,00"),
+                "corr-test");
+    }
+}

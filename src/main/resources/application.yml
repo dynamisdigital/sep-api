@@ -129,6 +129,28 @@ app:
       access-token: ${APP_CLICKSIGN_ACCESS_TOKEN:}
       webhook:
         hmac-secret: ${APP_WEBHOOK_SECRET_CLICKSIGN:dev-clicksign-webhook-secret-change-me}
+  cobranca:
+    # Workflow default de cobranca (Sprint 13 Task 13.4). Etapas por dia de atraso —
+    # `EscalarCobrancaUseCase` casa o numero de dias e dispara as notificacoes correspondentes.
+    # Flags operacionais: `flag-contato-manual` sinaliza para o backoffice; `escalonar-backoffice`
+    # publica evento pra fila operacional; `marcar-inadimplente` informa que o `MarcarParcelaInadimplenteJob`
+    # (Task 13.5) eh quem efetiva a transicao 90+ dias.
+    workflow:
+      dias-atraso:
+        - dia: 0
+          notificacoes: [email-amigavel]
+        - dia: 5
+          notificacoes: [email-amigavel, sms-lembrete]
+        - dia: 15
+          notificacoes: [email-firme, sms-firme]
+        - dia: 30
+          notificacoes: [email-firme, sms-firme]
+          flag-contato-manual: true
+        - dia: 60
+          notificacoes: [email-final]
+          escalonar-backoffice: true
+        - dia: 90
+          marcar-inadimplente: true
   notificacoes:
     # Provider de envio (Sprint 13 - ADR 0014). `log` registra metadados sem enviar
     # nada externo e eh default seguro. `smtp-zenvia` ativa email SMTP + SMS Zenvia.
