@@ -133,14 +133,19 @@ app:
     # Provider de envio (Sprint 13 - ADR 0014). `log` registra metadados sem enviar
     # nada externo e eh default seguro. `smtp-zenvia` ativa email SMTP + SMS Zenvia.
     provider: ${APP_NOTIFICACOES_PROVIDER:log}
+    # Default `no-reply@sep.local` eh sentinela nao-roteavel pra evitar envio
+    # acidental em dev/test caso provider=smtp-zenvia vaze sem APP_NOTIFICACOES_*
+    # configurado. Prod sobrescreve via APP_NOTIFICACOES_REMETENTE_EMAIL.
     remetente-email: ${APP_NOTIFICACOES_REMETENTE_EMAIL:no-reply@sep.local}
+    # Env vars seguem prefixo APP_NOTIFICACOES_ZENVIA_* (alinhado a APP_CELCOIN_*
+    # e APP_CLICKSIGN_*) — uniformiza precedence parsing entre adapters.
     zenvia:
-      base-url: ${ZENVIA_BASE_URL:https://api.zenvia.com}
-      # Token deixado vazio por default — adapter valida isBlank() ao bootar
-      # com provider=smtp-zenvia e falha rapido em prod sem credencial.
-      api-token: ${ZENVIA_API_TOKEN:}
-      from: ${ZENVIA_SMS_FROM:SEP}
-      timeout-ms: ${ZENVIA_TIMEOUT_MS:5000}
+      base-url: ${APP_NOTIFICACOES_ZENVIA_BASE_URL:https://api.zenvia.com}
+      # Token vazio por default — adapter valida isBlank() ao bootar com
+      # provider=smtp-zenvia e falha rapido em prod sem credencial.
+      api-token: ${APP_NOTIFICACOES_ZENVIA_API_TOKEN:}
+      from: ${APP_NOTIFICACOES_ZENVIA_FROM:SEP}
+      timeout-ms: ${APP_NOTIFICACOES_ZENVIA_TIMEOUT_MS:5000}
   celcoin:
     kyc:
       base-url: ${APP_CELCOIN_KYC_BASE_URL:https://sandbox.openfinance.celcoin.dev/onboarding/v1}

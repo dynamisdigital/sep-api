@@ -40,6 +40,8 @@ app:
     scheduling-habilitado: false
   # Sprint 13: forca LogNotificationProvider em todos os ITs/UTs do perfil test.
   # Adapter SMTP/Zenvia exige credencial real — Log evita chamada externa e
-  # mantem rastreio via metadados. Sobrescrevivel via @TestPropertySource.
+  # mantem rastreio via metadados. Precedence Spring: @TestPropertySource >
+  # application-test.yml > application.yml, entao ITs que precisem testar
+  # adapter real podem sobrescrever via @TestPropertySource("app.notificacoes.provider=smtp-zenvia").
   notificacoes:
     provider: log

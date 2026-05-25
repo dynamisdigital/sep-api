@@ -51,8 +51,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-aop'
 	// Email SMTP para notificacoes transacionais (Sprint 13 - ADR 0014).
-	// Adapter SmtpNotificationProvider usa JavaMailSender; Thymeleaf standalone
-	// (declarado abaixo) renderiza os templates HTML em src/main/resources/templates/notificacoes/.
+	// Habilita JavaMailSender no contexto; adapter consumidor entra em Task 13.3.
+	// Thymeleaf standalone (declarado abaixo) sera reusado pra renderizar templates.
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
 
 	// Persistencia (Postgres + Flyway)
