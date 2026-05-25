@@ -159,15 +159,27 @@ class CobrancaAuditListenerTest {
     }
 
     @Test
-    void parcelaInadimplente_gravaAuditoriaComTomador() {
+    void parcelaInadimplente_actorNullPorqueEhJob() {
+        // Fix code review Task 13.8: PARCELA_INADIMPLENTE eh disparada por job, nao por usuario.
+        // actor=null preserva accountability; tomadorId vai pro payload pra rastreio.
         UUID tomadorId = UUID.randomUUID();
         listener.aoMarcarInadimplente(new ParcelaInadimplenteEvent(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), tomadorId, 3, LocalDate.of(2026, 3, 15), 97));
 
         ArgumentCaptor<String> json = ArgumentCaptor.forClass(String.class);
-        verify(auditLogService).gravar(eq(TipoEventoSeguranca.PARCELA_INADIMPLENTE), eq(tomadorId), json.capture());
-        assertThat(json.getValue()).contains("diasAtraso", "97");
+        verify(auditLogService).gravar(eq(TipoEventoSeguranca.PARCELA_INADIMPLENTE), eq(null), json.capture());
+        assertThat(json.getValue()).contains("diasAtraso", "97", tomadorId.toString());
         assertThat(json.getValue()).doesNotContain("cpf", "cnpj", "telefone", "email", "agencia");
+    }
+
+    @Test
+    void eventoCobranca_notificacaoAutomatica_mapeiaParaNotificacaoEnviada() {
+        // Fix code review Task 13.8: tipo NOTIFICACAO_ENVIADA estava orfo. Handler discrimina
+        // NOTIFICACAO_AUTOMATICA -> NOTIFICACAO_ENVIADA.
+        listener.aoRegistrarEventoCobranca(new EventoCobrancaRegistradoEvent(
+                UUID.randomUUID(), UUID.randomUUID(), TipoEventoCobranca.NOTIFICACAO_AUTOMATICA, 5, null));
+
+        verify(auditLogService).gravar(eq(TipoEventoSeguranca.NOTIFICACAO_ENVIADA), eq(null), any(String.class));
     }
 
     @Test

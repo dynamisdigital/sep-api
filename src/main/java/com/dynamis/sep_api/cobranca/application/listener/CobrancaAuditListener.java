@@ -151,10 +151,14 @@ public class CobrancaAuditListener {
         }
         // LGPD: nao persistimos descricao/template/canal aqui — corpo da mensagem fica em
         // EventoCobranca (sem dados pessoais; CPF/CNPJ/telefone NUNCA entram nos templates).
-        auditLogService.gravar(
-                TipoEventoSeguranca.EVENTO_COBRANCA_REGISTRADO,
-                event.registradoPor(),
-                serializar(payload, event.eventoId()));
+        // Fix code review Task 13.8: discrimina NOTIFICACAO_AUTOMATICA → NOTIFICACAO_ENVIADA pra
+        // distinguir entrega de mensagem (automatica/manual) de outros eventos operacionais
+        // (mudanca de estado, contato manual). Sem isso o tipo NOTIFICACAO_ENVIADA ficaria orfa.
+        TipoEventoSeguranca tipoAudit =
+                event.tipo() == com.dynamis.sep_api.cobranca.domain.vo.TipoEventoCobranca.NOTIFICACAO_AUTOMATICA
+                        ? TipoEventoSeguranca.NOTIFICACAO_ENVIADA
+                        : TipoEventoSeguranca.EVENTO_COBRANCA_REGISTRADO;
+        auditLogService.gravar(tipoAudit, event.registradoPor(), serializar(payload, event.eventoId()));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -167,8 +171,13 @@ public class CobrancaAuditListener {
         payload.put("numero", event.numero());
         payload.put("dataVencimento", event.dataVencimento().toString());
         payload.put("diasAtraso", event.diasAtraso());
-        auditLogService.gravar(
-                TipoEventoSeguranca.PARCELA_INADIMPLENTE, event.tomadorId(), serializar(payload, event.parcelaId()));
+        if (event.tomadorId() != null) {
+            payload.put("tomadorId", event.tomadorId().toString());
+        }
+        // Fix code review Task 13.8: actor=null porque eh job automatico
+        // (MarcarParcelaInadimplenteJob), nao o tomador. tomadorId vai pro payload pra rastreio
+        // sem confundir accountability. Coerente com PARCELA_ATRASADA (tambem job sem actor).
+        auditLogService.gravar(TipoEventoSeguranca.PARCELA_INADIMPLENTE, null, serializar(payload, event.parcelaId()));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

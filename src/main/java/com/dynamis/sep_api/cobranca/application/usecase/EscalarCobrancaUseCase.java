@@ -153,7 +153,7 @@ public class EscalarCobrancaUseCase {
                     command, notif, agora, "provider lancou: " + e.getClass().getSimpleName());
             return 1;
         }
-        eventoRepository.save(EventoCobranca.notificacaoAutomatica(
+        EventoCobranca evento = eventoRepository.save(EventoCobranca.notificacaoAutomatica(
                 command.parcelaId(),
                 notif.canal(),
                 notif.template(),
@@ -161,6 +161,11 @@ public class EscalarCobrancaUseCase {
                 resultado.status(),
                 resultado.mensagemTecnica(),
                 agora));
+        // Fix code review Task 13.8: publica EventoCobrancaRegistradoEvent pra o
+        // CobrancaAuditListener gravar NOTIFICACAO_ENVIADA. Sem isso o tipo NOTIFICACAO_ENVIADA
+        // ficaria orfa no enum.
+        eventPublisher.publishEvent(new com.dynamis.sep_api.cobranca.domain.event.EventoCobrancaRegistradoEvent(
+                evento.getId(), command.parcelaId(), evento.getTipo(), command.diasAtraso(), null));
         return 1;
     }
 

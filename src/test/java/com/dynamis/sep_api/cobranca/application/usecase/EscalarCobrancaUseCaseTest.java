@@ -53,6 +53,9 @@ class EscalarCobrancaUseCaseTest {
         when(smsProvider.suporta(CanalNotificacao.EMAIL)).thenReturn(false);
         when(emailProvider.enviar(any())).thenReturn(ResultadoNotificacao.sucesso("smtp", "id-email"));
         when(smsProvider.enviar(any())).thenReturn(ResultadoNotificacao.sucesso("zenvia", "id-sms"));
+        // Task 13.8 fix: use case agora publica EventoCobrancaRegistradoEvent apos save; precisa
+        // mockar save retornando o argumento pra getId() funcionar.
+        when(eventoRepository.save(any(EventoCobranca.class))).thenAnswer(inv -> inv.getArgument(0));
 
         useCase = new EscalarCobrancaUseCase(
                 resolverComEtapas(), List.of(emailProvider, smsProvider), eventoRepository, eventPublisher, CLOCK);
