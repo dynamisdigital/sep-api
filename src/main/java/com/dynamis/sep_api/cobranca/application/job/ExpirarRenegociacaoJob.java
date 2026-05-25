@@ -89,7 +89,9 @@ public class ExpirarRenegociacaoJob {
     }
 
     private Boolean expirar(UUID renegociacaoId, OffsetDateTime agora) {
-        Renegociacao atual = renegociacaoRepository.findById(renegociacaoId).orElse(null);
+        // Hotfix code review Task 13.6: lock pessimista serializa expirar vs aceitar/recusar.
+        Renegociacao atual =
+                renegociacaoRepository.findByIdForUpdate(renegociacaoId).orElse(null);
         if (atual == null || atual.getStatus() != StatusRenegociacao.PROPOSTA) {
             // Outra instancia ja decidiu/expirou — idempotente.
             return false;

@@ -57,7 +57,7 @@ class RecusarRenegociacaoUseCaseTest {
     void executar_recusaValida_parcelaVoltaParaStatusAnterior() {
         ParcelaCobranca parcela = parcelaEmNegociacao(StatusParcela.ATRASADA);
         Renegociacao renegociacao = renegociacaoPara(parcela, StatusParcela.ATRASADA);
-        when(renegociacaoRepository.findById(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
+        when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
         when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
 
         Renegociacao decidida = useCase.executar(renegociacao.getId(), tomadorId);
@@ -71,7 +71,7 @@ class RecusarRenegociacaoUseCaseTest {
     void executar_recusaParcelaInadimplente_voltaParaInadimplente() {
         ParcelaCobranca parcela = parcelaEmNegociacao(StatusParcela.INADIMPLENTE);
         Renegociacao renegociacao = renegociacaoPara(parcela, StatusParcela.INADIMPLENTE);
-        when(renegociacaoRepository.findById(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
+        when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
         when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
 
         useCase.executar(renegociacao.getId(), tomadorId);
@@ -83,7 +83,7 @@ class RecusarRenegociacaoUseCaseTest {
     void executar_ownerInvalido_rejeita() {
         ParcelaCobranca parcela = parcelaEmNegociacao(StatusParcela.ATRASADA);
         Renegociacao renegociacao = renegociacaoPara(parcela, StatusParcela.ATRASADA);
-        when(renegociacaoRepository.findById(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
+        when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
 
         assertThatThrownBy(() -> useCase.executar(renegociacao.getId(), UUID.randomUUID()))
                 .isInstanceOf(CobrancaOwnershipException.class);
@@ -95,7 +95,7 @@ class RecusarRenegociacaoUseCaseTest {
         ParcelaCobranca parcela = parcelaEmNegociacao(StatusParcela.ATRASADA);
         Renegociacao renegociacao = renegociacaoPara(parcela, StatusParcela.ATRASADA);
         renegociacao.aceitar(UUID.randomUUID(), OffsetDateTime.now(CLOCK));
-        when(renegociacaoRepository.findById(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
+        when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
 
         assertThatThrownBy(() -> useCase.executar(renegociacao.getId(), tomadorId))
                 .isInstanceOf(IllegalStateException.class)

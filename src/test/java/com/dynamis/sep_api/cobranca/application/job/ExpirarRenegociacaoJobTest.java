@@ -63,7 +63,7 @@ class ExpirarRenegociacaoJobTest {
         Renegociacao renegociacao = renegociacaoExpirada(parcela);
         when(renegociacaoRepository.findByStatusAndDataExpiracaoBefore(any(), any()))
                 .thenReturn(List.of(renegociacao));
-        when(renegociacaoRepository.findById(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
+        when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
         when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
 
         int processadas = job.executar();
@@ -81,7 +81,7 @@ class ExpirarRenegociacaoJobTest {
         renegociacao.aceitar(UUID.randomUUID(), OffsetDateTime.now(CLOCK));
         when(renegociacaoRepository.findByStatusAndDataExpiracaoBefore(any(), any()))
                 .thenReturn(List.of(renegociacao));
-        when(renegociacaoRepository.findById(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
+        when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
 
         int processadas = job.executar();
 
@@ -95,7 +95,7 @@ class ExpirarRenegociacaoJobTest {
         Renegociacao renegociacao = renegociacaoExpirada(parcela);
         when(renegociacaoRepository.findByStatusAndDataExpiracaoBefore(any(), any()))
                 .thenReturn(List.of(renegociacao));
-        when(renegociacaoRepository.findById(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
+        when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
         when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.empty());
 
         int processadas = job.executar();
@@ -112,8 +112,8 @@ class ExpirarRenegociacaoJobTest {
         Renegociacao r2 = renegociacaoExpirada(p2);
         when(renegociacaoRepository.findByStatusAndDataExpiracaoBefore(any(), any()))
                 .thenReturn(List.of(r1, r2));
-        when(renegociacaoRepository.findById(r1.getId())).thenThrow(new RuntimeException("boom"));
-        when(renegociacaoRepository.findById(r2.getId())).thenReturn(Optional.of(r2));
+        when(renegociacaoRepository.findByIdForUpdate(r1.getId())).thenThrow(new RuntimeException("boom"));
+        when(renegociacaoRepository.findByIdForUpdate(r2.getId())).thenReturn(Optional.of(r2));
         when(parcelaRepository.findByIdForUpdate(p2.getId())).thenReturn(Optional.of(p2));
 
         int processadas = job.executar();

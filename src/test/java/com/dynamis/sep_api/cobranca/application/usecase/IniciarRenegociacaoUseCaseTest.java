@@ -126,10 +126,25 @@ class IniciarRenegociacaoUseCaseTest {
         ParcelaCobranca parcela = parcelaCom(StatusParcela.ATRASADA);
         when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
         when(renegociacaoRepository.saveAndFlush(any(Renegociacao.class)))
-                .thenThrow(new DataIntegrityViolationException("uq_renegociacao_parcela_ativa"));
+                .thenThrow(new DataIntegrityViolationException(
+                        "could not execute statement; constraint [uq_renegociacao_parcela_ativa]"));
 
         assertThatThrownBy(() -> useCase.executar(comando(parcela.getId())))
                 .isInstanceOf(RenegociacaoConflitanteException.class);
+    }
+
+    @Test
+    void executar_outraDataIntegrityViolation_naoMascaraComoConflitante() {
+        // Hotfix code review: catch genérico converteria todas as DIV em RenegociacaoConflitante.
+        // Filtra pelo nome do constraint pra deixar outras violacoes (FK, check, NOT NULL) subirem.
+        ParcelaCobranca parcela = parcelaCom(StatusParcela.ATRASADA);
+        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(renegociacaoRepository.saveAndFlush(any(Renegociacao.class)))
+                .thenThrow(new DataIntegrityViolationException("constraint [fk_renegociacao_agenda] violated"));
+
+        assertThatThrownBy(() -> useCase.executar(comando(parcela.getId())))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("fk_renegociacao_agenda");
     }
 
     @Test

@@ -73,8 +73,11 @@ public class AceitarRenegociacaoUseCase {
 
     @Transactional
     public Renegociacao executar(UUID renegociacaoId, UUID tomadorAutenticadoId) {
+        // Hotfix code review Task 13.6: lock pessimista na renegociacao serializa transicoes
+        // concorrentes (aceite/recusa/job expirar). Sem isso, job poderia expirar entre o
+        // status check e o accept call, deixando renegociacao em estado inconsistente.
         Renegociacao renegociacao = renegociacaoRepository
-                .findById(renegociacaoId)
+                .findByIdForUpdate(renegociacaoId)
                 .orElseThrow(() -> new RenegociacaoNaoEncontradaException(renegociacaoId));
         if (renegociacao.getStatus() != StatusRenegociacao.PROPOSTA) {
             throw new IllegalStateException("renegociacao " + renegociacaoId + " esta em " + renegociacao.getStatus()

@@ -108,11 +108,28 @@ public class IniciarRenegociacaoUseCase {
             renegociacao = renegociacaoRepository.saveAndFlush(renegociacao);
         } catch (DataIntegrityViolationException e) {
             // Race: outra instancia/thread inseriu PROPOSTA entre o existsBy e o save.
-            throw new RenegociacaoConflitanteException(parcela.getId());
+            // Filtra pelo nome do constraint pra evitar mascarar outras violacoes (FK, check, etc).
+            if (mensagemContemConstraint(e, "uq_renegociacao_parcela_ativa")) {
+                throw new RenegociacaoConflitanteException(parcela.getId());
+            }
+            throw e;
         }
         parcelaRepository.save(parcela);
         eventPublisher.publishEvent(
                 new RenegociacaoPropostaEvent(renegociacao.getId(), parcela.getId(), tomadorId, command.propostaPor()));
         return renegociacao;
+    }
+
+    /** Walk no causal chain pra detectar nome do constraint na mensagem Hibernate/JDBC. */
+    private static boolean mensagemContemConstraint(Throwable erro, String nomeConstraint) {
+        Throwable atual = erro;
+        while (atual != null) {
+            String msg = atual.getMessage();
+            if (msg != null && msg.contains(nomeConstraint)) {
+                return true;
+            }
+            atual = atual.getCause();
+        }
+        return false;
     }
 }
