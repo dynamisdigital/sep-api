@@ -124,7 +124,10 @@ public class ZenviaSmsNotificationProvider implements NotificationProvider {
                 .body(payload)
                 .retrieve()
                 .body(ZenviaResposta.class);
-        return Retry.decorateSupplier(retry, CircuitBreaker.decorateSupplier(circuitBreaker, chamada))
+        // Ordem CB-fora / Retry-dentro: o CB conta 1 invocacao por chamada externa (3 retries
+        // contam como 1 evento pro CB) — evita abrir o disjuntor por falha transitoria que o
+        // retry ja absorve. Sem essa ordem, 3 retries 5xx zeram a janela do CB rapido demais.
+        return CircuitBreaker.decorateSupplier(circuitBreaker, Retry.decorateSupplier(retry, chamada))
                 .get();
     }
 

@@ -9,6 +9,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -37,14 +38,24 @@ public class SmtpNotificationProvider implements NotificationProvider {
     private static final String NOME = "smtp";
     // Regex pragmatica — Spring/Jakarta validation tem outras mais completas; aqui basta
     // bloquear endereco vazio ou obviamente quebrado antes de bater no SMTP.
-    private static final Pattern EMAIL_BASICO = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+    // TLD com 2+ caracteres impede aceitar "a@b.c" como valido — fix pos code review Task 13.3.
+    private static final Pattern EMAIL_BASICO = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$");
 
     private final JavaMailSender mailSender;
     private final TemplateNotificacaoEngine templateEngine;
     private final NotificacaoProperties properties;
 
     public SmtpNotificationProvider(
-            JavaMailSender mailSender, TemplateNotificacaoEngine templateEngine, NotificacaoProperties properties) {
+            JavaMailSender mailSender,
+            TemplateNotificacaoEngine templateEngine,
+            NotificacaoProperties properties,
+            @Value("${spring.mail.host:}") String mailHost) {
+        if (mailHost == null || mailHost.isBlank()) {
+            // Spring Boot autoconfigure cria JavaMailSenderImpl mesmo sem host, e o
+            // send() falharia apenas em runtime. Falhar no boot evita prod silencioso.
+            throw new IllegalStateException(
+                    "spring.mail.host obrigatorio quando app.notificacoes.provider=smtp-zenvia (defina SPRING_MAIL_HOST)");
+        }
         this.mailSender = mailSender;
         this.templateEngine = templateEngine;
         this.properties = properties;

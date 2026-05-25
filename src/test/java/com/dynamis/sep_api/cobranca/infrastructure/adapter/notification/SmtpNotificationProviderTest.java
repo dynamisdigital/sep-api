@@ -41,7 +41,8 @@ class SmtpNotificationProviderTest {
                 mailSender,
                 engine,
                 new NotificacaoProperties(
-                        "smtp-zenvia", "sep@empresa.com", new NotificacaoProperties.Zenvia(null, null, "SEP", 5000)));
+                        "smtp-zenvia", "sep@empresa.com", new NotificacaoProperties.Zenvia(null, null, "SEP", 5000)),
+                "smtp.empresa.com");
     }
 
     @Test

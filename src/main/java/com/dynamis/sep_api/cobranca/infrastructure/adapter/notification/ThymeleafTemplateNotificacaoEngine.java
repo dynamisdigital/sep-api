@@ -11,13 +11,14 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Adapter Thymeleaf de {@link TemplateNotificacaoEngine} (Sprint 13 Task 13.3).
  *
  * <p>Usa dois resolvers no mesmo engine: HTML pra emails (.html) e TEXT pra SMS (.txt). Cada canal
  * mapeia pra prefixo + sufixo distinto; o nome de template eh comum (ex. {@code cobranca-amigavel})
- * e a extensao decorre do canal.
+ * e o sufixo do canal eh anexado antes de bater no resolver.
  *
  * <p>{@link TemplateEngine} eh standalone (sem starter Spring Boot) — o mesmo padrao do
  * {@code ThymeleafTemplateContratoEngine} (Sprint 10).
@@ -26,20 +27,22 @@ import java.util.Map;
 public class ThymeleafTemplateNotificacaoEngine implements TemplateNotificacaoEngine {
 
     private static final String PREFIX = "templates/notificacoes/";
-    private static final String SUFIXO_EMAIL = "-email.html";
-    private static final String SUFIXO_SMS = "-sms.txt";
+    private static final String SUFIXO_EMAIL = "-email";
+    private static final String SUFIXO_SMS = "-sms";
+    private static final String EXT_HTML = ".html";
+    private static final String EXT_TXT = ".txt";
 
     private final TemplateEngine engine;
 
     public ThymeleafTemplateNotificacaoEngine() {
         this.engine = new TemplateEngine();
-        engine.addTemplateResolver(resolver(PREFIX, SUFIXO_EMAIL, TemplateMode.HTML, 1));
-        engine.addTemplateResolver(resolver(PREFIX, SUFIXO_SMS, TemplateMode.TEXT, 2));
+        engine.addTemplateResolver(resolver(EXT_HTML, TemplateMode.HTML, SUFIXO_EMAIL, 1));
+        engine.addTemplateResolver(resolver(EXT_TXT, TemplateMode.TEXT, SUFIXO_SMS, 2));
     }
 
     @Override
     public String renderizar(CanalNotificacao canal, String template, Map<String, Object> variaveis) {
-        String nomeCompleto = nomeCompleto(canal, template);
+        String nomeCompleto = template + sufixoCanal(canal);
         Context ctx = new Context();
         if (variaveis != null) {
             variaveis.forEach(ctx::setVariable);
@@ -55,29 +58,25 @@ public class ThymeleafTemplateNotificacaoEngine implements TemplateNotificacaoEn
         }
     }
 
-    private static String nomeCompleto(CanalNotificacao canal, String template) {
+    private static String sufixoCanal(CanalNotificacao canal) {
         return switch (canal) {
-            case EMAIL -> template + SUFIXO_EMAIL.substring(0, SUFIXO_EMAIL.lastIndexOf('.'));
-            case SMS -> template + SUFIXO_SMS.substring(0, SUFIXO_SMS.lastIndexOf('.'));
+            case EMAIL -> SUFIXO_EMAIL;
+            case SMS -> SUFIXO_SMS;
         };
     }
 
     private static ClassLoaderTemplateResolver resolver(
-            String prefix, String suffixComExtensao, TemplateMode mode, int order) {
-        // O suffix inclui extensao + parte distintiva do canal (ex. "-email.html").
-        // Como Thymeleaf concatena `prefix + nome + suffix`, o nome passado em renderizar
-        // ja foi normalizado para conter o sufixo do canal sem extensao (ex. "cobranca-amigavel-email").
+            String extensao, TemplateMode mode, String sufixoNome, int order) {
         ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
-        resolver.setPrefix(prefix);
-        resolver.setSuffix(suffixComExtensao.substring(suffixComExtensao.lastIndexOf('.')));
+        resolver.setPrefix(PREFIX);
+        resolver.setSuffix(extensao);
         resolver.setTemplateMode(mode);
         resolver.setCharacterEncoding(StandardCharsets.UTF_8.name());
         resolver.setCacheable(true);
         resolver.setOrder(order);
-        // Cada resolver soh processa templates que casem com o nome esperado pelo canal
-        // (sufixo `-email` ou `-sms`) — evita ambiguidade entre HTML e TEXT.
-        resolver.setResolvablePatterns(
-                java.util.Set.of("*" + suffixComExtensao.substring(0, suffixComExtensao.lastIndexOf('.'))));
+        // Cada resolver soh processa templates do seu canal (`*-email` ou `*-sms`) —
+        // evita ambiguidade entre HTML e TEXT quando ambos resolvers estao no engine.
+        resolver.setResolvablePatterns(Set.of("*" + sufixoNome));
         return resolver;
     }
 }
