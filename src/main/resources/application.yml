@@ -129,6 +129,18 @@ app:
       access-token: ${APP_CLICKSIGN_ACCESS_TOKEN:}
       webhook:
         hmac-secret: ${APP_WEBHOOK_SECRET_CLICKSIGN:dev-clicksign-webhook-secret-change-me}
+  notificacoes:
+    # Provider de envio (Sprint 13 - ADR 0014). `log` registra metadados sem enviar
+    # nada externo e eh default seguro. `smtp-zenvia` ativa email SMTP + SMS Zenvia.
+    provider: ${APP_NOTIFICACOES_PROVIDER:log}
+    remetente-email: ${APP_NOTIFICACOES_REMETENTE_EMAIL:no-reply@sep.local}
+    zenvia:
+      base-url: ${ZENVIA_BASE_URL:https://api.zenvia.com}
+      # Token deixado vazio por default — adapter valida isBlank() ao bootar
+      # com provider=smtp-zenvia e falha rapido em prod sem credencial.
+      api-token: ${ZENVIA_API_TOKEN:}
+      from: ${ZENVIA_SMS_FROM:SEP}
+      timeout-ms: ${ZENVIA_TIMEOUT_MS:5000}
   celcoin:
     kyc:
       base-url: ${APP_CELCOIN_KYC_BASE_URL:https://sandbox.openfinance.celcoin.dev/onboarding/v1}

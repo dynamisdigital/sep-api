@@ -38,3 +38,8 @@ app:
     # de evento em janela aleatoria de IT. MarcarParcelaAtrasadaJobTest mocka
     # Clock e chama o metodo direto.
     scheduling-habilitado: false
+  # Sprint 13: forca LogNotificationProvider em todos os ITs/UTs do perfil test.
+  # Adapter SMTP/Zenvia exige credencial real — Log evita chamada externa e
+  # mantem rastreio via metadados. Sobrescrevivel via @TestPropertySource.
+  notificacoes:
+    provider: log
