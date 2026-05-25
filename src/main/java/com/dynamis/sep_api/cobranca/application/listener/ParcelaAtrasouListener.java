@@ -66,6 +66,8 @@ public class ParcelaAtrasouListener {
                     event.parcelaId());
             return;
         }
+        // PRD §RF-01: {@code Usuario.username} eh o e-mail validado do registro
+        // (UNIQUE NOT NULL formato email). Sem campo `email` separado nesta fase.
         String email = usuarioRepository
                 .findById(tomadorIdOpt.get())
                 .map(Usuario::getUsername)

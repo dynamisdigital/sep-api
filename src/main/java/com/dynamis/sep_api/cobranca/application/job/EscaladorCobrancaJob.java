@@ -100,6 +100,7 @@ public class EscaladorCobrancaJob {
             log.warn("EscaladorCobrancaJob: sem tomadorId para contrato={} parcela={}", contratoId, parcela.getId());
             return;
         }
+        // PRD §RF-01: Usuario.username eh o email validado (sem campo email separado).
         String email = usuarioRepository
                 .findById(tomadorIdOpt.get())
                 .map(Usuario::getUsername)

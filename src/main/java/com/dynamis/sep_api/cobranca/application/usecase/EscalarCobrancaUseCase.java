@@ -87,14 +87,7 @@ public class EscalarCobrancaUseCase {
         String destinatario = destinatario(command, notif.canal());
         OffsetDateTime agora = OffsetDateTime.now(clock);
         if (destinatario == null || destinatario.isBlank()) {
-            eventoRepository.save(EventoCobranca.notificacaoAutomatica(
-                    command.parcelaId(),
-                    notif.canal(),
-                    notif.template(),
-                    command.diasAtraso(),
-                    StatusEventoCobranca.FALHA,
-                    "destinatario indisponivel",
-                    agora));
+            persistirFalha(command, notif, agora, "destinatario indisponivel");
             log.info(
                     "Pulou {} (parcela={}, dias={}): destinatario indisponivel",
                     notif.canal(),
@@ -102,13 +95,25 @@ public class EscalarCobrancaUseCase {
                     command.diasAtraso());
             return 1;
         }
-        NotificationProvider provider = providers.stream()
-                .filter(p -> p.suporta(notif.canal()))
-                .findFirst()
-                .orElseThrow(
-                        () -> new IllegalStateException("Nenhum NotificationProvider suporta canal " + notif.canal()));
-        ResultadoNotificacao resultado = provider.enviar(new Notificacao(
-                notif.canal(), destinatario, notif.template(), command.variaveis(), command.correlationId()));
+        Optional<NotificationProvider> providerOpt =
+                providers.stream().filter(p -> p.suporta(notif.canal())).findFirst();
+        if (providerOpt.isEmpty()) {
+            // Hotfix Task 13.4 code review: provider ausente NAO pode propagar IllegalStateException
+            // — a @Transactional do escalar() faria rollback e perderia eventos das iteracoes
+            // anteriores (ex.: email enviado OK + SMS sem provider). Persistir como FALHA mantem
+            // trilha auditavel sem repetir o canal ja entregue no proximo dia.
+            persistirFalha(command, notif, agora, "provider ausente para " + notif.canal());
+            log.warn(
+                    "Nenhum NotificationProvider suporta canal {} (parcela={}, dias={})",
+                    notif.canal(),
+                    command.parcelaId(),
+                    command.diasAtraso());
+            return 1;
+        }
+        ResultadoNotificacao resultado = providerOpt
+                .get()
+                .enviar(new Notificacao(
+                        notif.canal(), destinatario, notif.template(), command.variaveis(), command.correlationId()));
         eventoRepository.save(EventoCobranca.notificacaoAutomatica(
                 command.parcelaId(),
                 notif.canal(),
@@ -118,6 +123,18 @@ public class EscalarCobrancaUseCase {
                 resultado.mensagemTecnica(),
                 agora));
         return 1;
+    }
+
+    private void persistirFalha(
+            EscalarCobrancaCommand command, NotificacaoEtapa notif, OffsetDateTime agora, String motivo) {
+        eventoRepository.save(EventoCobranca.notificacaoAutomatica(
+                command.parcelaId(),
+                notif.canal(),
+                notif.template(),
+                command.diasAtraso(),
+                StatusEventoCobranca.FALHA,
+                motivo,
+                agora));
     }
 
     private static String destinatario(EscalarCobrancaCommand command, CanalNotificacao canal) {

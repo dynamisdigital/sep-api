@@ -150,10 +150,21 @@ class EscalarCobrancaUseCaseTest {
     }
 
     @Test
-    void semProviderParaCanal_falha() {
+    void semProviderParaCanal_persistiFalhaSemQuebrarOutrosEnvios() {
+        // Hotfix Task 13.4: provider SMS ausente NAO quebra a transacao — email da etapa dia 5
+        // permanece persistido e SMS vira EventoCobranca FALHA com motivo "provider ausente".
         useCase = new EscalarCobrancaUseCase(resolverComEtapas(), List.of(emailProvider), eventoRepository, CLOCK);
-        // Etapa dia 5 exige SMS, mas sem provider SMS configurado -> IllegalStateException.
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> useCase.escalar(comando(5)));
+
+        EscalonamentoResult r = useCase.escalar(comando(5));
+
+        assertThat(r.eventosCriados()).isEqualTo(2);
+        verify(emailProvider).enviar(any());
+        verify(smsProvider, never()).enviar(any());
+        org.mockito.ArgumentCaptor<EventoCobranca> captor = org.mockito.ArgumentCaptor.forClass(EventoCobranca.class);
+        verify(eventoRepository, org.mockito.Mockito.times(2)).save(captor.capture());
+        assertThat(captor.getAllValues())
+                .extracting(EventoCobranca::getStatus)
+                .containsExactlyInAnyOrder(StatusEventoCobranca.SUCESSO, StatusEventoCobranca.FALHA);
     }
 
     @Test
