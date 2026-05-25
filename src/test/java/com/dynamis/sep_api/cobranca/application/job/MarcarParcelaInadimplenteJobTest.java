@@ -170,7 +170,9 @@ class MarcarParcelaInadimplenteJobTest {
     }
 
     @Test
-    void executar_invokaUseCaseComDiasAtrasoReal() {
+    void executar_invokaUseCaseComDias90FixoParaCasarEtapa() {
+        // Hotfix code review: workflow casa por dia exato. Se o job catch-up encontra parcelas
+        // com dias > 90 (97 neste teste), use case precisa receber 90 pra ativar etapa final.
         ParcelaCobranca parcela = parcelaCom(VENCIMENTO_97_DIAS);
         UUID parcelaId = parcela.getId();
         when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
@@ -184,8 +186,32 @@ class MarcarParcelaInadimplenteJobTest {
 
         ArgumentCaptor<EscalarCobrancaCommand> captor = ArgumentCaptor.forClass(EscalarCobrancaCommand.class);
         verify(escalarUseCase, times(1)).escalar(captor.capture());
-        assertThat(captor.getValue().diasAtraso()).isEqualTo(97);
+        assertThat(captor.getValue().diasAtraso()).isEqualTo(MarcarParcelaInadimplenteJob.DIAS_INADIMPLENCIA);
         assertThat(captor.getValue().emailTomador()).isEqualTo("x@y.com");
+        // Variaveis carregam o dias real pra mensagem (97), mas o command usa 90 pro use case.
+        assertThat(captor.getValue().variaveis()).containsEntry("diasAtraso", 97);
+    }
+
+    @Test
+    void executar_parcelaDeletadaEntreNotificacaoELock_naoPublicaEvento() {
+        // Hotfix code review: race entre tentarNotificarFinal e transicionar. findById retorna
+        // a parcela na notificacao, mas findByIdForUpdate retorna empty (apagada/movida por
+        // concorrencia entre os dois passos). Notificacao foi tentada; transicao pula sem evento.
+        ParcelaCobranca parcela = parcelaCom(VENCIMENTO_97_DIAS);
+        UUID parcelaId = parcela.getId();
+        when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
+                .thenReturn(List.of(parcela));
+        when(parcelaRepository.findById(parcelaId)).thenReturn(Optional.of(parcela));
+        when(parcelaRepository.findByIdForUpdate(parcelaId)).thenReturn(Optional.empty());
+        when(contratoQuery.tomadorIdDoContrato(any())).thenReturn(Optional.of(UUID.randomUUID()));
+        when(usuarioRepository.findById(any())).thenReturn(Optional.of(Usuario.criar("x@y.com", "h", Role.CLIENTE)));
+
+        int processadas = job.executar();
+
+        assertThat(processadas).isEqualTo(1);
+        verify(escalarUseCase).escalar(any());
+        verify(parcelaRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test

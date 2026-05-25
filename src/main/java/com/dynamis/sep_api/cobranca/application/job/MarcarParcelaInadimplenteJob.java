@@ -140,7 +140,13 @@ public class MarcarParcelaInadimplenteJob {
             vars.put("diasAtraso", dias);
             vars.put("dataVencimento", parcela.getDataVencimento().format(DATA_BR));
             vars.put("valor", "R$ " + parcela.valorTotal());
-            escalarUseCase.escalar(new EscalarCobrancaCommand(parcelaId, dias, email, null, vars, null));
+            // Fix code review Task 13.5: workflow do EscalarCobrancaUseCase usa match exato por dia
+            // (resolver.etapaParaDia). Se passassemos {@code dias} real (ex.: 97), nenhuma etapa
+            // casaria e o use case sairia em semEtapa() sem notificar. Fixamos {@link
+            // #DIAS_INADIMPLENCIA} pra garantir que a etapa 90 do YAML ({@code email-final +
+            // sms-firme}) sempre dispare na transicao pra INADIMPLENTE, mesmo quando o job
+            // pega parcelas com varios dias acima do limite (ex.: catch-up apos janela inativa).
+            escalarUseCase.escalar(new EscalarCobrancaCommand(parcelaId, DIAS_INADIMPLENCIA, email, null, vars, null));
         } catch (RuntimeException e) {
             // Notificacao final eh "best effort" (spec 13.5: nao bloqueia transicao).
             log.warn(
