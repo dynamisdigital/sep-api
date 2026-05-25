@@ -1,0 +1,1 @@
+SEP: parcela [(${numeroParcela})] em atraso ha [(${diasAtraso})] dias. Regularize pra evitar encargos. Para renegociar, fale com o financeiro.

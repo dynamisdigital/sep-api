@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Atraso prolongado</title>
+</head>
+<body>
+<p>Ola,</p>
+<p>A parcela <strong th:text="${numeroParcela}">N</strong> do seu contrato esta em atraso ha
+    <strong th:text="${diasAtraso}">D</strong> dias. Esta eh a comunicacao final do nosso fluxo
+    automatico de cobranca.</p>
+<p>Nos proximos dias o contrato podera ser marcado como inadimplente, e o caso passara para
+    acompanhamento manual do nosso financeiro.</p>
+<p>Entre em contato pra negociarmos as condicoes de pagamento e evitar agravamento da situacao.</p>
+<p>Atenciosamente,<br/>Equipe SEP</p>
+</body>
+</html>
