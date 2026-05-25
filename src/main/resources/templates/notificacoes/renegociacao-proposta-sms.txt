@@ -1,0 +1,1 @@
+SEP: nova proposta de renegociacao da parcela [(${numeroParcela})]. Acesse o portal ate [(${dataExpiracao})] pra aceitar ou recusar.

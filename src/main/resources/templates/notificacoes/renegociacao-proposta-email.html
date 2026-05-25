@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Proposta de renegociacao</title>
+</head>
+<body>
+<p>Ola,</p>
+<p>Voce recebeu uma proposta de renegociacao para a parcela
+    <strong th:text="${numeroParcela}">N</strong> do seu contrato.</p>
+<p>Novas condicoes:</p>
+<ul>
+    <li>Novo valor por parcela: <strong th:text="${novoValor}">R$ 0,00</strong></li>
+    <li>Numero de parcelas: <strong th:text="${numeroParcelas}">N</strong></li>
+    <li>Novo vencimento inicial: <strong th:text="${novoVencimento}">data</strong></li>
+</ul>
+<p>Voce tem ate <strong th:text="${dataExpiracao}">data</strong> para aceitar ou recusar.</p>
+<p>Acesse o portal SEP pra responder.</p>
+<p>Atenciosamente,<br/>Equipe SEP</p>
+</body>
+</html>

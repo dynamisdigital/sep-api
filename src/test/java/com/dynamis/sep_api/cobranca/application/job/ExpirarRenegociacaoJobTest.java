@@ -1,6 +1,6 @@
 package com.dynamis.sep_api.cobranca.application.job;
 
-import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoRecusadaEvent;
+import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoExpiradaEvent;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento.ParcelaPlanejada;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
@@ -61,7 +61,7 @@ class ExpirarRenegociacaoJobTest {
     void executar_propostasExpiradas_marcaEXPIRADAEVolaParcelaParaStatusAnterior() {
         ParcelaCobranca parcela = parcelaEmNegociacao();
         Renegociacao renegociacao = renegociacaoExpirada(parcela);
-        when(renegociacaoRepository.findByStatusAndDataExpiracaoBefore(any(), any()))
+        when(renegociacaoRepository.findByStatusAndDataExpiracaoLessThanEqual(any(), any()))
                 .thenReturn(List.of(renegociacao));
         when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
         when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
@@ -71,7 +71,7 @@ class ExpirarRenegociacaoJobTest {
         assertThat(processadas).isEqualTo(1);
         assertThat(renegociacao.getStatus()).isEqualTo(StatusRenegociacao.EXPIRADA);
         assertThat(parcela.getStatus()).isEqualTo(StatusParcela.ATRASADA);
-        verify(eventPublisher).publishEvent(any(RenegociacaoRecusadaEvent.class));
+        verify(eventPublisher).publishEvent(any(RenegociacaoExpiradaEvent.class));
     }
 
     @Test
@@ -79,7 +79,7 @@ class ExpirarRenegociacaoJobTest {
         ParcelaCobranca parcela = parcelaEmNegociacao();
         Renegociacao renegociacao = renegociacaoExpirada(parcela);
         renegociacao.aceitar(UUID.randomUUID(), OffsetDateTime.now(CLOCK));
-        when(renegociacaoRepository.findByStatusAndDataExpiracaoBefore(any(), any()))
+        when(renegociacaoRepository.findByStatusAndDataExpiracaoLessThanEqual(any(), any()))
                 .thenReturn(List.of(renegociacao));
         when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
 
@@ -93,7 +93,7 @@ class ExpirarRenegociacaoJobTest {
     void executar_parcelaSumiuAntesDoLock_pula() {
         ParcelaCobranca parcela = parcelaEmNegociacao();
         Renegociacao renegociacao = renegociacaoExpirada(parcela);
-        when(renegociacaoRepository.findByStatusAndDataExpiracaoBefore(any(), any()))
+        when(renegociacaoRepository.findByStatusAndDataExpiracaoLessThanEqual(any(), any()))
                 .thenReturn(List.of(renegociacao));
         when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
         when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.empty());
@@ -110,7 +110,7 @@ class ExpirarRenegociacaoJobTest {
         ParcelaCobranca p2 = parcelaEmNegociacao();
         Renegociacao r1 = renegociacaoExpirada(p1);
         Renegociacao r2 = renegociacaoExpirada(p2);
-        when(renegociacaoRepository.findByStatusAndDataExpiracaoBefore(any(), any()))
+        when(renegociacaoRepository.findByStatusAndDataExpiracaoLessThanEqual(any(), any()))
                 .thenReturn(List.of(r1, r2));
         when(renegociacaoRepository.findByIdForUpdate(r1.getId())).thenThrow(new RuntimeException("boom"));
         when(renegociacaoRepository.findByIdForUpdate(r2.getId())).thenReturn(Optional.of(r2));

@@ -1,6 +1,6 @@
 package com.dynamis.sep_api.cobranca.application.job;
 
-import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoRecusadaEvent;
+import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoExpiradaEvent;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.model.Renegociacao;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusRenegociacao;
@@ -69,8 +69,11 @@ public class ExpirarRenegociacaoJob {
     /** Publico pra testes — controla {@code Clock} e invoca sem agendamento. */
     public int executar() {
         OffsetDateTime agora = OffsetDateTime.now(clock);
+        // Fix review manual Task 13.6: inclui o instante exato (LessThanEqual) pra casar com
+        // Renegociacao.expirouEm — sem isso, proposta com dataExpiracao == agora ficaria pro
+        // proximo ciclo.
         List<Renegociacao> elegiveis =
-                renegociacaoRepository.findByStatusAndDataExpiracaoBefore(StatusRenegociacao.PROPOSTA, agora);
+                renegociacaoRepository.findByStatusAndDataExpiracaoLessThanEqual(StatusRenegociacao.PROPOSTA, agora);
         int processadas = 0;
         for (Renegociacao renegociacao : elegiveis) {
             try {
@@ -107,7 +110,10 @@ public class ExpirarRenegociacaoJob {
         parcelaRepository.save(parcela);
         atual.expirar(agora);
         renegociacaoRepository.save(atual);
-        eventPublisher.publishEvent(new RenegociacaoRecusadaEvent(
+        // Fix review manual Task 13.6: RenegociacaoExpiradaEvent eh distinto de Recusada —
+        // expiracao eh inacao, recusa eh ato do tomador. Audit/backoffice (Sprint 14) precisa
+        // diferenciar pra metrica de engajamento.
+        eventPublisher.publishEvent(new RenegociacaoExpiradaEvent(
                 atual.getId(), parcela.getId(), atual.getTomadorId(), atual.getStatusParcelaAnterior()));
         return true;
     }

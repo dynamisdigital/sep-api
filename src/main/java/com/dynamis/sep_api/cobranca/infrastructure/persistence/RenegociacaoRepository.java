@@ -27,4 +27,11 @@ public interface RenegociacaoRepository extends JpaRepository<Renegociacao, UUID
     boolean existsByParcelaOriginalIdAndStatus(UUID parcelaOriginalId, StatusRenegociacao status);
 
     List<Renegociacao> findByStatusAndDataExpiracaoBefore(StatusRenegociacao status, OffsetDateTime corte);
+
+    /**
+     * Inclui {@code dataExpiracao == corte} — alinha com {@code Renegociacao.expirouEm} que trata
+     * o instante exato como expirado (fix code review Task 13.6: {@code Before} sozinho deixaria
+     * proposta com expiracao exata no momento da varredura pro proximo ciclo).
+     */
+    List<Renegociacao> findByStatusAndDataExpiracaoLessThanEqual(StatusRenegociacao status, OffsetDateTime corte);
 }
