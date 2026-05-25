@@ -144,6 +144,48 @@ public class ParcelaCobranca {
         this.status = StatusParcela.ATRASADA;
     }
 
+    /** Job de inadimplencia (Sprint 13 Task 13.5) transiciona ATRASADA → INADIMPLENTE. */
+    public void marcarInadimplente() {
+        if (!status.permiteMarcarInadimplente()) {
+            throw new ParcelaEstadoInvalidoException("marcarInadimplente", status);
+        }
+        this.status = StatusParcela.INADIMPLENTE;
+    }
+
+    /** Inicio de renegociacao (Sprint 13 Task 13.6) — guarda status anterior pra rollback em recusa. */
+    public StatusParcela iniciarNegociacao() {
+        if (!status.permiteIniciarRenegociacao()) {
+            throw new ParcelaEstadoInvalidoException("iniciarNegociacao", status);
+        }
+        StatusParcela anterior = this.status;
+        this.status = StatusParcela.EM_NEGOCIACAO;
+        return anterior;
+    }
+
+    /** Aceite de renegociacao (Sprint 13 Task 13.6) — parcela substituida por nova agenda. */
+    public void marcarRenegociada() {
+        if (this.status != StatusParcela.EM_NEGOCIACAO) {
+            throw new ParcelaEstadoInvalidoException("marcarRenegociada", status);
+        }
+        this.status = StatusParcela.RENEGOCIADA;
+    }
+
+    /**
+     * Recusa ou expiracao de renegociacao (Sprint 13 Task 13.6) — parcela volta ao status anterior
+     * registrado em {@link #iniciarNegociacao()}. Aceita apenas {@code ATRASADA} ou {@code
+     * INADIMPLENTE} como destino.
+     */
+    public void reverterDeNegociacao(StatusParcela statusAnterior) {
+        if (this.status != StatusParcela.EM_NEGOCIACAO) {
+            throw new ParcelaEstadoInvalidoException("reverterDeNegociacao", status);
+        }
+        if (statusAnterior != StatusParcela.ATRASADA && statusAnterior != StatusParcela.INADIMPLENTE) {
+            throw new IllegalArgumentException(
+                    "statusAnterior invalido para reverter de EM_NEGOCIACAO: " + statusAnterior);
+        }
+        this.status = statusAnterior;
+    }
+
     public ComposicaoValor composicaoOriginal() {
         return new ComposicaoValor(principal, juros, multa, encargos);
     }
