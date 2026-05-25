@@ -30,9 +30,16 @@ class WorkflowCobrancaRepositoryTest {
     @Autowired
     private WorkflowCobrancaRepository repo;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     @BeforeEach
     void setup() {
-        repo.deleteAll();
+        // TRUNCATE via JdbcTemplate commita imediatamente — necessario porque outros
+        // @SpringBootTest (perfil dev) executaram o seeder e deixaram rows commited no sep_dev.
+        // O @Transactional do @DataJpaTest rolla rollback no fim do teste, entao deleteAll do
+        // repository nao limpa rows commited fora dessa tx.
+        jdbcTemplate.execute("TRUNCATE workflow_cobranca");
     }
 
     @Test

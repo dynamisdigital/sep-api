@@ -150,6 +150,7 @@ app:
           notificacoes: [email-final]
           escalonar-backoffice: true
         - dia: 90
+          notificacoes: [email-final, sms-firme]
           marcar-inadimplente: true
   notificacoes:
     # Provider de envio (Sprint 13 - ADR 0014). `log` registra metadados sem enviar
