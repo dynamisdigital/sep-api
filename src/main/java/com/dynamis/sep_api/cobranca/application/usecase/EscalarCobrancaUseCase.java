@@ -8,12 +8,14 @@ import com.dynamis.sep_api.cobranca.application.port.out.dto.ResultadoNotificaca
 import com.dynamis.sep_api.cobranca.application.service.workflow.WorkflowCobrancaResolver;
 import com.dynamis.sep_api.cobranca.application.service.workflow.WorkflowCobrancaResolver.EtapaWorkflow;
 import com.dynamis.sep_api.cobranca.application.service.workflow.WorkflowCobrancaResolver.NotificacaoEtapa;
+import com.dynamis.sep_api.cobranca.domain.event.EtapaCobrancaAplicadaEvent;
 import com.dynamis.sep_api.cobranca.domain.model.EventoCobranca;
 import com.dynamis.sep_api.cobranca.domain.vo.CanalNotificacao;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusEventoCobranca;
 import com.dynamis.sep_api.cobranca.infrastructure.persistence.EventoCobrancaRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,16 +45,19 @@ public class EscalarCobrancaUseCase {
     private final WorkflowCobrancaResolver resolver;
     private final List<NotificationProvider> providers;
     private final EventoCobrancaRepository eventoRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public EscalarCobrancaUseCase(
             WorkflowCobrancaResolver resolver,
             List<NotificationProvider> providers,
             EventoCobrancaRepository eventoRepository,
+            ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.resolver = resolver;
         this.providers = providers;
         this.eventoRepository = eventoRepository;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -70,6 +75,17 @@ public class EscalarCobrancaUseCase {
             }
             eventosCriados += disparar(command, notif);
         }
+        // Fix review manual Task 13.4: callers anteriores descartavam EscalonamentoResult, deixando
+        // flagContatoManual/escalonarBackoffice/marcarInadimplente sem sinal observavel. Publicar
+        // evento Spring permite que listeners dedicados (Task 13.5 MarcarParcelaInadimplenteJob /
+        // Sprint 14 backoffice) reajam de forma desacoplada e auditavel.
+        eventPublisher.publishEvent(new EtapaCobrancaAplicadaEvent(
+                command.parcelaId(),
+                command.diasAtraso(),
+                etapa.flagContatoManual(),
+                etapa.escalonarBackoffice(),
+                etapa.marcarInadimplente(),
+                eventosCriados));
         return new EscalonamentoResult(
                 true,
                 etapa.flagContatoManual(),
@@ -110,10 +126,33 @@ public class EscalarCobrancaUseCase {
                     command.diasAtraso());
             return 1;
         }
-        ResultadoNotificacao resultado = providerOpt
-                .get()
-                .enviar(new Notificacao(
-                        notif.canal(), destinatario, notif.template(), command.variaveis(), command.correlationId()));
+        ResultadoNotificacao resultado;
+        try {
+            resultado = providerOpt
+                    .get()
+                    .enviar(new Notificacao(
+                            notif.canal(),
+                            destinatario,
+                            notif.template(),
+                            command.variaveis(),
+                            command.correlationId()));
+        } catch (RuntimeException e) {
+            // Fix review manual Task 13.4: provider.enviar() pode lancar (timeout, HTTP,
+            // Resilience4j call-not-permitted, render erro). Sem try/catch a exceção propaga
+            // pelo escalar() @Transactional e rolla rollback — eventos das iteracoes anteriores
+            // sao perdidos e o envio ja entregue eh repetido no proximo ciclo (idempotencia
+            // do unique parcial ainda protege, mas eventos somem da trilha).
+            log.warn(
+                    "Provider {} lancou excecao (parcela={}, dias={}, canal={})",
+                    providerOpt.get().nome(),
+                    command.parcelaId(),
+                    command.diasAtraso(),
+                    notif.canal(),
+                    e);
+            persistirFalha(
+                    command, notif, agora, "provider lancou: " + e.getClass().getSimpleName());
+            return 1;
+        }
         eventoRepository.save(EventoCobranca.notificacaoAutomatica(
                 command.parcelaId(),
                 notif.canal(),

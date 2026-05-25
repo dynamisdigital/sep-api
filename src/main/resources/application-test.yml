@@ -38,6 +38,11 @@ app:
     # de evento em janela aleatoria de IT. MarcarParcelaAtrasadaJobTest mocka
     # Clock e chama o metodo direto.
     scheduling-habilitado: false
+    # Sprint 13: Seeder do workflow_cobranca (Task 13.4 fix manual) desligado em
+    # test pra @DataJpaTest do WorkflowCobrancaRepository nao colidir com rows
+    # persistentes deixadas por @SpringBootTest anterior. CobrancaIT reativa via
+    # @TestPropertySource se precisar do seed.
+    workflow-seed-habilitado: false
   # Sprint 13: forca LogNotificationProvider em todos os ITs/UTs do perfil test.
   # Adapter SMTP/Zenvia exige credencial real — Log evita chamada externa e
   # mantem rastreio via metadados. Precedence Spring: @TestPropertySource >

@@ -64,7 +64,7 @@ public class EscaladorCobrancaJob {
         this.clock = clock;
     }
 
-    @Scheduled(cron = "${app.cobranca.escalador-cron:0 0 3 * * *}")
+    @Scheduled(cron = "${app.cobranca.escalador-cron:0 0 3 * * *}", zone = "America/Sao_Paulo")
     public void escalarDiariamente() {
         executar();
     }

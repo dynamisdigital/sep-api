@@ -38,6 +38,7 @@ class EscalarCobrancaUseCaseTest {
     private EventoCobrancaRepository eventoRepository;
     private NotificationProvider emailProvider;
     private NotificationProvider smsProvider;
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
     private EscalarCobrancaUseCase useCase;
 
     @BeforeEach
@@ -45,6 +46,7 @@ class EscalarCobrancaUseCaseTest {
         eventoRepository = mock(EventoCobrancaRepository.class);
         emailProvider = mock(NotificationProvider.class);
         smsProvider = mock(NotificationProvider.class);
+        eventPublisher = mock(org.springframework.context.ApplicationEventPublisher.class);
         when(emailProvider.suporta(CanalNotificacao.EMAIL)).thenReturn(true);
         when(emailProvider.suporta(CanalNotificacao.SMS)).thenReturn(false);
         when(smsProvider.suporta(CanalNotificacao.SMS)).thenReturn(true);
@@ -53,7 +55,7 @@ class EscalarCobrancaUseCaseTest {
         when(smsProvider.enviar(any())).thenReturn(ResultadoNotificacao.sucesso("zenvia", "id-sms"));
 
         useCase = new EscalarCobrancaUseCase(
-                resolverComEtapas(), List.of(emailProvider, smsProvider), eventoRepository, CLOCK);
+                resolverComEtapas(), List.of(emailProvider, smsProvider), eventoRepository, eventPublisher, CLOCK);
     }
 
     private static WorkflowCobrancaResolver resolverComEtapas() {
@@ -153,7 +155,8 @@ class EscalarCobrancaUseCaseTest {
     void semProviderParaCanal_persistiFalhaSemQuebrarOutrosEnvios() {
         // Hotfix Task 13.4: provider SMS ausente NAO quebra a transacao — email da etapa dia 5
         // permanece persistido e SMS vira EventoCobranca FALHA com motivo "provider ausente".
-        useCase = new EscalarCobrancaUseCase(resolverComEtapas(), List.of(emailProvider), eventoRepository, CLOCK);
+        useCase = new EscalarCobrancaUseCase(
+                resolverComEtapas(), List.of(emailProvider), eventoRepository, eventPublisher, CLOCK);
 
         EscalonamentoResult r = useCase.escalar(comando(5));
 
@@ -176,6 +179,50 @@ class EscalarCobrancaUseCaseTest {
         org.mockito.ArgumentCaptor<EventoCobranca> captor = org.mockito.ArgumentCaptor.forClass(EventoCobranca.class);
         verify(eventoRepository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(StatusEventoCobranca.FALHA);
+    }
+
+    @Test
+    void providerLancaExcecao_persistiFalhaSemPropagar() {
+        // Fix review manual: provider.enviar lanca runtime (timeout, HTTP, CallNotPermitted).
+        // Sem try/catch a tx faria rollback e perderia evento ja entregue em iteracao anterior.
+        when(emailProvider.enviar(any())).thenThrow(new RuntimeException("connection reset"));
+
+        EscalonamentoResult r = useCase.escalar(comando(0));
+
+        assertThat(r.eventosCriados()).isEqualTo(1);
+        org.mockito.ArgumentCaptor<EventoCobranca> captor = org.mockito.ArgumentCaptor.forClass(EventoCobranca.class);
+        verify(eventoRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(StatusEventoCobranca.FALHA);
+    }
+
+    @Test
+    void providerLancaExcecaoNoSegundoCanal_naoPerdePrimeiro() {
+        when(emailProvider.enviar(any())).thenReturn(ResultadoNotificacao.sucesso("smtp", "id-1"));
+        when(smsProvider.enviar(any())).thenThrow(new RuntimeException("zenvia down"));
+
+        EscalonamentoResult r = useCase.escalar(comando(5));
+
+        assertThat(r.eventosCriados()).isEqualTo(2);
+        verify(eventoRepository, org.mockito.Mockito.times(2)).save(any());
+    }
+
+    @Test
+    void flags_publicamEtapaCobrancaAplicadaEvent() {
+        useCase.escalar(comando(30));
+
+        org.mockito.ArgumentCaptor<com.dynamis.sep_api.cobranca.domain.event.EtapaCobrancaAplicadaEvent> captor =
+                org.mockito.ArgumentCaptor.forClass(
+                        com.dynamis.sep_api.cobranca.domain.event.EtapaCobrancaAplicadaEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().flagContatoManual()).isTrue();
+        assertThat(captor.getValue().diasAtraso()).isEqualTo(30);
+    }
+
+    @Test
+    void semEtapa_naoPublicaEvent() {
+        useCase.escalar(comando(3));
+
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     private EscalarCobrancaCommand comando(int dias) {

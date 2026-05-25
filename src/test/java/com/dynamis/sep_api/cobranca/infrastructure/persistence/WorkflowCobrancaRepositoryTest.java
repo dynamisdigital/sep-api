@@ -21,6 +21,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({JpaAuditingConfig.class, AuditorAwareImpl.class})
 @ActiveProfiles("dev")
+// Fix review manual Task 13.4: WorkflowCobrancaSeeder eh ApplicationRunner ativo no perfil dev e
+// commita rows em sep_dev no boot de @SpringBootTest da suite. @DataJpaTest com rollback nao
+// remove esse estado entre execucoes — sobrescreve via property pra garantir banco limpo.
+@org.springframework.test.context.TestPropertySource(properties = "app.cobranca.workflow-seed-habilitado=false")
 class WorkflowCobrancaRepositoryTest {
 
     @Autowired
