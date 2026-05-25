@@ -3,6 +3,7 @@ package com.dynamis.sep_api.cobranca.application.usecase;
 import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoAceitaEvent;
 import com.dynamis.sep_api.cobranca.domain.exception.CobrancaOwnershipException;
 import com.dynamis.sep_api.cobranca.domain.exception.ParcelaCobrancaNaoEncontradaException;
+import com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoEstadoInvalidoException;
 import com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoNaoEncontradaException;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento.ParcelaPlanejada;
@@ -80,15 +81,14 @@ public class AceitarRenegociacaoUseCase {
                 .findByIdForUpdate(renegociacaoId)
                 .orElseThrow(() -> new RenegociacaoNaoEncontradaException(renegociacaoId));
         if (renegociacao.getStatus() != StatusRenegociacao.PROPOSTA) {
-            throw new IllegalStateException("renegociacao " + renegociacaoId + " esta em " + renegociacao.getStatus()
-                    + ", aceite indisponivel");
+            throw new RenegociacaoEstadoInvalidoException(renegociacaoId, renegociacao.getStatus(), "aceitar");
         }
         if (!renegociacao.getTomadorId().equals(tomadorAutenticadoId)) {
             throw new CobrancaOwnershipException(renegociacao.getAgendaOriginalId());
         }
         OffsetDateTime agora = OffsetDateTime.now(clock);
         if (renegociacao.expirouEm(agora)) {
-            throw new IllegalStateException("renegociacao " + renegociacaoId + " expirada");
+            throw RenegociacaoEstadoInvalidoException.expirada(renegociacaoId);
         }
         UUID parcelaOriginalId = renegociacao.getParcelaOriginalId();
         ParcelaCobranca parcelaOriginal = parcelaRepository

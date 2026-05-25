@@ -21,11 +21,11 @@ import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.model.Renegociacao;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.RenegociacaoRepository;
 import com.dynamis.sep_api.cobranca.web.mapper.CobrancaWebMapper;
 import com.dynamis.sep_api.identity.application.service.StepUpTokenService;
 import com.dynamis.sep_api.identity.infrastructure.security.JwtAuthenticationFilter;
 import com.dynamis.sep_api.identity.infrastructure.security.JwtTokenProvider;
+import com.dynamis.sep_api.identity.infrastructure.security.StepUpEnforcementAspect;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.shared.exception.ApiExceptionHandler;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
@@ -65,11 +65,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers = CobrancaController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import({ApiExceptionHandler.class, CobrancaInadimplenciaControllerTest.MethodSecurityTestConfig.class})
+@Import({
+    ApiExceptionHandler.class,
+    CobrancaInadimplenciaControllerTest.MethodSecurityTestConfig.class,
+    StepUpEnforcementAspect.class
+})
 class CobrancaInadimplenciaControllerTest {
 
     @TestConfiguration
     @EnableMethodSecurity(prePostEnabled = true)
+    @org.springframework.context.annotation.EnableAspectJAutoProxy
     static class MethodSecurityTestConfig {}
 
     @Autowired
@@ -114,9 +119,6 @@ class CobrancaInadimplenciaControllerTest {
     private RecusarRenegociacaoUseCase recusarRenegociacaoUseCase;
 
     @MockBean
-    private RenegociacaoRepository renegociacaoRepository;
-
-    @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @MockBean
@@ -134,10 +136,18 @@ class CobrancaInadimplenciaControllerTest {
     }
 
     private void autenticar(UUID id, Role role) {
+        autenticar(id, role, false);
+    }
+
+    private void autenticar(UUID id, Role role, boolean mfaHabilitado) {
         UsuarioAutenticado p = new UsuarioAutenticado(id, "user@sep.test", role);
         var auth = new UsernamePasswordAuthenticationToken(p, null, p.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(auth);
-        when(usuarioRepository.findById(id)).thenReturn(Optional.of(Usuario.criar("user@sep.test", "hash", role)));
+        Usuario u = Usuario.criar("user@sep.test", "hash", role);
+        if (mfaHabilitado) {
+            u.marcarMfaHabilitado();
+        }
+        when(usuarioRepository.findById(id)).thenReturn(Optional.of(u));
     }
 
     // ============== GET /inadimplencia ==============
@@ -333,6 +343,42 @@ class CobrancaInadimplenciaControllerTest {
         when(aceitarRenegociacaoUseCase.executar(any(), any())).thenThrow(new RenegociacaoNaoEncontradaException(id));
 
         mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", id)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void aceitarRenegociacao_jaDecidida_409() throws Exception {
+        autenticar(UUID.randomUUID(), Role.CLIENTE);
+        UUID id = UUID.randomUUID();
+        when(aceitarRenegociacaoUseCase.executar(any(), any()))
+                .thenThrow(new com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoEstadoInvalidoException(
+                        id, com.dynamis.sep_api.cobranca.domain.vo.StatusRenegociacao.ACEITA, "aceitar"));
+
+        mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", id)).andExpect(status().isConflict());
+    }
+
+    @Test
+    void aceitarRenegociacao_semStepUpComMfaHabilitado_403() throws Exception {
+        // Fix review manual Task 13.7: StepUpEnforcementAspect bloqueia quando MFA habilitado
+        // e nenhum X-Step-Up-Token enviado.
+        autenticar(UUID.randomUUID(), Role.CLIENTE, true);
+
+        mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", UUID.randomUUID()))
+                .andExpect(status().isForbidden());
+        verify(aceitarRenegociacaoUseCase, never()).executar(any(), any());
+    }
+
+    @Test
+    void proporRenegociacao_semStepUpComMfaHabilitado_403() throws Exception {
+        autenticar(UUID.randomUUID(), Role.FINANCEIRO, true);
+        String body =
+                """
+                {"novoValorParcela":110.00,"novoVencimento":"2026-07-10","numeroParcelas":3,"desconto":0.00,"justificativa":"x"}
+                """;
+        mockMvc.perform(post("/api/v1/cobranca/parcelas/{id}/renegociacao", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+        verify(iniciarRenegociacaoUseCase, never()).executar(any());
     }
 
     // ============== PATCH /renegociacoes/{id}/recusa ==============

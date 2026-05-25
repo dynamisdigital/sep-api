@@ -47,8 +47,20 @@ public class ListarInadimplenciaUseCase {
     @Transactional(readOnly = true)
     public List<LinhaInadimplencia> listar(Filtro filtro) {
         LocalDate hoje = LocalDate.now(clock);
-        Set<StatusParcela> filtros =
-                filtro.status() == null || filtro.status().isEmpty() ? STATUS_INADIMPLENCIA : filtro.status();
+        // Fix review manual Task 13.7: filtro restrito a STATUS_INADIMPLENCIA — endpoint nao pode
+        // virar listagem genérica de parcelas (PAGA/PENDENTE/EM_NEGOCIACAO/RENEGOCIADA sao
+        // legítimas em outras consultas, mas nao em "inadimplencia"). Status do filtro vira
+        // interseccao com o conjunto seguro.
+        Set<StatusParcela> filtros;
+        if (filtro.status() == null || filtro.status().isEmpty()) {
+            filtros = STATUS_INADIMPLENCIA;
+        } else {
+            filtros = EnumSet.copyOf(filtro.status());
+            filtros.retainAll(STATUS_INADIMPLENCIA);
+        }
+        if (filtros.isEmpty()) {
+            return List.of();
+        }
         List<ParcelaCobranca> parcelas = parcelaRepository.findByStatusInOrderByDataVencimentoAsc(filtros);
         List<LinhaInadimplencia> resultado = new ArrayList<>();
         for (ParcelaCobranca parcela : parcelas) {

@@ -81,7 +81,6 @@ public class CobrancaController {
             aceitarRenegociacaoUseCase;
     private final com.dynamis.sep_api.cobranca.application.usecase.RecusarRenegociacaoUseCase
             recusarRenegociacaoUseCase;
-    private final com.dynamis.sep_api.cobranca.infrastructure.persistence.RenegociacaoRepository renegociacaoRepository;
 
     public CobrancaController(
             ConsultarAgendaPorContratoUseCase consultarAgendaUseCase,
@@ -94,8 +93,7 @@ public class CobrancaController {
             com.dynamis.sep_api.cobranca.application.usecase.RegistrarContatoCobrancaUseCase registrarContatoUseCase,
             com.dynamis.sep_api.cobranca.application.usecase.IniciarRenegociacaoUseCase iniciarRenegociacaoUseCase,
             com.dynamis.sep_api.cobranca.application.usecase.AceitarRenegociacaoUseCase aceitarRenegociacaoUseCase,
-            com.dynamis.sep_api.cobranca.application.usecase.RecusarRenegociacaoUseCase recusarRenegociacaoUseCase,
-            com.dynamis.sep_api.cobranca.infrastructure.persistence.RenegociacaoRepository renegociacaoRepository) {
+            com.dynamis.sep_api.cobranca.application.usecase.RecusarRenegociacaoUseCase recusarRenegociacaoUseCase) {
         this.consultarAgendaUseCase = consultarAgendaUseCase;
         this.calcularValorAtualizadoUseCase = calcularValorAtualizadoUseCase;
         this.registrarRecebimentoUseCase = registrarRecebimentoUseCase;
@@ -107,7 +105,6 @@ public class CobrancaController {
         this.iniciarRenegociacaoUseCase = iniciarRenegociacaoUseCase;
         this.aceitarRenegociacaoUseCase = aceitarRenegociacaoUseCase;
         this.recusarRenegociacaoUseCase = recusarRenegociacaoUseCase;
-        this.renegociacaoRepository = renegociacaoRepository;
     }
 
     @GetMapping("/contratos/{contratoId}/agenda")

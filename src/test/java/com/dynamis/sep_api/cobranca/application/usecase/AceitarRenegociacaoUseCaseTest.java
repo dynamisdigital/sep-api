@@ -94,8 +94,8 @@ class AceitarRenegociacaoUseCaseTest {
         when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
 
         assertThatThrownBy(() -> useCase.executar(renegociacao.getId(), tomadorId))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("expirada");
+                .isInstanceOf(com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoEstadoInvalidoException.class)
+                .hasMessageContaining("EXPIRADA");
     }
 
     @Test
@@ -106,7 +106,7 @@ class AceitarRenegociacaoUseCaseTest {
         when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
 
         assertThatThrownBy(() -> useCase.executar(renegociacao.getId(), tomadorId))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoEstadoInvalidoException.class)
                 .hasMessageContaining("RECUSADA");
     }
 

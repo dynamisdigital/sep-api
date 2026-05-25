@@ -98,7 +98,7 @@ class RecusarRenegociacaoUseCaseTest {
         when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
 
         assertThatThrownBy(() -> useCase.executar(renegociacao.getId(), tomadorId))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoEstadoInvalidoException.class)
                 .hasMessageContaining("ACEITA");
     }
 

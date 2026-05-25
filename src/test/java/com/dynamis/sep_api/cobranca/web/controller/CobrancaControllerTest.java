@@ -114,9 +114,6 @@ class CobrancaControllerTest {
     @MockBean
     private com.dynamis.sep_api.cobranca.application.usecase.RecusarRenegociacaoUseCase recusarRenegociacaoUseCase;
 
-    @MockBean
-    private com.dynamis.sep_api.cobranca.infrastructure.persistence.RenegociacaoRepository renegociacaoRepository;
-
     @AfterEach
     void clean() {
         SecurityContextHolder.clearContext();
