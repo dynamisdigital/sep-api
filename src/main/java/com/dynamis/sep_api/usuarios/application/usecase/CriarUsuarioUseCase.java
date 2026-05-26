@@ -37,19 +37,20 @@ public class CriarUsuarioUseCase {
 
     /**
      * Cadastro autenticado de usuario interno. Permite definir o {@link Role} explicitamente:
-     * {@code ADMIN} ou {@code CLIENTE}. {@code FINANCEIRO} eh REJEITADO neste endpoint — a
-     * promocao a FINANCEIRO so e permitida via {@code POST /api/v1/usuarios/{id}/role}, que
-     * exige ADMIN + step-up + audit log (Sprint 8 Task 8.4 — evita bypass do fluxo auditado
-     * de promocao).
+     * {@code ADMIN} ou {@code CLIENTE}. Roles operacionais ({@code FINANCEIRO},
+     * {@code BACKOFFICE}) sao REJEITADAS neste endpoint — a promocao so e permitida via
+     * {@code POST /api/v1/usuarios/{id}/role}, que exige ADMIN + step-up + audit log
+     * (Sprint 8 Task 8.4 + Sprint 14 Task 14.6 — evita bypass do fluxo auditado de promocao).
      *
      * <p>Deve ser invocado apenas por endpoint protegido com {@code hasRole('ADMIN')}.
      */
     @Transactional
     public Usuario executarInterno(UsuarioInternoCreateDto dto) {
-        if (dto.role() == Role.FINANCEIRO) {
+        if (dto.role() == Role.FINANCEIRO || dto.role() == Role.BACKOFFICE) {
             throw new ValidacaoException(
                     "USR-400-002",
-                    "Criacao direta com role FINANCEIRO nao permitida; promova via POST /api/v1/usuarios/{id}/role");
+                    "Criacao direta com role " + dto.role()
+                            + " nao permitida; promova via POST /api/v1/usuarios/{id}/role");
         }
         return criar(dto.username(), dto.password(), dto.role());
     }

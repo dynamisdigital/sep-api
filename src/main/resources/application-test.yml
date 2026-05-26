@@ -43,6 +43,12 @@ app:
     # persistentes deixadas por @SpringBootTest anterior. CobrancaIT reativa via
     # @TestPropertySource se precisar do seed.
     workflow-seed-habilitado: false
+  # Sprint 14: VerificadorPendenciasJob desligado em test pra evitar varredura
+  # em janela aleatoria de IT. BackofficeIT (Task 14.9) podera reativar via
+  # @TestPropertySource se precisar testar o job.
+  backoffice:
+    verificador:
+      scheduling-habilitado: false
   # Sprint 13: forca LogNotificationProvider em todos os ITs/UTs do perfil test.
   # Adapter SMTP/Zenvia exige credencial real — Log evita chamada externa e
   # mantem rastreio via metadados. Precedence Spring: @TestPropertySource >
