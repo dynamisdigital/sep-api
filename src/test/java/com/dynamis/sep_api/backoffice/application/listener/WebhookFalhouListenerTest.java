@@ -1,13 +1,12 @@
 package com.dynamis.sep_api.backoffice.application.listener;
 
 import com.dynamis.sep_api.backoffice.application.job.BackofficeVerificadorProperties;
+import com.dynamis.sep_api.backoffice.application.port.out.PendenciaWebhookQueryPort;
+import com.dynamis.sep_api.backoffice.application.port.out.dto.WebhookPendenciaView;
 import com.dynamis.sep_api.backoffice.application.service.CriarItemFilaOperacionalService;
 import com.dynamis.sep_api.backoffice.application.service.CriarItemFilaOperacionalService.CriarItemCommand;
 import com.dynamis.sep_api.backoffice.domain.vo.PrioridadeItem;
 import com.dynamis.sep_api.backoffice.domain.vo.TipoItemFila;
-import com.dynamis.sep_api.shared.domain.model.WebhookEventLog;
-import com.dynamis.sep_api.shared.domain.model.WebhookEventStatus;
-import com.dynamis.sep_api.shared.infrastructure.persistence.WebhookEventLogRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -29,25 +28,17 @@ class WebhookFalhouListenerTest {
 
     @Test
     void falhou_geraPrioridadeAlta_pendente_media() {
-        WebhookEventLogRepository repo = mock(WebhookEventLogRepository.class);
+        PendenciaWebhookQueryPort port = mock(PendenciaWebhookQueryPort.class);
         CriarItemFilaOperacionalService criarItem = mock(CriarItemFilaOperacionalService.class);
         BackofficeVerificadorProperties props = new BackofficeVerificadorProperties("0 */15 * * * *", 24, 48, 1);
         Clock clock = Clock.fixed(Instant.parse("2026-05-26T12:00:00Z"), ZoneOffset.UTC);
 
-        WebhookEventLog falhou = mock(WebhookEventLog.class);
-        when(falhou.getId()).thenReturn(UUID.randomUUID());
-        when(falhou.getProvider()).thenReturn("celcoin");
-        when(falhou.getStatus()).thenReturn(WebhookEventStatus.FALHOU);
-
-        WebhookEventLog pendente = mock(WebhookEventLog.class);
-        when(pendente.getId()).thenReturn(UUID.randomUUID());
-        when(pendente.getProvider()).thenReturn("clicksign");
-        when(pendente.getStatus()).thenReturn(WebhookEventStatus.PENDENTE);
-
-        when(repo.findByStatusInAndDataModificacaoBefore(any(), any())).thenReturn(List.of(falhou, pendente));
+        WebhookPendenciaView falhou = new WebhookPendenciaView(UUID.randomUUID(), "celcoin", true);
+        WebhookPendenciaView pendente = new WebhookPendenciaView(UUID.randomUUID(), "clicksign", false);
+        when(port.webhooksNaoProcessados(any())).thenReturn(List.of(falhou, pendente));
         when(criarItem.criarSeAusente(any())).thenReturn(Optional.of(UUID.randomUUID()));
 
-        new WebhookFalhouListener(repo, criarItem, props, clock).verificar();
+        new WebhookFalhouListener(port, criarItem, props, clock).verificar();
 
         ArgumentCaptor<CriarItemCommand> captor = ArgumentCaptor.forClass(CriarItemCommand.class);
         verify(criarItem, times(2)).criarSeAusente(captor.capture());
