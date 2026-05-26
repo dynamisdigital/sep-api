@@ -161,17 +161,13 @@ public class EscalarCobrancaUseCase {
                 resultado.status(),
                 resultado.mensagemTecnica(),
                 agora));
-        // Fix code review Task 13.8: publica EventoCobrancaRegistradoEvent pra o
-        // CobrancaAuditListener gravar NOTIFICACAO_ENVIADA. Sem isso o tipo NOTIFICACAO_ENVIADA
-        // ficaria orfa no enum.
-        eventPublisher.publishEvent(new com.dynamis.sep_api.cobranca.domain.event.EventoCobrancaRegistradoEvent(
-                evento.getId(), command.parcelaId(), evento.getTipo(), command.diasAtraso(), null));
+        publicarRegistrado(evento, command.diasAtraso());
         return 1;
     }
 
     private void persistirFalha(
             EscalarCobrancaCommand command, NotificacaoEtapa notif, OffsetDateTime agora, String motivo) {
-        eventoRepository.save(EventoCobranca.notificacaoAutomatica(
+        EventoCobranca evento = eventoRepository.save(EventoCobranca.notificacaoAutomatica(
                 command.parcelaId(),
                 notif.canal(),
                 notif.template(),
@@ -179,6 +175,27 @@ public class EscalarCobrancaUseCase {
                 StatusEventoCobranca.FALHA,
                 motivo,
                 agora));
+        // Fix review manual Task 13.8: persistirFalha tambem publica pra audit log capturar
+        // tentativa frustrada (destinatario indisponivel, provider ausente, exception). Sem
+        // isso, audit_log_seguranca perde toda comunicacao que nao foi entregue.
+        publicarRegistrado(evento, command.diasAtraso());
+    }
+
+    /**
+     * Publica {@link com.dynamis.sep_api.cobranca.domain.event.EventoCobrancaRegistradoEvent}
+     * carregando {@code status}/{@code canal}/{@code template} pra o listener de auditoria
+     * (Task 13.8) discriminar entrega de tentativa frustrada na trilha. Fix review manual.
+     */
+    private void publicarRegistrado(EventoCobranca evento, int diasAtraso) {
+        eventPublisher.publishEvent(new com.dynamis.sep_api.cobranca.domain.event.EventoCobrancaRegistradoEvent(
+                evento.getId(),
+                evento.getParcelaId(),
+                evento.getTipo(),
+                evento.getStatus(),
+                evento.getCanal(),
+                evento.getTemplate(),
+                diasAtraso,
+                null));
     }
 
     private static String destinatario(EscalarCobrancaCommand command, CanalNotificacao canal) {

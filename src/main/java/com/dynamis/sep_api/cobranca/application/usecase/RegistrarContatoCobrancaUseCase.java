@@ -45,7 +45,14 @@ public class RegistrarContatoCobrancaUseCase {
                 parcelaId, registradoPor, diasAtraso, descricao, OffsetDateTime.now(clock));
         evento = eventoRepository.save(evento);
         eventPublisher.publishEvent(new EventoCobrancaRegistradoEvent(
-                evento.getId(), parcelaId, evento.getTipo(), diasAtraso, registradoPor));
+                evento.getId(),
+                parcelaId,
+                evento.getTipo(),
+                evento.getStatus(),
+                evento.getCanal(),
+                evento.getTemplate(),
+                diasAtraso,
+                registradoPor));
         return evento;
     }
 }

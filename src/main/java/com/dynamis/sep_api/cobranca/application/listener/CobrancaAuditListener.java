@@ -146,14 +146,26 @@ public class CobrancaAuditListener {
         payload.put("eventoId", event.eventoId().toString());
         payload.put("parcelaId", event.parcelaId().toString());
         payload.put("tipo", event.tipo().name());
+        // Fix review manual Task 13.8: status/canal/template carregam contexto suficiente pra
+        // discriminar tentativa entregue de tentativa frustrada (FALHA), sem vazar corpo de
+        // mensagem nem dados pessoais (canal/template sao nomes tecnicos curtos —
+        // ex.: EMAIL, "cobranca-amigavel").
+        if (event.status() != null) {
+            payload.put("status", event.status().name());
+        }
+        if (event.canal() != null) {
+            payload.put("canal", event.canal().name());
+        }
+        if (event.template() != null) {
+            payload.put("template", event.template());
+        }
         if (event.diasAtraso() != null) {
             payload.put("diasAtraso", event.diasAtraso());
         }
-        // LGPD: nao persistimos descricao/template/canal aqui — corpo da mensagem fica em
-        // EventoCobranca (sem dados pessoais; CPF/CNPJ/telefone NUNCA entram nos templates).
-        // Fix code review Task 13.8: discrimina NOTIFICACAO_AUTOMATICA → NOTIFICACAO_ENVIADA pra
-        // distinguir entrega de mensagem (automatica/manual) de outros eventos operacionais
-        // (mudanca de estado, contato manual). Sem isso o tipo NOTIFICACAO_ENVIADA ficaria orfa.
+        // LGPD: descricao de contato manual e corpo da mensagem ficam em EventoCobranca; templates
+        // sao auditados/revisados (sem CPF/CNPJ/telefone/email/agencia/conta).
+        // Discrimina NOTIFICACAO_AUTOMATICA -> NOTIFICACAO_ENVIADA pra distinguir entrega
+        // (sucesso ou falha) de outros eventos operacionais (mudanca de estado, contato manual).
         TipoEventoSeguranca tipoAudit =
                 event.tipo() == com.dynamis.sep_api.cobranca.domain.vo.TipoEventoCobranca.NOTIFICACAO_AUTOMATICA
                         ? TipoEventoSeguranca.NOTIFICACAO_ENVIADA

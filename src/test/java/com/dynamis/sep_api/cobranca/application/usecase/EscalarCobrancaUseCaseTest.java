@@ -185,6 +185,23 @@ class EscalarCobrancaUseCaseTest {
     }
 
     @Test
+    void persistirFalha_publicaEventRegistradoComStatusFalha() {
+        // Fix review manual Task 13.8: persistirFalha tambem publica EventoCobrancaRegistradoEvent
+        // pra audit log capturar tentativas frustradas. Antes, destinatario nulo / provider ausente
+        // / exception nao chegavam ao audit_log_seguranca.
+        org.mockito.ArgumentCaptor<com.dynamis.sep_api.cobranca.domain.event.EventoCobrancaRegistradoEvent> captor =
+                org.mockito.ArgumentCaptor.forClass(
+                        com.dynamis.sep_api.cobranca.domain.event.EventoCobrancaRegistradoEvent.class);
+
+        useCase.escalar(new EscalarCobrancaCommand(PARCELA, 0, null, null, Map.of("numeroParcela", 1), "corr"));
+
+        verify(eventPublisher, org.mockito.Mockito.atLeastOnce()).publishEvent(captor.capture());
+        boolean temFalhaPublicada =
+                captor.getAllValues().stream().anyMatch(e -> e.status() == StatusEventoCobranca.FALHA);
+        assertThat(temFalhaPublicada).isTrue();
+    }
+
+    @Test
     void providerLancaExcecao_persistiFalhaSemPropagar() {
         // Fix review manual: provider.enviar lanca runtime (timeout, HTTP, CallNotPermitted).
         // Sem try/catch a tx faria rollback e perderia evento ja entregue em iteracao anterior.

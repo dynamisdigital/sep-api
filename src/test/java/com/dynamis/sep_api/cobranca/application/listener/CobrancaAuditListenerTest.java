@@ -146,15 +146,22 @@ class CobrancaAuditListenerTest {
     // ============================================================================
 
     @Test
-    void eventoCobrancaRegistrado_gravaAuditoria() {
+    void eventoCobrancaRegistrado_contatoManual_gravaAuditoria() {
         UUID financeiroId = UUID.randomUUID();
         listener.aoRegistrarEventoCobranca(new EventoCobrancaRegistradoEvent(
-                UUID.randomUUID(), UUID.randomUUID(), TipoEventoCobranca.CONTATO_MANUAL, 30, financeiroId));
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                TipoEventoCobranca.CONTATO_MANUAL,
+                com.dynamis.sep_api.cobranca.domain.vo.StatusEventoCobranca.SUCESSO,
+                null,
+                null,
+                30,
+                financeiroId));
 
         ArgumentCaptor<String> json = ArgumentCaptor.forClass(String.class);
         verify(auditLogService)
                 .gravar(eq(TipoEventoSeguranca.EVENTO_COBRANCA_REGISTRADO), eq(financeiroId), json.capture());
-        assertThat(json.getValue()).contains("CONTATO_MANUAL", "diasAtraso");
+        assertThat(json.getValue()).contains("CONTATO_MANUAL", "diasAtraso", "SUCESSO");
         assertThat(json.getValue()).doesNotContain("cpf", "cnpj", "telefone", "email", "agencia", "conta", "token");
     }
 
@@ -173,13 +180,41 @@ class CobrancaAuditListenerTest {
     }
 
     @Test
-    void eventoCobranca_notificacaoAutomatica_mapeiaParaNotificacaoEnviada() {
+    void eventoCobranca_notificacaoAutomaticaSucesso_mapeiaParaNotificacaoEnviadaComStatus() {
         // Fix code review Task 13.8: tipo NOTIFICACAO_ENVIADA estava orfo. Handler discrimina
-        // NOTIFICACAO_AUTOMATICA -> NOTIFICACAO_ENVIADA.
+        // NOTIFICACAO_AUTOMATICA -> NOTIFICACAO_ENVIADA + carrega status/canal/template no payload.
         listener.aoRegistrarEventoCobranca(new EventoCobrancaRegistradoEvent(
-                UUID.randomUUID(), UUID.randomUUID(), TipoEventoCobranca.NOTIFICACAO_AUTOMATICA, 5, null));
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                TipoEventoCobranca.NOTIFICACAO_AUTOMATICA,
+                com.dynamis.sep_api.cobranca.domain.vo.StatusEventoCobranca.SUCESSO,
+                com.dynamis.sep_api.cobranca.domain.vo.CanalNotificacao.EMAIL,
+                "cobranca-amigavel",
+                5,
+                null));
 
-        verify(auditLogService).gravar(eq(TipoEventoSeguranca.NOTIFICACAO_ENVIADA), eq(null), any(String.class));
+        ArgumentCaptor<String> json = ArgumentCaptor.forClass(String.class);
+        verify(auditLogService).gravar(eq(TipoEventoSeguranca.NOTIFICACAO_ENVIADA), eq(null), json.capture());
+        assertThat(json.getValue()).contains("SUCESSO", "EMAIL", "cobranca-amigavel");
+        assertThat(json.getValue()).doesNotContain("cpf", "cnpj", "telefone", "email\":", "agencia", "conta");
+    }
+
+    @Test
+    void eventoCobranca_notificacaoFalha_auditaComoFALHA() {
+        // Fix review manual Task 13.8: tentativa que nao chegou ao tomador precisa auditar.
+        listener.aoRegistrarEventoCobranca(new EventoCobrancaRegistradoEvent(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                TipoEventoCobranca.NOTIFICACAO_AUTOMATICA,
+                com.dynamis.sep_api.cobranca.domain.vo.StatusEventoCobranca.FALHA,
+                com.dynamis.sep_api.cobranca.domain.vo.CanalNotificacao.SMS,
+                "cobranca-firme",
+                15,
+                null));
+
+        ArgumentCaptor<String> json = ArgumentCaptor.forClass(String.class);
+        verify(auditLogService).gravar(eq(TipoEventoSeguranca.NOTIFICACAO_ENVIADA), eq(null), json.capture());
+        assertThat(json.getValue()).contains("FALHA", "SMS", "cobranca-firme");
     }
 
     @Test
