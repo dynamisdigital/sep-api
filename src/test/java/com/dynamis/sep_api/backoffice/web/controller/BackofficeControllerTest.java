@@ -118,6 +118,20 @@ class BackofficeControllerTest {
     }
 
     @Test
+    void listar_stripSortPrioridade() throws Exception {
+        autenticar(UUID.randomUUID(), Role.BACKOFFICE, false);
+        when(listarUseCase.listar(any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/v1/backoffice/fila").param("sort", "prioridade,desc"))
+                .andExpect(status().isOk());
+
+        org.mockito.ArgumentCaptor<org.springframework.data.domain.Pageable> captor =
+                org.mockito.ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
+        verify(listarUseCase).listar(any(), captor.capture());
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().getSort().getOrderFor("prioridade")).isNull();
+    }
+
+    @Test
     void consultar_naoEncontrado_404() throws Exception {
         autenticar(UUID.randomUUID(), Role.BACKOFFICE, false);
         UUID id = UUID.randomUUID();

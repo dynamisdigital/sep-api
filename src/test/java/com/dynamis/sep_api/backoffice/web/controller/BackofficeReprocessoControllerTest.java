@@ -126,4 +126,14 @@ class BackofficeReprocessoControllerTest {
                 .andExpect(status().isBadRequest());
         verify(reprocessarProvider, never()).executar(any(), any(), any(), any());
     }
+
+    @Test
+    void reprocessarProvider_dispatcherSemStrategy_400() throws Exception {
+        autenticar(UUID.randomUUID(), Role.BACKOFFICE, false);
+        when(reprocessarProvider.executar(any(), any(), any(), any()))
+                .thenThrow(new UnsupportedOperationException("tipo nao suportado: KYC"));
+
+        mockMvc.perform(post("/api/v1/backoffice/reprocessos/provider/{tipo}/{id}", "KYC", UUID.randomUUID()))
+                .andExpect(status().isBadRequest());
+    }
 }

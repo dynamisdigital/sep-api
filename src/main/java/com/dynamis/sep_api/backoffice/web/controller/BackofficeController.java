@@ -24,7 +24,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -98,7 +100,22 @@ public class BackofficeController {
             Pageable pageable) {
         FiltrosFilaOperacional filtros = new FiltrosFilaOperacional(
                 tipo, prioridade, status, dataAberturaDe, dataAberturaAte, atribuidoA);
-        return ResponseEntity.ok(listar.listar(filtros, pageable).map(ItemFilaResponse::from));
+        return ResponseEntity.ok(listar.listar(filtros, sanitizarSort(pageable)).map(ItemFilaResponse::from));
+    }
+
+    /**
+     * Remove sort por {@code prioridade} (fix code review Task 14.7) — coluna eh VARCHAR e ordem
+     * lexicografica devolve ordem errada (MEDIA &gt; CRITICA &gt; BAIXA &gt; ALTA). Caller pode
+     * passar outros sorts; quando vazio, use case aplica CASE-based default por peso.
+     */
+    private static Pageable sanitizarSort(Pageable pageable) {
+        if (pageable == null || pageable.getSort().isUnsorted()) {
+            return pageable;
+        }
+        Sort sortLimpo = Sort.by(pageable.getSort().stream()
+                .filter(o -> !"prioridade".equalsIgnoreCase(o.getProperty()))
+                .toList());
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sortLimpo);
     }
 
     @GetMapping("/{id}")
