@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.backoffice.domain.model;
 
+import com.dynamis.sep_api.backoffice.domain.exception.TransicaoItemInvalidaException;
 import com.dynamis.sep_api.backoffice.domain.vo.PrioridadeItem;
 import com.dynamis.sep_api.backoffice.domain.vo.StatusItemFila;
 import com.dynamis.sep_api.backoffice.domain.vo.TipoEntidadeReferenciada;
@@ -146,7 +147,7 @@ public class ItemFilaOperacional extends EntidadeAuditavel {
 
     private void exigirTransicao(StatusItemFila alvo, java.util.function.BooleanSupplier permitido) {
         if (!permitido.getAsBoolean()) {
-            throw new IllegalStateException("transicao invalida: " + this.status + " -> " + alvo);
+            throw new TransicaoItemInvalidaException(this.id, this.status, alvo);
         }
     }
 

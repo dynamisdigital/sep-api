@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.backoffice.domain.model;
 
+import com.dynamis.sep_api.backoffice.domain.exception.TransicaoItemInvalidaException;
 import com.dynamis.sep_api.backoffice.domain.vo.PrioridadeItem;
 import com.dynamis.sep_api.backoffice.domain.vo.StatusItemFila;
 import com.dynamis.sep_api.backoffice.domain.vo.TipoEntidadeReferenciada;
@@ -11,8 +12,8 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
-import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ItemFilaOperacionalTest {
@@ -87,14 +88,14 @@ class ItemFilaOperacionalTest {
         ItemFilaOperacional item = abrirPadrao();
         item.assumir(UUID.randomUUID());
 
-        assertThatIllegalStateException().isThrownBy(() -> item.assumir(UUID.randomUUID()));
+        assertThatExceptionOfType(TransicaoItemInvalidaException.class).isThrownBy(() -> item.assumir(UUID.randomUUID()));
     }
 
     @Test
     void resolver_apenasAposAssumir() {
         ItemFilaOperacional item = abrirPadrao();
 
-        assertThatIllegalStateException().isThrownBy(() -> item.resolver(AGORA));
+        assertThatExceptionOfType(TransicaoItemInvalidaException.class).isThrownBy(() -> item.resolver(AGORA));
 
         item.assumir(UUID.randomUUID());
         item.resolver(AGORA.plusHours(1));
@@ -121,7 +122,7 @@ class ItemFilaOperacionalTest {
         item.assumir(UUID.randomUUID());
         item.resolver(AGORA);
 
-        assertThatIllegalStateException().isThrownBy(() -> item.ignorar(AGORA));
+        assertThatExceptionOfType(TransicaoItemInvalidaException.class).isThrownBy(() -> item.ignorar(AGORA));
     }
 
     @Test
