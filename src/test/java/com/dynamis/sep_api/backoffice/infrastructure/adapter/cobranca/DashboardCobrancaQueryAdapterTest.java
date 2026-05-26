@@ -40,10 +40,14 @@ class DashboardCobrancaQueryAdapterTest {
     }
 
     @Test
-    void inadimplenciaTotal_mapeiaTupla() {
+    void inadimplenciaTotal_mapeiaProjection() {
         RecebimentoRepository recebimento = mock(RecebimentoRepository.class);
         ParcelaCobrancaRepository parcela = mock(ParcelaCobrancaRepository.class);
-        when(parcela.resumoInadimplencia()).thenReturn(new Object[] {3L, new BigDecimal("9000")});
+        ParcelaCobrancaRepository.ResumoInadimplenciaView view =
+                mock(ParcelaCobrancaRepository.ResumoInadimplenciaView.class);
+        when(view.getNumeroParcelas()).thenReturn(3L);
+        when(view.getValorTotal()).thenReturn(new BigDecimal("9000"));
+        when(parcela.resumoInadimplencia()).thenReturn(view);
 
         InadimplenciaConsolidada r = new DashboardCobrancaQueryAdapter(recebimento, parcela).inadimplenciaTotal();
 

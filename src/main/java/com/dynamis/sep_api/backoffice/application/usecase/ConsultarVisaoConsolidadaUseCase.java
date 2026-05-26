@@ -21,7 +21,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -46,16 +45,19 @@ public class ConsultarVisaoConsolidadaUseCase {
     private final ItemFilaOperacionalRepository itemRepository;
     private final DashboardCobrancaQueryPort cobrancaQuery;
     private final DashboardCreditoQueryPort creditoQuery;
+    private final BackofficeDashboardProperties properties;
     private final Clock clock;
 
     public ConsultarVisaoConsolidadaUseCase(
             ItemFilaOperacionalRepository itemRepository,
             DashboardCobrancaQueryPort cobrancaQuery,
             DashboardCreditoQueryPort creditoQuery,
+            BackofficeDashboardProperties properties,
             Clock clock) {
         this.itemRepository = itemRepository;
         this.cobrancaQuery = cobrancaQuery;
         this.creditoQuery = creditoQuery;
+        this.properties = properties;
         this.clock = clock;
     }
 
@@ -64,7 +66,7 @@ public class ConsultarVisaoConsolidadaUseCase {
         OffsetDateTime agora = OffsetDateTime.now(clock);
         OffsetDateTime cortePos30d = agora.minusDays(TEMPO_MEDIO_JANELA_DIAS);
         OffsetDateTime corteCriticosAntes48h = agora.minusHours(CRITICOS_THRESHOLD_HORAS);
-        LocalDate hoje = LocalDate.now(clock.withZone(ZoneId.of("America/Sao_Paulo")));
+        LocalDate hoje = LocalDate.now(clock.withZone(properties.zoneId()));
 
         List<ContadorPorTipo> porTipo = resiliente("contarPorTipo", itemRepository::contarPorTipo, List.of());
         List<ContadorPorPrioridade> porPrioridade =
@@ -107,7 +109,7 @@ public class ConsultarVisaoConsolidadaUseCase {
         if (segundos == null) {
             return Duration.ZERO;
         }
-        return Duration.ofSeconds(segundos.longValue());
+        return Duration.ofSeconds(Math.round(segundos));
     }
 
     private static <T> T resiliente(String aspecto, Supplier<T> supplier, T fallback) {

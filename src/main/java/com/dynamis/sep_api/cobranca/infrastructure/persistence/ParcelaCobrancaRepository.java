@@ -41,9 +41,17 @@ public interface ParcelaCobrancaRepository extends JpaRepository<ParcelaCobranca
 
     /**
      * Agregacao para dashboard do backoffice (Sprint 14 Task 14.5): conta parcelas inadimplentes
-     * e soma o valor total devido (principal + juros + multa + encargos).
+     * e soma o valor total devido (principal + juros + multa + encargos). Interface projection
+     * preserva tipos sem cast manual em {@code Object[]} (fix code review Task 14.5).
      */
-    @Query("select count(p), coalesce(sum(p.principal + p.juros + p.multa + p.encargos), 0) "
+    @Query("select count(p) as numeroParcelas, "
+            + "coalesce(sum(p.principal + p.juros + p.multa + p.encargos), 0) as valorTotal "
             + "from ParcelaCobranca p where p.status = com.dynamis.sep_api.cobranca.domain.vo.StatusParcela.INADIMPLENTE")
-    Object[] resumoInadimplencia();
+    ResumoInadimplenciaView resumoInadimplencia();
+
+    interface ResumoInadimplenciaView {
+        long getNumeroParcelas();
+
+        java.math.BigDecimal getValorTotal();
+    }
 }

@@ -34,12 +34,11 @@ public class DashboardCobrancaQueryAdapter implements DashboardCobrancaQueryPort
 
     @Override
     public InadimplenciaConsolidada inadimplenciaTotal() {
-        Object[] resumo = parcelaRepository.resumoInadimplencia();
-        if (resumo == null || resumo.length < 2) {
+        ParcelaCobrancaRepository.ResumoInadimplenciaView v = parcelaRepository.resumoInadimplencia();
+        if (v == null) {
             return InadimplenciaConsolidada.vazia();
         }
-        long numero = ((Number) resumo[0]).longValue();
-        BigDecimal valor = resumo[1] instanceof BigDecimal v ? v : new BigDecimal(String.valueOf(resumo[1]));
-        return new InadimplenciaConsolidada(valor, numero);
+        BigDecimal valor = v.getValorTotal() != null ? v.getValorTotal() : BigDecimal.ZERO;
+        return new InadimplenciaConsolidada(valor, v.getNumeroParcelas());
     }
 }

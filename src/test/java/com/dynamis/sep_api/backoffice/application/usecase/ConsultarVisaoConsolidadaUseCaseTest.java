@@ -41,7 +41,8 @@ class ConsultarVisaoConsolidadaUseCaseTest {
         cobranca = mock(DashboardCobrancaQueryPort.class);
         credito = mock(DashboardCreditoQueryPort.class);
         Clock clock = Clock.fixed(Instant.parse("2026-05-26T12:00:00Z"), ZoneOffset.UTC);
-        useCase = new ConsultarVisaoConsolidadaUseCase(itemRepo, cobranca, credito, clock);
+        BackofficeDashboardProperties props = new BackofficeDashboardProperties("America/Sao_Paulo");
+        useCase = new ConsultarVisaoConsolidadaUseCase(itemRepo, cobranca, credito, props, clock);
     }
 
     @Test

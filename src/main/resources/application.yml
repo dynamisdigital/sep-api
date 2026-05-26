@@ -130,6 +130,10 @@ app:
       webhook:
         hmac-secret: ${APP_WEBHOOK_SECRET_CLICKSIGN:dev-clicksign-webhook-secret-change-me}
   backoffice:
+    # Dashboard de visao consolidada (Sprint 14 Task 14.5). timezone define o recorte
+    # do "dia operacional" usado pra somar recebimentos.
+    dashboard:
+      timezone: ${APP_BACKOFFICE_DASHBOARD_TIMEZONE:America/Sao_Paulo}
     # Job consolidador da fila operacional (Sprint 14 Task 14.2). Varre tres fontes
     # de pendencia baseadas em tempo (proposta parada, contrato sem assinatura, webhook
     # falhou/pendente antigo) e cria itens via CriarItemFilaOperacionalService.
