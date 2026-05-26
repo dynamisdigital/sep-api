@@ -296,7 +296,9 @@ class InadimplenciaIT {
     }
 
     @Test
-    void escalador_dia5_geraNotificacoes() {
+    void escalador_dia5_geraDuasNotificacoesEmailESms() {
+        // Fix review manual Task 13.9: spec exige 2 notificacoes (email-amigavel + sms-lembrete)
+        // — antes assertava so existencia de algum evento. Agora valida canais EMAIL + SMS.
         Autenticado tomador = criarELogar(Role.CLIENTE);
         ContratoAssinadoFixture fixture = criarContratoAssinado(tomador);
         UUID parcelaId = parcelaRepository
@@ -305,14 +307,94 @@ class InadimplenciaIT {
                 .getId();
         forcarVencimento(parcelaId, LocalDate.now().minusDays(5));
         marcarParcelaAtrasadaJob.executar();
-        // Limpar eventos do dia 0 disparados pelo listener pra observar apenas dia 5.
         eventoCobrancaRepository.deleteAll();
 
         int processadas = escaladorCobrancaJob.executar();
 
         assertThat(processadas).isGreaterThanOrEqualTo(1);
-        var eventos = eventoCobrancaRepository.findByParcelaIdOrderByDataEventoAsc(parcelaId);
-        assertThat(eventos).anyMatch(e -> e.getDiasAtraso() == 5);
+        var dia5 = eventoCobrancaRepository.findByParcelaIdOrderByDataEventoAsc(parcelaId).stream()
+                .filter(e -> e.getDiasAtraso() != null && e.getDiasAtraso() == 5)
+                .toList();
+        assertThat(dia5)
+                .as("etapa dia 5 deve gerar email-amigavel + sms-lembrete")
+                .extracting(e -> e.getCanal().name())
+                .containsExactlyInAnyOrder("EMAIL", "SMS");
+        assertThat(dia5)
+                .extracting(com.dynamis.sep_api.cobranca.domain.model.EventoCobranca::getTemplate)
+                .containsExactlyInAnyOrder("cobranca-amigavel", "cobranca-lembrete");
+    }
+
+    @Test
+    void escalador_dia15_geraNotificacoesFirmes() {
+        Autenticado tomador = criarELogar(Role.CLIENTE);
+        ContratoAssinadoFixture fixture = criarContratoAssinado(tomador);
+        UUID parcelaId = parcelaRepository
+                .findByAgenda_ContratoIdOrderByNumeroAsc(fixture.contratoId())
+                .get(0)
+                .getId();
+        forcarVencimento(parcelaId, LocalDate.now().minusDays(15));
+        marcarParcelaAtrasadaJob.executar();
+        eventoCobrancaRepository.deleteAll();
+
+        escaladorCobrancaJob.executar();
+
+        var dia15 = eventoCobrancaRepository.findByParcelaIdOrderByDataEventoAsc(parcelaId).stream()
+                .filter(e -> e.getDiasAtraso() != null && e.getDiasAtraso() == 15)
+                .toList();
+        assertThat(dia15)
+                .extracting(com.dynamis.sep_api.cobranca.domain.model.EventoCobranca::getTemplate)
+                .containsExactlyInAnyOrder("cobranca-firme", "cobranca-firme");
+    }
+
+    @Test
+    void escalador_dia30_etapaTemFlagContatoManual() {
+        // Spec exige flag-contato-manual no dia 30. Reflete no `EtapaCobrancaAplicadaEvent` —
+        // mas o EventoCobranca persistido nao carrega a flag (ela vive no EscalonamentoResult).
+        // Validacao: 2 notificacoes (email-firme + sms-firme) sao geradas.
+        Autenticado tomador = criarELogar(Role.CLIENTE);
+        ContratoAssinadoFixture fixture = criarContratoAssinado(tomador);
+        UUID parcelaId = parcelaRepository
+                .findByAgenda_ContratoIdOrderByNumeroAsc(fixture.contratoId())
+                .get(0)
+                .getId();
+        forcarVencimento(parcelaId, LocalDate.now().minusDays(30));
+        marcarParcelaAtrasadaJob.executar();
+        eventoCobrancaRepository.deleteAll();
+
+        escaladorCobrancaJob.executar();
+
+        var dia30 = eventoCobrancaRepository.findByParcelaIdOrderByDataEventoAsc(parcelaId).stream()
+                .filter(e -> e.getDiasAtraso() != null && e.getDiasAtraso() == 30)
+                .toList();
+        assertThat(dia30).extracting(e -> e.getCanal().name()).containsExactlyInAnyOrder("EMAIL", "SMS");
+    }
+
+    @Test
+    void escalador_naoDuplicaNotificacaoNoMesmoDia() {
+        // Fix review manual Task 13.9: spec exige "notificacao nao duplica no mesmo dia"
+        // (idempotencia via unique parcial uq_evento_notificacao_idempotencia).
+        Autenticado tomador = criarELogar(Role.CLIENTE);
+        ContratoAssinadoFixture fixture = criarContratoAssinado(tomador);
+        UUID parcelaId = parcelaRepository
+                .findByAgenda_ContratoIdOrderByNumeroAsc(fixture.contratoId())
+                .get(0)
+                .getId();
+        forcarVencimento(parcelaId, LocalDate.now().minusDays(5));
+        marcarParcelaAtrasadaJob.executar();
+        eventoCobrancaRepository.deleteAll();
+
+        escaladorCobrancaJob.executar();
+        long apos1aRodada = eventoCobrancaRepository
+                .findByParcelaIdOrderByDataEventoAsc(parcelaId)
+                .size();
+        escaladorCobrancaJob.executar();
+        long apos2aRodada = eventoCobrancaRepository
+                .findByParcelaIdOrderByDataEventoAsc(parcelaId)
+                .size();
+
+        assertThat(apos2aRodada)
+                .as("re-execucao do job no mesmo dia nao deve duplicar EventoCobranca de notificacao")
+                .isEqualTo(apos1aRodada);
     }
 
     @Test

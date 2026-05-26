@@ -57,7 +57,7 @@ class EscaladorCobrancaJobTest {
     void executar_calculaDiasAtrasoEDispachaPorParcela() {
         // Parcela vence 2026-06-15; hoje (do clock) eh 2026-06-20 -> 5 dias.
         ParcelaCobranca parcela = parcelaCom(LocalDate.of(2026, 6, 15));
-        when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
+        when(parcelaRepository.findComAgendaByStatusAndDataVencimentoBefore(any(), any()))
                 .thenReturn(List.of(parcela));
         UUID tomadorId = UUID.randomUUID();
         when(contratoQuery.tomadorIdDoContrato(parcela.getAgenda().getContratoId()))
@@ -79,7 +79,7 @@ class EscaladorCobrancaJobTest {
     void executar_diasNaoPositivo_pula() {
         // Mesmo dia do vencimento -> dias=0; cobertura desse caso fica com listener (Sprint 12).
         ParcelaCobranca parcela = parcelaCom(LocalDate.of(2026, 6, 20));
-        when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
+        when(parcelaRepository.findComAgendaByStatusAndDataVencimentoBefore(any(), any()))
                 .thenReturn(List.of(parcela));
 
         int processadas = job.executar();
@@ -91,7 +91,7 @@ class EscaladorCobrancaJobTest {
     @Test
     void executar_semTomadorId_logaEPula() {
         ParcelaCobranca parcela = parcelaCom(LocalDate.of(2026, 6, 5));
-        when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
+        when(parcelaRepository.findComAgendaByStatusAndDataVencimentoBefore(any(), any()))
                 .thenReturn(List.of(parcela));
         when(contratoQuery.tomadorIdDoContrato(any())).thenReturn(Optional.empty());
 
@@ -105,7 +105,7 @@ class EscaladorCobrancaJobTest {
     void executar_falhaUseCase_naoQuebraLoop() {
         ParcelaCobranca p1 = parcelaCom(LocalDate.of(2026, 6, 5));
         ParcelaCobranca p2 = parcelaCom(LocalDate.of(2026, 6, 10));
-        when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
+        when(parcelaRepository.findComAgendaByStatusAndDataVencimentoBefore(any(), any()))
                 .thenReturn(List.of(p1, p2));
         when(contratoQuery.tomadorIdDoContrato(any())).thenReturn(Optional.of(UUID.randomUUID()));
         when(usuarioRepository.findById(any())).thenReturn(Optional.of(Usuario.criar("x@y.com", "h", Role.CLIENTE)));
@@ -121,13 +121,13 @@ class EscaladorCobrancaJobTest {
 
     @Test
     void executar_buscaApenasAtrasadas() {
-        when(parcelaRepository.findByStatusAndDataVencimentoBefore(any(), any()))
+        when(parcelaRepository.findComAgendaByStatusAndDataVencimentoBefore(any(), any()))
                 .thenReturn(List.of());
 
         job.executar();
 
         verify(parcelaRepository)
-                .findByStatusAndDataVencimentoBefore(org.mockito.Mockito.eq(StatusParcela.ATRASADA), any());
+                .findComAgendaByStatusAndDataVencimentoBefore(org.mockito.Mockito.eq(StatusParcela.ATRASADA), any());
     }
 
     private static ParcelaCobranca parcelaCom(LocalDate dataVencimento) {

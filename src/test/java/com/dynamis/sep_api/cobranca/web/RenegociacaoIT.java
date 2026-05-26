@@ -427,8 +427,8 @@ class RenegociacaoIT {
                 .when()
                 .post("/api/v1/cobranca/parcelas/" + fx.parcelaId() + "/renegociacao")
                 .then()
-                .statusCode(org.hamcrest.Matchers.anyOf(
-                        org.hamcrest.Matchers.equalTo(400), org.hamcrest.Matchers.equalTo(409)));
+                // ParcelaEstadoInvalidoException extends ConflitoException -> 409.
+                .statusCode(409);
     }
 
     @Test

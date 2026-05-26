@@ -72,15 +72,16 @@ public class EscaladorCobrancaJob {
     /**
      * Visivel pra testes — controla {@code Clock} e chama diretamente sem agendamento.
      *
-     * <p>{@code @Transactional} abre sessao Hibernate pro loop conseguir resolver lazy load de
-     * {@code ParcelaCobranca.agenda}. Cada {@code escalarCobrancaUseCase.escalar} interno tem
-     * tx propria — falha numa parcela nao reverte as anteriores.
+     * <p>Fix review manual Task 13.9: usa {@code findComAgendaByStatusAndDataVencimentoBefore}
+     * (JOIN FETCH) pra resolver {@code ParcelaCobranca.agenda} dentro da tx do query.
+     * Sem outer {@code @Transactional} — cada {@code escalarCobrancaUseCase.escalar} mantem
+     * tx propria (REQUIRES_NEW efetivo via {@code @Transactional} default + ausencia de tx outer),
+     * preservando isolamento entre parcelas e evitando locks longos no batch.
      */
-    @org.springframework.transaction.annotation.Transactional
     public int executar() {
         LocalDate hoje = LocalDate.now(clock);
-        List<ParcelaCobranca> atrasadas =
-                parcelaRepository.findByStatusAndDataVencimentoBefore(StatusParcela.ATRASADA, hoje.plusDays(1));
+        List<ParcelaCobranca> atrasadas = parcelaRepository.findComAgendaByStatusAndDataVencimentoBefore(
+                StatusParcela.ATRASADA, hoje.plusDays(1));
         int processadas = 0;
         for (ParcelaCobranca parcela : atrasadas) {
             int dias = (int) ChronoUnit.DAYS.between(parcela.getDataVencimento(), hoje);
