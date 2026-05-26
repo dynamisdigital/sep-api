@@ -162,8 +162,7 @@ public class BackofficeAuditListener {
         // CPF: 11 digitos (com/sem pontuacao) -> ***.***.***-**
         String semCpf = texto.replaceAll("\\b\\d{3}\\.?\\d{3}\\.?\\d{3}-?\\d{2}\\b", "***.***.***-**");
         // CNPJ: 14 digitos (com/sem pontuacao) -> **.***.***/****-**
-        return semCpf.replaceAll(
-                "\\b\\d{2}\\.?\\d{3}\\.?\\d{3}/?\\d{4}-?\\d{2}\\b", "**.***.***/****-**");
+        return semCpf.replaceAll("\\b\\d{2}\\.?\\d{3}\\.?\\d{3}/?\\d{4}-?\\d{2}\\b", "**.***.***/****-**");
     }
 
     private static final int MAX_RESUMO_AUDIT = 80;

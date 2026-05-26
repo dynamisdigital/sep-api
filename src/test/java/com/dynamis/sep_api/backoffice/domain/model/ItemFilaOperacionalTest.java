@@ -88,7 +88,8 @@ class ItemFilaOperacionalTest {
         ItemFilaOperacional item = abrirPadrao();
         item.assumir(UUID.randomUUID());
 
-        assertThatExceptionOfType(TransicaoItemInvalidaException.class).isThrownBy(() -> item.assumir(UUID.randomUUID()));
+        assertThatExceptionOfType(TransicaoItemInvalidaException.class)
+                .isThrownBy(() -> item.assumir(UUID.randomUUID()));
     }
 
     @Test

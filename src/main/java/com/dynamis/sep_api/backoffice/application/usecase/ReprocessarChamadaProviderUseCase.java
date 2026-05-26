@@ -52,7 +52,8 @@ public class ReprocessarChamadaProviderUseCase {
 
         ResultadoReprocesso resultado = providerReprocessador.reprocessar(tipo, entidadeId);
 
-        Reprocesso reprocesso = Reprocesso.paraProvider(itemId, tipo, entidadeId, OffsetDateTime.now(clock), disparadoPor);
+        Reprocesso reprocesso =
+                Reprocesso.paraProvider(itemId, tipo, entidadeId, OffsetDateTime.now(clock), disparadoPor);
         aplicarResultado(reprocesso, resultado);
         Reprocesso salvo = reprocessoRepository.save(reprocesso);
 

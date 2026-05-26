@@ -53,8 +53,8 @@ class MarcarItemResolvidoUseCaseTest {
         ItemFilaOperacional item = emTratamento();
         when(itemRepo.findByIdForUpdate(item.getId())).thenReturn(Optional.of(item));
 
-        ItemFilaOperacional resultado = useCase.executar(
-                item.getId(), UUID.randomUUID(), "Operador validou documentos manualmente");
+        ItemFilaOperacional resultado =
+                useCase.executar(item.getId(), UUID.randomUUID(), "Operador validou documentos manualmente");
 
         assertThat(resultado.getStatus()).isEqualTo(StatusItemFila.RESOLVIDO);
         verify(comentarioRepo).save(any(ComentarioInterno.class));
@@ -73,7 +73,8 @@ class MarcarItemResolvidoUseCaseTest {
         when(itemRepo.findByIdForUpdate(id)).thenReturn(Optional.empty());
 
         assertThatExceptionOfType(ItemFilaNaoEncontradoException.class)
-                .isThrownBy(() -> useCase.executar(id, UUID.randomUUID(), "Justificativa com mais de vinte caracteres"));
+                .isThrownBy(
+                        () -> useCase.executar(id, UUID.randomUUID(), "Justificativa com mais de vinte caracteres"));
     }
 
     @Test
@@ -82,7 +83,8 @@ class MarcarItemResolvidoUseCaseTest {
         when(itemRepo.findByIdForUpdate(item.getId())).thenReturn(Optional.of(item));
 
         assertThatExceptionOfType(TransicaoItemInvalidaException.class)
-                .isThrownBy(() -> useCase.executar(item.getId(), UUID.randomUUID(), "Justificativa com mais de vinte caracteres"));
+                .isThrownBy(() -> useCase.executar(
+                        item.getId(), UUID.randomUUID(), "Justificativa com mais de vinte caracteres"));
     }
 
     private ItemFilaOperacional novoAberto() {

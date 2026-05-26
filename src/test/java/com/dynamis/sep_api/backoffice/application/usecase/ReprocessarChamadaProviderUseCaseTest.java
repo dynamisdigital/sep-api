@@ -49,8 +49,7 @@ class ReprocessarChamadaProviderUseCaseTest {
     @Test
     void happy_dispatcha() {
         UUID entidade = UUID.randomUUID();
-        when(provider.reprocessar(TipoChamadaProvider.KYC, entidade))
-                .thenReturn(ResultadoReprocesso.sucesso("OK"));
+        when(provider.reprocessar(TipoChamadaProvider.KYC, entidade)).thenReturn(ResultadoReprocesso.sucesso("OK"));
 
         Reprocesso r = useCase.executar(TipoChamadaProvider.KYC, entidade, UUID.randomUUID(), null);
 
@@ -62,11 +61,12 @@ class ReprocessarChamadaProviderUseCaseTest {
     @Test
     void antiAbuso_lanca429() {
         UUID entidade = UUID.randomUUID();
-        doThrow(new LimiteReprocessoExcedidoException(entidade.toString())).when(antiAbuso).validarLimite(any());
+        doThrow(new LimiteReprocessoExcedidoException(entidade.toString()))
+                .when(antiAbuso)
+                .validarLimite(any());
 
         assertThatExceptionOfType(LimiteReprocessoExcedidoException.class)
-                .isThrownBy(() ->
-                        useCase.executar(TipoChamadaProvider.PLD, entidade, UUID.randomUUID(), null));
+                .isThrownBy(() -> useCase.executar(TipoChamadaProvider.PLD, entidade, UUID.randomUUID(), null));
         verify(repo, never()).save(any(Reprocesso.class));
     }
 
@@ -77,8 +77,8 @@ class ReprocessarChamadaProviderUseCaseTest {
                 .thenThrow(new com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException(
                         TipoChamadaProvider.KYB));
 
-        assertThatExceptionOfType(com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException.class)
-                .isThrownBy(() ->
-                        useCase.executar(TipoChamadaProvider.KYB, entidade, UUID.randomUUID(), null));
+        assertThatExceptionOfType(
+                        com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException.class)
+                .isThrownBy(() -> useCase.executar(TipoChamadaProvider.KYB, entidade, UUID.randomUUID(), null));
     }
 }

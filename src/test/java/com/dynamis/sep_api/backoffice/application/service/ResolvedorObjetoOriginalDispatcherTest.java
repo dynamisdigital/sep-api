@@ -16,14 +16,15 @@ class ResolvedorObjetoOriginalDispatcherTest {
     @Test
     void semStrategies_devolveEmpty() {
         ResolvedorObjetoOriginalDispatcher dispatcher = new ResolvedorObjetoOriginalDispatcher(List.of());
-        assertThat(dispatcher.resolver(TipoEntidadeReferenciada.ONBOARDING, UUID.randomUUID())).isEmpty();
+        assertThat(dispatcher.resolver(TipoEntidadeReferenciada.ONBOARDING, UUID.randomUUID()))
+                .isEmpty();
     }
 
     @Test
     void strategyRegistrada_dispatcha() {
         UUID id = UUID.randomUUID();
-        ObjetoOriginalResumo esperado = new ObjetoOriginalResumo(
-                TipoEntidadeReferenciada.PROPOSTA, id, "EM_ANALISE", "Proposta");
+        ObjetoOriginalResumo esperado =
+                new ObjetoOriginalResumo(TipoEntidadeReferenciada.PROPOSTA, id, "EM_ANALISE", "Proposta");
         ObjetoOriginalQueryPort strategy = strategyFixa(TipoEntidadeReferenciada.PROPOSTA, esperado);
 
         ResolvedorObjetoOriginalDispatcher dispatcher = new ResolvedorObjetoOriginalDispatcher(List.of(strategy));
@@ -46,7 +47,8 @@ class ResolvedorObjetoOriginalDispatcherTest {
         };
         ResolvedorObjetoOriginalDispatcher dispatcher = new ResolvedorObjetoOriginalDispatcher(List.of(strategy));
 
-        assertThat(dispatcher.resolver(TipoEntidadeReferenciada.CONTRATO, UUID.randomUUID())).isEmpty();
+        assertThat(dispatcher.resolver(TipoEntidadeReferenciada.CONTRATO, UUID.randomUUID()))
+                .isEmpty();
     }
 
     @Test
@@ -56,7 +58,8 @@ class ResolvedorObjetoOriginalDispatcherTest {
                 new ObjetoOriginalResumo(TipoEntidadeReferenciada.PROPOSTA, UUID.randomUUID(), "X", "Y"));
         ResolvedorObjetoOriginalDispatcher dispatcher = new ResolvedorObjetoOriginalDispatcher(List.of(strategy));
 
-        assertThat(dispatcher.resolver(TipoEntidadeReferenciada.WEBHOOK_EVENT_LOG, UUID.randomUUID())).isEmpty();
+        assertThat(dispatcher.resolver(TipoEntidadeReferenciada.WEBHOOK_EVENT_LOG, UUID.randomUUID()))
+                .isEmpty();
     }
 
     private static ObjetoOriginalQueryPort strategyFixa(TipoEntidadeReferenciada tipo, ObjetoOriginalResumo resumo) {

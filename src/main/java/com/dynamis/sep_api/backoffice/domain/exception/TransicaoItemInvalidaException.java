@@ -16,9 +16,7 @@ public class TransicaoItemInvalidaException extends ConflitoException {
     public static final String CODIGO = "BOF-409-001";
 
     public TransicaoItemInvalidaException(UUID itemId, StatusItemFila atual, StatusItemFila alvo) {
-        super(
-                CODIGO,
-                "Item " + itemId + " esta em " + atual + ", transicao para " + alvo + " indisponivel");
+        super(CODIGO, "Item " + itemId + " esta em " + atual + ", transicao para " + alvo + " indisponivel");
     }
 
     public TransicaoItemInvalidaException(StatusItemFila atual, StatusItemFila alvo) {

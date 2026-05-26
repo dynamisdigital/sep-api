@@ -64,16 +64,35 @@ class BackofficeIT {
     @LocalServerPort
     int port;
 
-    @Autowired ItemFilaOperacionalRepository itemRepository;
-    @Autowired ComentarioInternoRepository comentarioRepository;
-    @Autowired ReprocessoRepository reprocessoRepository;
-    @Autowired UsuarioRepository usuarioRepository;
-    @Autowired AuditLogSegurancaRepository auditRepository;
-    @Autowired PasswordEncoder passwordEncoder;
-    @Autowired ApplicationEventPublisher eventPublisher;
-    @Autowired PlatformTransactionManager txManager;
-    @Autowired StepUpTokenService stepUpTokenService;
-    @Autowired org.springframework.core.env.Environment environment;
+    @Autowired
+    ItemFilaOperacionalRepository itemRepository;
+
+    @Autowired
+    ComentarioInternoRepository comentarioRepository;
+
+    @Autowired
+    ReprocessoRepository reprocessoRepository;
+
+    @Autowired
+    UsuarioRepository usuarioRepository;
+
+    @Autowired
+    AuditLogSegurancaRepository auditRepository;
+
+    @Autowired
+    PasswordEncoder passwordEncoder;
+
+    @Autowired
+    ApplicationEventPublisher eventPublisher;
+
+    @Autowired
+    PlatformTransactionManager txManager;
+
+    @Autowired
+    StepUpTokenService stepUpTokenService;
+
+    @Autowired
+    org.springframework.core.env.Environment environment;
 
     @BeforeEach
     void setup() {
@@ -154,8 +173,8 @@ class BackofficeIT {
         Autenticado dono = criarELogar(Role.CLIENTE, false);
         UUID solicitacaoId = UUID.randomUUID();
 
-        publicarEventoEmTx(new OnboardingFinalizadoEvent(
-                solicitacaoId, dono.id(), StatusOnboarding.REPROVADO, "ext-id-1"));
+        publicarEventoEmTx(
+                new OnboardingFinalizadoEvent(solicitacaoId, dono.id(), StatusOnboarding.REPROVADO, "ext-id-1"));
 
         pollUntil(() -> itemRepository.count() == 1, "item da fila criado");
         var item = itemRepository.findAll().get(0);
@@ -268,7 +287,8 @@ class BackofficeIT {
                 .header("Authorization", "Bearer " + op.token())
                 .header("Idempotency-Key", UUID.randomUUID().toString())
                 .contentType(ContentType.JSON)
-                .body("{\"valorRecebido\":100.00,\"meioPagamento\":\"PIX\",\"dataRecebimento\":\"2026-05-26T12:00:00Z\"}")
+                .body(
+                        "{\"valorRecebido\":100.00,\"meioPagamento\":\"PIX\",\"dataRecebimento\":\"2026-05-26T12:00:00Z\"}")
                 .when()
                 .post("/api/v1/cobranca/parcelas/{id}/recebimentos", UUID.randomUUID())
                 .then()
@@ -314,8 +334,8 @@ class BackofficeIT {
     @Test
     void idempotencia_doisEventosIdenticos_geramUmUnicoItem() {
         UUID solicitacaoId = UUID.randomUUID();
-        OnboardingFinalizadoEvent ev = new OnboardingFinalizadoEvent(
-                solicitacaoId, UUID.randomUUID(), StatusOnboarding.REPROVADO, "ext-id-4");
+        OnboardingFinalizadoEvent ev =
+                new OnboardingFinalizadoEvent(solicitacaoId, UUID.randomUUID(), StatusOnboarding.REPROVADO, "ext-id-4");
 
         publicarEventoEmTx(ev);
         pollUntil(() -> itemRepository.count() == 1, "primeiro item criado");

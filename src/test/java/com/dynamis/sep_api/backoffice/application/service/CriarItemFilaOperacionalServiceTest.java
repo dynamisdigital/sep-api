@@ -83,8 +83,8 @@ class CriarItemFilaOperacionalServiceTest {
                         eq(TipoItemFila.ONBOARDING_ERRO),
                         eq(TipoEntidadeReferenciada.ONBOARDING),
                         any(UUID.class),
-                        argThat(set -> set.contains(StatusItemFila.ABERTO)
-                                && set.contains(StatusItemFila.EM_TRATAMENTO)));
+                        argThat(set ->
+                                set.contains(StatusItemFila.ABERTO) && set.contains(StatusItemFila.EM_TRATAMENTO)));
     }
 
     private static <T> T argThat(org.mockito.ArgumentMatcher<T> matcher) {

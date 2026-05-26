@@ -26,7 +26,8 @@ public class ParcelaCobrancaObjetoOriginalAdapter implements ObjetoOriginalQuery
 
     @Override
     public Optional<ObjetoOriginalResumo> buscar(UUID entidadeId) {
-        return repository.findById(entidadeId)
+        return repository
+                .findById(entidadeId)
                 .map(p -> new ObjetoOriginalResumo(
                         TipoEntidadeReferenciada.PARCELA_COBRANCA,
                         p.getId(),

@@ -84,7 +84,9 @@ public class BackofficeController {
     }
 
     @GetMapping
-    @Operation(summary = "Lista itens da fila operacional", description = "Filtros opcionais combinaveis + paginacao. Page size limitada a 100.")
+    @Operation(
+            summary = "Lista itens da fila operacional",
+            description = "Filtros opcionais combinaveis + paginacao. Page size limitada a 100.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Listagem retornada."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
@@ -98,8 +100,8 @@ public class BackofficeController {
             @RequestParam(name = "data_abertura_ate", required = false) OffsetDateTime dataAberturaAte,
             @RequestParam(name = "atribuido_a", required = false) UUID atribuidoA,
             Pageable pageable) {
-        FiltrosFilaOperacional filtros = new FiltrosFilaOperacional(
-                tipo, prioridade, status, dataAberturaDe, dataAberturaAte, atribuidoA);
+        FiltrosFilaOperacional filtros =
+                new FiltrosFilaOperacional(tipo, prioridade, status, dataAberturaDe, dataAberturaAte, atribuidoA);
         return ResponseEntity.ok(listar.listar(filtros, sanitizarSort(pageable)).map(ItemFilaResponse::from));
     }
 
@@ -131,7 +133,9 @@ public class BackofficeController {
     }
 
     @PostMapping("/{id}/assumir")
-    @Operation(summary = "Operador assume item", description = "Transiciona ABERTO -> EM_TRATAMENTO; registra atribuidoA.")
+    @Operation(
+            summary = "Operador assume item",
+            description = "Transiciona ABERTO -> EM_TRATAMENTO; registra atribuidoA.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Item assumido."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
@@ -142,12 +146,14 @@ public class BackofficeController {
     public ResponseEntity<ItemFilaResponse> assumir(
             @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
         var item = assumir.executar(id, principal.id());
-        return ResponseEntity.ok(ItemFilaResponse.from(
-                com.dynamis.sep_api.backoffice.application.dto.ItemFilaSummary.de(item)));
+        return ResponseEntity.ok(
+                ItemFilaResponse.from(com.dynamis.sep_api.backoffice.application.dto.ItemFilaSummary.de(item)));
     }
 
     @PostMapping("/{id}/comentarios")
-    @Operation(summary = "Registra comentario interno", description = "Permitido em qualquer status. Conteudo 1-10000 chars.")
+    @Operation(
+            summary = "Registra comentario interno",
+            description = "Permitido em qualquer status. Conteudo 1-10000 chars.")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Comentario criado."),
         @ApiResponse(responseCode = "400", description = "Conteudo invalido."),
@@ -160,15 +166,17 @@ public class BackofficeController {
             @Valid @RequestBody ComentarioRequest request,
             @AuthenticationPrincipal UsuarioAutenticado principal) {
         var c = registrarComentario.executar(id, principal.id(), request.conteudo());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ComentarioInternoResponse.from(
-                com.dynamis.sep_api.backoffice.application.dto.ComentarioInternoSummary.de(c)));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ComentarioInternoResponse.from(
+                        com.dynamis.sep_api.backoffice.application.dto.ComentarioInternoSummary.de(c)));
     }
 
     @PatchMapping("/{id}/resolver")
     @RequireStepUp
     @Operation(
             summary = "Marca item como RESOLVIDO",
-            description = "Exige step-up. Justificativa minima de 20 caracteres; transiciona EM_TRATAMENTO -> RESOLVIDO.")
+            description =
+                    "Exige step-up. Justificativa minima de 20 caracteres; transiciona EM_TRATAMENTO -> RESOLVIDO.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Item resolvido."),
         @ApiResponse(responseCode = "400", description = "Justificativa curta ou invalida."),
@@ -182,8 +190,8 @@ public class BackofficeController {
             @Valid @RequestBody ResolverRequest request,
             @AuthenticationPrincipal UsuarioAutenticado principal) {
         var item = resolver.executar(id, principal.id(), request.justificativa());
-        return ResponseEntity.ok(ItemFilaResponse.from(
-                com.dynamis.sep_api.backoffice.application.dto.ItemFilaSummary.de(item)));
+        return ResponseEntity.ok(
+                ItemFilaResponse.from(com.dynamis.sep_api.backoffice.application.dto.ItemFilaSummary.de(item)));
     }
 
     @PatchMapping("/{id}/ignorar")
@@ -204,7 +212,7 @@ public class BackofficeController {
             @Valid @RequestBody IgnorarRequest request,
             @AuthenticationPrincipal UsuarioAutenticado principal) {
         var item = ignorar.executar(id, principal.id(), request.justificativa());
-        return ResponseEntity.ok(ItemFilaResponse.from(
-                com.dynamis.sep_api.backoffice.application.dto.ItemFilaSummary.de(item)));
+        return ResponseEntity.ok(
+                ItemFilaResponse.from(com.dynamis.sep_api.backoffice.application.dto.ItemFilaSummary.de(item)));
     }
 }

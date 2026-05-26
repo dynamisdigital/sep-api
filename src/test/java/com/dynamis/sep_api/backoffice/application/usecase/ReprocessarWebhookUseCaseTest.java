@@ -60,7 +60,9 @@ class ReprocessarWebhookUseCaseTest {
     @Test
     void antiAbusoLanca_naoDispara() {
         UUID webhookId = UUID.randomUUID();
-        doThrow(new LimiteReprocessoExcedidoException(webhookId.toString())).when(antiAbuso).validarLimite(any());
+        doThrow(new LimiteReprocessoExcedidoException(webhookId.toString()))
+                .when(antiAbuso)
+                .validarLimite(any());
 
         assertThatExceptionOfType(LimiteReprocessoExcedidoException.class)
                 .isThrownBy(() -> useCase.executar(webhookId, UUID.randomUUID(), null));

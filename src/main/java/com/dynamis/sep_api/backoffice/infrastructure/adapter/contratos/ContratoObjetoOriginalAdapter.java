@@ -26,7 +26,8 @@ public class ContratoObjetoOriginalAdapter implements ObjetoOriginalQueryPort {
 
     @Override
     public Optional<ObjetoOriginalResumo> buscar(UUID entidadeId) {
-        return repository.findById(entidadeId)
+        return repository
+                .findById(entidadeId)
                 .map(c -> new ObjetoOriginalResumo(
                         TipoEntidadeReferenciada.CONTRATO,
                         c.getId(),

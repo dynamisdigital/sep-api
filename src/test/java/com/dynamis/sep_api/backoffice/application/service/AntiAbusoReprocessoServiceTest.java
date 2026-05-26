@@ -44,18 +44,17 @@ class AntiAbusoReprocessoServiceTest {
         when(repo.countByIdentificadorExternoAndDataDisparoAfter(any(), any())).thenReturn(3L);
         AntiAbusoReprocessoService service = new AntiAbusoReprocessoService(repo, clock);
 
-        assertThatExceptionOfType(LimiteReprocessoExcedidoException.class)
-                .isThrownBy(() -> service.validarLimite("X"));
+        assertThatExceptionOfType(LimiteReprocessoExcedidoException.class).isThrownBy(() -> service.validarLimite("X"));
     }
 
     @Test
     void quatroReprocessos_lanca() {
         ReprocessoRepository repo = mock(ReprocessoRepository.class);
-        when(repo.countByIdentificadorExternoAndDataDisparoAfter(eq("Y"), any())).thenReturn(4L);
+        when(repo.countByIdentificadorExternoAndDataDisparoAfter(eq("Y"), any()))
+                .thenReturn(4L);
         AntiAbusoReprocessoService service = new AntiAbusoReprocessoService(repo, clock);
 
-        assertThatExceptionOfType(LimiteReprocessoExcedidoException.class)
-                .isThrownBy(() -> service.validarLimite("Y"));
+        assertThatExceptionOfType(LimiteReprocessoExcedidoException.class).isThrownBy(() -> service.validarLimite("Y"));
     }
 
     @Test

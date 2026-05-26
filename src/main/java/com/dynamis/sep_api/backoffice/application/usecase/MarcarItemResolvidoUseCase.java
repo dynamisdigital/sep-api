@@ -45,9 +45,8 @@ public class MarcarItemResolvidoUseCase {
     public ItemFilaOperacional executar(UUID itemId, UUID operadorId, String justificativa) {
         validarJustificativa(justificativa);
 
-        ItemFilaOperacional item = itemRepository
-                .findByIdForUpdate(itemId)
-                .orElseThrow(() -> new ItemFilaNaoEncontradoException(itemId));
+        ItemFilaOperacional item =
+                itemRepository.findByIdForUpdate(itemId).orElseThrow(() -> new ItemFilaNaoEncontradoException(itemId));
 
         comentarioRepository.save(ComentarioInterno.registrar(itemId, operadorId, justificativa));
 

@@ -26,7 +26,8 @@ public class WebhookEventLogObjetoOriginalAdapter implements ObjetoOriginalQuery
 
     @Override
     public Optional<ObjetoOriginalResumo> buscar(UUID entidadeId) {
-        return repository.findById(entidadeId)
+        return repository
+                .findById(entidadeId)
                 .map(w -> new ObjetoOriginalResumo(
                         TipoEntidadeReferenciada.WEBHOOK_EVENT_LOG,
                         w.getId(),

@@ -21,10 +21,8 @@ class BackofficeDashboardPropertiesTest {
 
     @Test
     void timezone_blank_lanca() {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new BackofficeDashboardProperties("  ", 30, 48, 5));
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new BackofficeDashboardProperties(null, 30, 48, 5));
+        assertThatIllegalArgumentException().isThrownBy(() -> new BackofficeDashboardProperties("  ", 30, 48, 5));
+        assertThatIllegalArgumentException().isThrownBy(() -> new BackofficeDashboardProperties(null, 30, 48, 5));
     }
 
     @Test
@@ -35,13 +33,9 @@ class BackofficeDashboardPropertiesTest {
 
     @Test
     void thresholdsZeroOuNegativos_lanca() {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new BackofficeDashboardProperties("UTC", 0, 48, 5));
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new BackofficeDashboardProperties("UTC", 30, 0, 5));
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new BackofficeDashboardProperties("UTC", 30, 48, 0));
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new BackofficeDashboardProperties("UTC", -1, 48, 5));
+        assertThatIllegalArgumentException().isThrownBy(() -> new BackofficeDashboardProperties("UTC", 0, 48, 5));
+        assertThatIllegalArgumentException().isThrownBy(() -> new BackofficeDashboardProperties("UTC", 30, 0, 5));
+        assertThatIllegalArgumentException().isThrownBy(() -> new BackofficeDashboardProperties("UTC", 30, 48, 0));
+        assertThatIllegalArgumentException().isThrownBy(() -> new BackofficeDashboardProperties("UTC", -1, 48, 5));
     }
 }

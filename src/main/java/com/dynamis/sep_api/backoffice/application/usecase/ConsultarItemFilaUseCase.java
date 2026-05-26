@@ -36,15 +36,13 @@ public class ConsultarItemFilaUseCase {
 
     @Transactional(readOnly = true)
     public ItemFilaDetalhe consultar(UUID itemId) {
-        ItemFilaOperacional item = itemRepository
-                .findById(itemId)
-                .orElseThrow(() -> new ItemFilaNaoEncontradoException(itemId));
+        ItemFilaOperacional item =
+                itemRepository.findById(itemId).orElseThrow(() -> new ItemFilaNaoEncontradoException(itemId));
 
-        List<ComentarioInternoSummary> comentarios = comentarioRepository
-                .findByItemIdOrderByDataCriacaoAsc(itemId)
-                .stream()
-                .map(ComentarioInternoSummary::de)
-                .toList();
+        List<ComentarioInternoSummary> comentarios =
+                comentarioRepository.findByItemIdOrderByDataCriacaoAsc(itemId).stream()
+                        .map(ComentarioInternoSummary::de)
+                        .toList();
 
         ObjetoOriginalResumo objetoOriginal = resolvedor
                 .resolver(item.getTipoEntidade(), item.getEntidadeId())

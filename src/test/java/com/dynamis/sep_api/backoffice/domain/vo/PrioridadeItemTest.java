@@ -19,11 +19,12 @@ class PrioridadeItemTest {
 
     @Test
     void ordinalPeso_ordenacaoDescColocaCriticaPrimeiro() {
-        List<PrioridadeItem> ordenado = List.of(
-                        PrioridadeItem.BAIXA, PrioridadeItem.CRITICA, PrioridadeItem.MEDIA, PrioridadeItem.ALTA)
-                .stream()
-                .sorted(Comparator.comparingInt(PrioridadeItem::ordinalPeso).reversed())
-                .toList();
+        List<PrioridadeItem> ordenado =
+                List.of(PrioridadeItem.BAIXA, PrioridadeItem.CRITICA, PrioridadeItem.MEDIA, PrioridadeItem.ALTA)
+                        .stream()
+                        .sorted(Comparator.comparingInt(PrioridadeItem::ordinalPeso)
+                                .reversed())
+                        .toList();
 
         assertThat(ordenado)
                 .containsExactly(

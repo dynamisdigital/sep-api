@@ -53,11 +53,7 @@ public class ItemFilaOperacionalInserter {
 
         ItemFilaOperacional salvo = repository.saveAndFlush(item);
         eventPublisher.publishEvent(new ItemFilaCriadoEvent(
-                salvo.getId(),
-                salvo.getTipo(),
-                salvo.getPrioridade(),
-                salvo.getTipoEntidade(),
-                salvo.getEntidadeId()));
+                salvo.getId(), salvo.getTipo(), salvo.getPrioridade(), salvo.getTipoEntidade(), salvo.getEntidadeId()));
         LOG.info(
                 "item fila criado id={} tipo={} prioridade={} entidade={}",
                 salvo.getId(),

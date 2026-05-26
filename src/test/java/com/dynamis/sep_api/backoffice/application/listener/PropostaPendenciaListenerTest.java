@@ -47,7 +47,8 @@ class PropostaPendenciaListenerTest {
             assertThat(cmd.tipo()).isEqualTo(TipoItemFila.PROPOSTA_PENDENTE);
             assertThat(cmd.prioridade()).isEqualTo(PrioridadeItem.MEDIA);
         }
-        assertThat(captor.getAllValues().stream().map(CriarItemCommand::entidadeId)).containsExactly(p1, p2);
+        assertThat(captor.getAllValues().stream().map(CriarItemCommand::entidadeId))
+                .containsExactly(p1, p2);
     }
 
     @Test

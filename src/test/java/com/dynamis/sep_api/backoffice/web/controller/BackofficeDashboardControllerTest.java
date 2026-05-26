@@ -55,11 +55,20 @@ class BackofficeDashboardControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean private ConsultarVisaoConsolidadaUseCase consultarVisao;
-    @MockBean private JwtAuthenticationFilter jwtAuthenticationFilter;
-    @MockBean private JwtTokenProvider jwtTokenProvider;
-    @MockBean private StepUpTokenService stepUpTokenService;
-    @MockBean private UsuarioRepository usuarioRepository;
+    @MockBean
+    private ConsultarVisaoConsolidadaUseCase consultarVisao;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private JwtTokenProvider jwtTokenProvider;
+
+    @MockBean
+    private StepUpTokenService stepUpTokenService;
+
+    @MockBean
+    private UsuarioRepository usuarioRepository;
 
     @AfterEach
     void clean() {

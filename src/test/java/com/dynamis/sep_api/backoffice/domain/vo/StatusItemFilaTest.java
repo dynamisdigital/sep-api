@@ -28,7 +28,9 @@ class StatusItemFilaTest {
         assertThat(StatusItemFila.EM_TRATAMENTO.permiteResolver()).isTrue();
         for (StatusItemFila s : StatusItemFila.values()) {
             if (s == StatusItemFila.EM_TRATAMENTO) continue;
-            assertThat(s.permiteResolver()).as("permiteResolver nao deve aceitar %s", s).isFalse();
+            assertThat(s.permiteResolver())
+                    .as("permiteResolver nao deve aceitar %s", s)
+                    .isFalse();
         }
     }
 

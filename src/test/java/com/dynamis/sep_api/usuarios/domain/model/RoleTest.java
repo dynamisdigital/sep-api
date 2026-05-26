@@ -8,8 +8,7 @@ class RoleTest {
 
     @Test
     void contemValoresEsperados() {
-        assertThat(Role.values())
-                .containsExactly(Role.ADMIN, Role.CLIENTE, Role.FINANCEIRO, Role.BACKOFFICE);
+        assertThat(Role.values()).containsExactly(Role.ADMIN, Role.CLIENTE, Role.FINANCEIRO, Role.BACKOFFICE);
     }
 
     @Test

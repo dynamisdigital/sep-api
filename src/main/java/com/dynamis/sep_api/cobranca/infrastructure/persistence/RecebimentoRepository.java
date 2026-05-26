@@ -30,6 +30,5 @@ public interface RecebimentoRepository extends JpaRepository<Recebimento, UUID> 
     /** Soma dos {@code valorRecebido} dentro do intervalo {@code [inicio, fim)} (Sprint 14 Task 14.5). */
     @Query("select coalesce(sum(r.valorRecebido), 0) from Recebimento r "
             + "where r.dataRecebimento >= :inicio and r.dataRecebimento < :fim")
-    BigDecimal somarValorRecebidoNoIntervalo(
-            @Param("inicio") OffsetDateTime inicio, @Param("fim") OffsetDateTime fim);
+    BigDecimal somarValorRecebidoNoIntervalo(@Param("inicio") OffsetDateTime inicio, @Param("fim") OffsetDateTime fim);
 }

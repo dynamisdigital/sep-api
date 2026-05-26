@@ -29,7 +29,8 @@ public class OnboardingObjetoOriginalAdapter implements ObjetoOriginalQueryPort 
 
     @Override
     public Optional<ObjetoOriginalResumo> buscar(UUID entidadeId) {
-        return repository.findById(entidadeId)
+        return repository
+                .findById(entidadeId)
                 .map(s -> new ObjetoOriginalResumo(
                         TipoEntidadeReferenciada.ONBOARDING,
                         s.getId(),

@@ -55,12 +55,23 @@ class BackofficeReprocessoControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean private ReprocessarWebhookUseCase reprocessarWebhook;
-    @MockBean private ReprocessarChamadaProviderUseCase reprocessarProvider;
-    @MockBean private JwtAuthenticationFilter jwtAuthenticationFilter;
-    @MockBean private JwtTokenProvider jwtTokenProvider;
-    @MockBean private StepUpTokenService stepUpTokenService;
-    @MockBean private UsuarioRepository usuarioRepository;
+    @MockBean
+    private ReprocessarWebhookUseCase reprocessarWebhook;
+
+    @MockBean
+    private ReprocessarChamadaProviderUseCase reprocessarProvider;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private JwtTokenProvider jwtTokenProvider;
+
+    @MockBean
+    private StepUpTokenService stepUpTokenService;
+
+    @MockBean
+    private UsuarioRepository usuarioRepository;
 
     @AfterEach
     void clean() {
@@ -90,8 +101,7 @@ class BackofficeReprocessoControllerTest {
     @Test
     void reprocessarWebhook_limiteExcedido_429() throws Exception {
         autenticar(UUID.randomUUID(), Role.BACKOFFICE, false);
-        when(reprocessarWebhook.executar(any(), any(), any()))
-                .thenThrow(new LimiteReprocessoExcedidoException("X"));
+        when(reprocessarWebhook.executar(any(), any(), any())).thenThrow(new LimiteReprocessoExcedidoException("X"));
 
         mockMvc.perform(post("/api/v1/backoffice/reprocessos/webhook/{id}", UUID.randomUUID()))
                 .andExpect(status().isTooManyRequests());

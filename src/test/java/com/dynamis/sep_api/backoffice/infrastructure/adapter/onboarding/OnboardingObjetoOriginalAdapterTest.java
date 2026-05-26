@@ -44,7 +44,8 @@ class OnboardingObjetoOriginalAdapterTest {
         SolicitacaoOnboardingRepository repo = mock(SolicitacaoOnboardingRepository.class);
         when(repo.findById(any())).thenReturn(Optional.empty());
 
-        assertThat(new OnboardingObjetoOriginalAdapter(repo).buscar(UUID.randomUUID())).isEmpty();
+        assertThat(new OnboardingObjetoOriginalAdapter(repo).buscar(UUID.randomUUID()))
+                .isEmpty();
     }
 
     private static <T> T any() {

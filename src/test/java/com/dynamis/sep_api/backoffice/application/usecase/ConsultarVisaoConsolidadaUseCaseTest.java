@@ -19,7 +19,6 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 
@@ -47,13 +46,15 @@ class ConsultarVisaoConsolidadaUseCaseTest {
 
     @Test
     void dashboardCompleto_agregaDeTodasAsFontes() {
-        when(itemRepo.contarPorTipo()).thenReturn(List.of(
-                new ContadorPorTipo(TipoItemFila.ONBOARDING_ERRO, 10),
-                new ContadorPorTipo(TipoItemFila.COBRANCA_INADIMPLENTE, 5)));
+        when(itemRepo.contarPorTipo())
+                .thenReturn(List.of(
+                        new ContadorPorTipo(TipoItemFila.ONBOARDING_ERRO, 10),
+                        new ContadorPorTipo(TipoItemFila.COBRANCA_INADIMPLENTE, 5)));
         when(itemRepo.contarPorPrioridade()).thenReturn(List.of(new ContadorPorPrioridade(PrioridadeItem.ALTA, 8)));
         when(itemRepo.contarPorStatus()).thenReturn(List.of(new ContadorPorStatus(StatusItemFila.ABERTO, 7)));
         when(itemRepo.tempoMedioResolucaoSegundosDesde(any())).thenReturn(7200.0);
-        when(itemRepo.countByPrioridadeAndStatusInAndDataAberturaBefore(any(), any(), any())).thenReturn(2L);
+        when(itemRepo.countByPrioridadeAndStatusInAndDataAberturaBefore(any(), any(), any()))
+                .thenReturn(2L);
         when(cobranca.recebimentosNoIntervalo(any(), any())).thenReturn(new BigDecimal("12345.67"));
         when(cobranca.inadimplenciaTotal()).thenReturn(new InadimplenciaConsolidada(new BigDecimal("9000"), 3));
         when(credito.contagemPorStatus()).thenReturn(List.of(new ContadorPorStatusProposta("EM_ANALISE", 4)));
@@ -79,7 +80,8 @@ class ConsultarVisaoConsolidadaUseCaseTest {
         when(itemRepo.contarPorPrioridade()).thenReturn(List.of());
         when(itemRepo.contarPorStatus()).thenReturn(List.of());
         when(itemRepo.tempoMedioResolucaoSegundosDesde(any())).thenReturn(null);
-        when(itemRepo.countByPrioridadeAndStatusInAndDataAberturaBefore(any(), any(), any())).thenReturn(0L);
+        when(itemRepo.countByPrioridadeAndStatusInAndDataAberturaBefore(any(), any(), any()))
+                .thenReturn(0L);
         when(cobranca.recebimentosNoIntervalo(any(), any())).thenThrow(new RuntimeException("DB out"));
         when(cobranca.inadimplenciaTotal()).thenThrow(new RuntimeException("DB out"));
         when(credito.contagemPorStatus()).thenReturn(List.of());
@@ -93,18 +95,20 @@ class ConsultarVisaoConsolidadaUseCaseTest {
 
     @Test
     void topCinco_limitaECoolDescendente() {
-        when(itemRepo.contarPorTipo()).thenReturn(List.of(
-                new ContadorPorTipo(TipoItemFila.OUTRO, 1),
-                new ContadorPorTipo(TipoItemFila.ONBOARDING_ERRO, 100),
-                new ContadorPorTipo(TipoItemFila.COBRANCA_INADIMPLENTE, 50),
-                new ContadorPorTipo(TipoItemFila.PROPOSTA_PENDENTE, 30),
-                new ContadorPorTipo(TipoItemFila.CONTRATO_NAO_ASSINADO, 20),
-                new ContadorPorTipo(TipoItemFila.WEBHOOK_FALHOU, 10),
-                new ContadorPorTipo(TipoItemFila.ONBOARDING_PENDENTE, 5)));
+        when(itemRepo.contarPorTipo())
+                .thenReturn(List.of(
+                        new ContadorPorTipo(TipoItemFila.OUTRO, 1),
+                        new ContadorPorTipo(TipoItemFila.ONBOARDING_ERRO, 100),
+                        new ContadorPorTipo(TipoItemFila.COBRANCA_INADIMPLENTE, 50),
+                        new ContadorPorTipo(TipoItemFila.PROPOSTA_PENDENTE, 30),
+                        new ContadorPorTipo(TipoItemFila.CONTRATO_NAO_ASSINADO, 20),
+                        new ContadorPorTipo(TipoItemFila.WEBHOOK_FALHOU, 10),
+                        new ContadorPorTipo(TipoItemFila.ONBOARDING_PENDENTE, 5)));
         when(itemRepo.contarPorPrioridade()).thenReturn(List.of());
         when(itemRepo.contarPorStatus()).thenReturn(List.of());
         when(itemRepo.tempoMedioResolucaoSegundosDesde(any())).thenReturn(0.0);
-        when(itemRepo.countByPrioridadeAndStatusInAndDataAberturaBefore(any(), any(), any())).thenReturn(0L);
+        when(itemRepo.countByPrioridadeAndStatusInAndDataAberturaBefore(any(), any(), any()))
+                .thenReturn(0L);
         when(cobranca.recebimentosNoIntervalo(any(), any())).thenReturn(BigDecimal.ZERO);
         when(cobranca.inadimplenciaTotal()).thenReturn(InadimplenciaConsolidada.vazia());
         when(credito.contagemPorStatus()).thenReturn(List.of());

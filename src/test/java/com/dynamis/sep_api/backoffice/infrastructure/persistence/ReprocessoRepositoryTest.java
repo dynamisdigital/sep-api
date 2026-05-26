@@ -60,7 +60,9 @@ class ReprocessoRepositoryTest {
 
         OffsetDateTime corte = agora.minusHours(1);
 
-        assertThat(repository.countByIdentificadorExternoAndDataDisparoAfter(a.toString(), corte)).isEqualTo(2);
-        assertThat(repository.countByIdentificadorExternoAndDataDisparoAfter(b.toString(), corte)).isEqualTo(1);
+        assertThat(repository.countByIdentificadorExternoAndDataDisparoAfter(a.toString(), corte))
+                .isEqualTo(2);
+        assertThat(repository.countByIdentificadorExternoAndDataDisparoAfter(b.toString(), corte))
+                .isEqualTo(1);
     }
 }

@@ -47,8 +47,7 @@ class ReprocessoTest {
 
     @Test
     void paraProvider_tipoChamadaNulo_lanca() {
-        assertThatThrownBy(() ->
-                        Reprocesso.paraProvider(null, null, UUID.randomUUID(), AGORA, UUID.randomUUID()))
+        assertThatThrownBy(() -> Reprocesso.paraProvider(null, null, UUID.randomUUID(), AGORA, UUID.randomUUID()))
                 .isInstanceOf(NullPointerException.class);
     }
 

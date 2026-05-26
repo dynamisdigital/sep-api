@@ -47,8 +47,11 @@ class BackofficeAuditListenerTest {
                 entidadeId));
 
         ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
-        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.ITEM_FILA_CRIADO),
-                org.mockito.ArgumentMatchers.isNull(), payload.capture());
+        verify(auditLog)
+                .gravar(
+                        org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.ITEM_FILA_CRIADO),
+                        org.mockito.ArgumentMatchers.isNull(),
+                        payload.capture());
         assertThat(payload.getValue())
                 .contains(itemId.toString())
                 .contains("ONBOARDING_ERRO")
@@ -61,8 +64,11 @@ class BackofficeAuditListenerTest {
         UUID operadorId = UUID.randomUUID();
         listener.aoAssumirItem(new ItemAssumidoEvent(itemId, operadorId, OffsetDateTime.now()));
 
-        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.ITEM_ASSUMIDO),
-                org.mockito.ArgumentMatchers.eq(operadorId), org.mockito.ArgumentMatchers.anyString());
+        verify(auditLog)
+                .gravar(
+                        org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.ITEM_ASSUMIDO),
+                        org.mockito.ArgumentMatchers.eq(operadorId),
+                        org.mockito.ArgumentMatchers.anyString());
     }
 
     @Test
@@ -74,8 +80,11 @@ class BackofficeAuditListenerTest {
         listener.aoRegistrarComentario(new ComentarioRegistradoEvent(itemId, comentarioId, autorId, resumo));
 
         ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
-        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.COMENTARIO_REGISTRADO),
-                org.mockito.ArgumentMatchers.eq(autorId), payload.capture());
+        verify(auditLog)
+                .gravar(
+                        org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.COMENTARIO_REGISTRADO),
+                        org.mockito.ArgumentMatchers.eq(autorId),
+                        payload.capture());
         assertThat(payload.getValue()).contains(resumo);
     }
 
@@ -87,8 +96,11 @@ class BackofficeAuditListenerTest {
         listener.aoResolverItem(new ItemResolvidoEvent(itemId, operadorId, justificativa));
 
         ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
-        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.ITEM_RESOLVIDO),
-                org.mockito.ArgumentMatchers.eq(operadorId), payload.capture());
+        verify(auditLog)
+                .gravar(
+                        org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.ITEM_RESOLVIDO),
+                        org.mockito.ArgumentMatchers.eq(operadorId),
+                        payload.capture());
         assertThat(payload.getValue()).contains(justificativa);
     }
 
@@ -98,8 +110,11 @@ class BackofficeAuditListenerTest {
         UUID operadorId = UUID.randomUUID();
         listener.aoIgnorarItem(new ItemIgnoradoEvent(itemId, operadorId, "Item duplicado fluxo manual"));
 
-        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.ITEM_IGNORADO),
-                org.mockito.ArgumentMatchers.eq(operadorId), org.mockito.ArgumentMatchers.anyString());
+        verify(auditLog)
+                .gravar(
+                        org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.ITEM_IGNORADO),
+                        org.mockito.ArgumentMatchers.eq(operadorId),
+                        org.mockito.ArgumentMatchers.anyString());
     }
 
     @Test
@@ -117,8 +132,11 @@ class BackofficeAuditListenerTest {
                 operadorId));
 
         ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
-        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.REPROCESSO_DISPARADO),
-                org.mockito.ArgumentMatchers.eq(operadorId), payload.capture());
+        verify(auditLog)
+                .gravar(
+                        org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.REPROCESSO_DISPARADO),
+                        org.mockito.ArgumentMatchers.eq(operadorId),
+                        payload.capture());
         assertThat(payload.getValue())
                 .contains(reprocessoId.toString())
                 .contains("PROVIDER")
@@ -141,8 +159,11 @@ class BackofficeAuditListenerTest {
                 UUID.randomUUID()));
 
         ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
-        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.REPROCESSO_DISPARADO),
-                org.mockito.ArgumentMatchers.any(), payload.capture());
+        verify(auditLog)
+                .gravar(
+                        org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.REPROCESSO_DISPARADO),
+                        org.mockito.ArgumentMatchers.any(),
+                        payload.capture());
         assertThat(payload.getValue())
                 .contains("WEBHOOK")
                 .contains("FALHA")
@@ -159,8 +180,11 @@ class BackofficeAuditListenerTest {
                 itemId, UUID.randomUUID(), autorId, "Tomador 529.982.247-25 confirmou pagamento"));
 
         ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
-        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.COMENTARIO_REGISTRADO),
-                org.mockito.ArgumentMatchers.eq(autorId), payload.capture());
+        verify(auditLog)
+                .gravar(
+                        org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.COMENTARIO_REGISTRADO),
+                        org.mockito.ArgumentMatchers.eq(autorId),
+                        payload.capture());
         assertThat(payload.getValue()).doesNotContain("529.982.247-25").doesNotContain("52998224725");
         assertThat(payload.getValue()).contains("***.***.***-**");
     }
@@ -169,12 +193,15 @@ class BackofficeAuditListenerTest {
     void mascaraCnpj_emJustificativaResolver() {
         UUID itemId = UUID.randomUUID();
         UUID operadorId = UUID.randomUUID();
-        listener.aoResolverItem(new ItemResolvidoEvent(
-                itemId, operadorId, "PJ 11.222.333/0001-81 confirmou recibo de pagamento"));
+        listener.aoResolverItem(
+                new ItemResolvidoEvent(itemId, operadorId, "PJ 11.222.333/0001-81 confirmou recibo de pagamento"));
 
         ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
-        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.ITEM_RESOLVIDO),
-                org.mockito.ArgumentMatchers.eq(operadorId), payload.capture());
+        verify(auditLog)
+                .gravar(
+                        org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.ITEM_RESOLVIDO),
+                        org.mockito.ArgumentMatchers.eq(operadorId),
+                        payload.capture());
         assertThat(payload.getValue()).doesNotContain("11.222.333/0001-81").doesNotContain("11222333000181");
         assertThat(payload.getValue()).contains("**.***.***/****-**");
     }
@@ -184,7 +211,9 @@ class BackofficeAuditListenerTest {
         // fix review manual Task 14.8: handler nao deve propagar excecao do audit service.
         org.mockito.Mockito.doThrow(new RuntimeException("DB down"))
                 .when(auditLog)
-                .gravar(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                .gravar(
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
                         org.mockito.ArgumentMatchers.anyString());
 
         listener.aoCriarItem(new ItemFilaCriadoEvent(
@@ -206,8 +235,11 @@ class BackofficeAuditListenerTest {
         listener.aoRegistrarComentario(new ComentarioRegistradoEvent(itemId, UUID.randomUUID(), autorId, resumoLongo));
 
         ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
-        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.COMENTARIO_REGISTRADO),
-                org.mockito.ArgumentMatchers.eq(autorId), payload.capture());
+        verify(auditLog)
+                .gravar(
+                        org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.COMENTARIO_REGISTRADO),
+                        org.mockito.ArgumentMatchers.eq(autorId),
+                        payload.capture());
         // Truncado em 80 chars + "..."; nao deve conter o "xxx...xxx" inteiro de 200 chars
         assertThat(payload.getValue()).doesNotContain("x".repeat(85));
         assertThat(payload.getValue()).contains("...");
@@ -226,7 +258,8 @@ class BackofficeAuditListenerTest {
                 UUID.randomUUID()));
 
         ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
-        verify(auditLog).gravar(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), payload.capture());
+        verify(auditLog)
+                .gravar(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), payload.capture());
         String s = payload.getValue();
         assertThat(s).doesNotContain("cpf").doesNotContain("cnpj").doesNotContain("token");
     }

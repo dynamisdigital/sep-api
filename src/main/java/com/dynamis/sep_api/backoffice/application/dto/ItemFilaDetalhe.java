@@ -26,9 +26,7 @@ public record ItemFilaDetalhe(
         ObjetoOriginalResumo objetoOriginal) {
 
     public static ItemFilaDetalhe de(
-            ItemFilaOperacional item,
-            List<ComentarioInternoSummary> comentarios,
-            ObjetoOriginalResumo objetoOriginal) {
+            ItemFilaOperacional item, List<ComentarioInternoSummary> comentarios, ObjetoOriginalResumo objetoOriginal) {
         return new ItemFilaDetalhe(
                 item.getId(),
                 item.getTipo(),

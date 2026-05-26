@@ -47,14 +47,29 @@ class ReprocessoIT {
     @LocalServerPort
     int port;
 
-    @Autowired ReprocessoRepository reprocessoRepository;
-    @Autowired ItemFilaOperacionalRepository itemRepository;
-    @Autowired WebhookEventLogRepository webhookRepository;
-    @Autowired UsuarioRepository usuarioRepository;
-    @Autowired AuditLogSegurancaRepository auditRepository;
-    @Autowired PasswordEncoder passwordEncoder;
-    @Autowired StepUpTokenService stepUpTokenService;
-    @Autowired org.springframework.core.env.Environment environment;
+    @Autowired
+    ReprocessoRepository reprocessoRepository;
+
+    @Autowired
+    ItemFilaOperacionalRepository itemRepository;
+
+    @Autowired
+    WebhookEventLogRepository webhookRepository;
+
+    @Autowired
+    UsuarioRepository usuarioRepository;
+
+    @Autowired
+    AuditLogSegurancaRepository auditRepository;
+
+    @Autowired
+    PasswordEncoder passwordEncoder;
+
+    @Autowired
+    StepUpTokenService stepUpTokenService;
+
+    @Autowired
+    org.springframework.core.env.Environment environment;
 
     @BeforeEach
     void setup() {
@@ -107,8 +122,8 @@ class ReprocessoIT {
     }
 
     private UUID criarWebhookOutbox() {
-        WebhookEventLog ev = WebhookEventLog.registrar(
-                "celcoin", "kyc.updated", "idem-" + UUID.randomUUID(), "sig", "{}");
+        WebhookEventLog ev =
+                WebhookEventLog.registrar("celcoin", "kyc.updated", "idem-" + UUID.randomUUID(), "sig", "{}");
         return webhookRepository.saveAndFlush(ev).getId();
     }
 

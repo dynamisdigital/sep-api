@@ -79,7 +79,8 @@ class MarcarItemIgnoradoUseCaseTest {
         when(itemRepo.findByIdForUpdate(item.getId())).thenReturn(Optional.of(item));
 
         assertThatExceptionOfType(TransicaoItemInvalidaException.class)
-                .isThrownBy(() -> useCase.executar(item.getId(), UUID.randomUUID(), "Justificativa com tamanho minimo aceitavel"));
+                .isThrownBy(() -> useCase.executar(
+                        item.getId(), UUID.randomUUID(), "Justificativa com tamanho minimo aceitavel"));
     }
 
     @Test

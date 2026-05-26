@@ -31,7 +31,8 @@ class DashboardBackofficeTest {
 
         String json = mapper.writeValueAsString(d);
 
-        assertThat(json).contains("\"contadoresPorTipo\":[]")
+        assertThat(json)
+                .contains("\"contadoresPorTipo\":[]")
                 .contains("\"itensCriticosAbertosMais48h\":0")
                 .contains("\"recebimentosDoDia\":0")
                 .contains("\"geradoEm\"");
@@ -53,7 +54,8 @@ class DashboardBackofficeTest {
 
         String json = mapper.writeValueAsString(d);
 
-        assertThat(json).contains("\"tempoMedioResolucao30d\"")
+        assertThat(json)
+                .contains("\"tempoMedioResolucao30d\"")
                 .contains("\"itensCriticosAbertosMais48h\":3")
                 .contains("\"recebimentosDoDia\":12345.67")
                 .contains("\"inadimplenciaTotal\":{")

@@ -61,8 +61,7 @@ class RegistrarComentarioUseCaseTest {
         UUID itemId = UUID.randomUUID();
         when(itemRepo.existsById(itemId)).thenReturn(true);
 
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> useCase.executar(itemId, UUID.randomUUID(), "  "));
+        assertThatIllegalArgumentException().isThrownBy(() -> useCase.executar(itemId, UUID.randomUUID(), "  "));
     }
 
     @Test

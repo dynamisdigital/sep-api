@@ -1,12 +1,12 @@
 package com.dynamis.sep_api.backoffice.web.controller;
 
+import com.dynamis.sep_api.backoffice.application.dto.ItemFilaDetalhe;
 import com.dynamis.sep_api.backoffice.application.usecase.AssumirItemFilaUseCase;
 import com.dynamis.sep_api.backoffice.application.usecase.ConsultarItemFilaUseCase;
 import com.dynamis.sep_api.backoffice.application.usecase.ListarFilaOperacionalUseCase;
 import com.dynamis.sep_api.backoffice.application.usecase.MarcarItemIgnoradoUseCase;
 import com.dynamis.sep_api.backoffice.application.usecase.MarcarItemResolvidoUseCase;
 import com.dynamis.sep_api.backoffice.application.usecase.RegistrarComentarioUseCase;
-import com.dynamis.sep_api.backoffice.application.dto.ItemFilaDetalhe;
 import com.dynamis.sep_api.backoffice.domain.exception.ItemFilaNaoEncontradoException;
 import com.dynamis.sep_api.backoffice.domain.exception.JustificativaInvalidaException;
 import com.dynamis.sep_api.backoffice.domain.exception.TransicaoItemInvalidaException;
@@ -72,16 +72,35 @@ class BackofficeControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean private ListarFilaOperacionalUseCase listarUseCase;
-    @MockBean private ConsultarItemFilaUseCase consultarUseCase;
-    @MockBean private AssumirItemFilaUseCase assumirUseCase;
-    @MockBean private RegistrarComentarioUseCase registrarComentarioUseCase;
-    @MockBean private MarcarItemResolvidoUseCase resolverUseCase;
-    @MockBean private MarcarItemIgnoradoUseCase ignorarUseCase;
-    @MockBean private JwtAuthenticationFilter jwtAuthenticationFilter;
-    @MockBean private JwtTokenProvider jwtTokenProvider;
-    @MockBean private StepUpTokenService stepUpTokenService;
-    @MockBean private UsuarioRepository usuarioRepository;
+    @MockBean
+    private ListarFilaOperacionalUseCase listarUseCase;
+
+    @MockBean
+    private ConsultarItemFilaUseCase consultarUseCase;
+
+    @MockBean
+    private AssumirItemFilaUseCase assumirUseCase;
+
+    @MockBean
+    private RegistrarComentarioUseCase registrarComentarioUseCase;
+
+    @MockBean
+    private MarcarItemResolvidoUseCase resolverUseCase;
+
+    @MockBean
+    private MarcarItemIgnoradoUseCase ignorarUseCase;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private JwtTokenProvider jwtTokenProvider;
+
+    @MockBean
+    private StepUpTokenService stepUpTokenService;
+
+    @MockBean
+    private UsuarioRepository usuarioRepository;
 
     @AfterEach
     void clean() {
@@ -111,8 +130,9 @@ class BackofficeControllerTest {
     @Test
     void listar_backoffice200() throws Exception {
         autenticar(UUID.randomUUID(), Role.BACKOFFICE, false);
-        when(listarUseCase.listar(any(), any())).thenReturn(new PageImpl<>(List.of(
-                com.dynamis.sep_api.backoffice.application.dto.ItemFilaSummary.de(novoItem()))));
+        when(listarUseCase.listar(any(), any()))
+                .thenReturn(new PageImpl<>(
+                        List.of(com.dynamis.sep_api.backoffice.application.dto.ItemFilaSummary.de(novoItem()))));
 
         mockMvc.perform(get("/api/v1/backoffice/fila")).andExpect(status().isOk());
     }
@@ -160,7 +180,8 @@ class BackofficeControllerTest {
         org.mockito.ArgumentCaptor<org.springframework.data.domain.Pageable> captor =
                 org.mockito.ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
         verify(listarUseCase).listar(any(), captor.capture());
-        org.assertj.core.api.Assertions.assertThat(captor.getValue().getSort().getOrderFor("prioridade")).isNull();
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().getSort().getOrderFor("prioridade"))
+                .isNull();
     }
 
     @Test

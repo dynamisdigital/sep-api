@@ -36,8 +36,8 @@ class OnboardingFinalizadoListenerTest {
     @Test
     void reprovado_geraItemErroAlta() {
         UUID solicitacao = UUID.randomUUID();
-        listener.aoFinalizar(new OnboardingFinalizadoEvent(
-                solicitacao, UUID.randomUUID(), StatusOnboarding.REPROVADO, "ext-1"));
+        listener.aoFinalizar(
+                new OnboardingFinalizadoEvent(solicitacao, UUID.randomUUID(), StatusOnboarding.REPROVADO, "ext-1"));
 
         CriarItemCommand cmd = capturar();
         assertThat(cmd.tipo()).isEqualTo(TipoItemFila.ONBOARDING_ERRO);

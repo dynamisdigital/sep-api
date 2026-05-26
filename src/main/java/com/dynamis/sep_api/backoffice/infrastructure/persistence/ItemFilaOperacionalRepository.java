@@ -21,7 +21,10 @@ public interface ItemFilaOperacionalRepository
         extends JpaRepository<ItemFilaOperacional, UUID>, JpaSpecificationExecutor<ItemFilaOperacional> {
 
     boolean existsByTipoAndTipoEntidadeAndEntidadeIdAndStatusIn(
-            TipoItemFila tipo, TipoEntidadeReferenciada tipoEntidade, UUID entidadeId, Collection<StatusItemFila> ativos);
+            TipoItemFila tipo,
+            TipoEntidadeReferenciada tipoEntidade,
+            UUID entidadeId,
+            Collection<StatusItemFila> ativos);
 
     List<ItemFilaOperacional> findByTipoEntidadeAndEntidadeIdOrderByDataAberturaDesc(
             TipoEntidadeReferenciada tipoEntidade, UUID entidadeId);

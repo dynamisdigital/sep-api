@@ -41,8 +41,7 @@ public class BackofficeReprocessoController {
     private final ReprocessarChamadaProviderUseCase reprocessarProvider;
 
     public BackofficeReprocessoController(
-            ReprocessarWebhookUseCase reprocessarWebhook,
-            ReprocessarChamadaProviderUseCase reprocessarProvider) {
+            ReprocessarWebhookUseCase reprocessarWebhook, ReprocessarChamadaProviderUseCase reprocessarProvider) {
         this.reprocessarWebhook = reprocessarWebhook;
         this.reprocessarProvider = reprocessarProvider;
     }
@@ -71,7 +70,8 @@ public class BackofficeReprocessoController {
     @RequireStepUp
     @Operation(
             summary = "Reprocessa chamada a provider externo",
-            description = "Exige step-up. Anti-abuso: 3 reprocessos por entidade em 24h. tipoChamada eh um de KYC/KYB/PLD/OPEN_FINANCE/ASSINATURA_DIGITAL.")
+            description =
+                    "Exige step-up. Anti-abuso: 3 reprocessos por entidade em 24h. tipoChamada eh um de KYC/KYB/PLD/OPEN_FINANCE/ASSINATURA_DIGITAL.")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Reprocesso registrado."),
         @ApiResponse(responseCode = "400", description = "tipoChamada nao suportado."),

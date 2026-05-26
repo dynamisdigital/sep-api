@@ -28,8 +28,13 @@ class ParcelaInadimplenteListenerTest {
         ParcelaInadimplenteListener listener = new ParcelaInadimplenteListener(criarItem);
 
         listener.aoMarcarInadimplente(new ParcelaInadimplenteEvent(
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1,
-                LocalDate.of(2026, 1, 1), 90));
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                1,
+                LocalDate.of(2026, 1, 1),
+                90));
     }
 
     @Test

@@ -22,7 +22,8 @@ class DashboardCobrancaQueryAdapterTest {
         when(recebimento.somarValorRecebidoNoIntervalo(any(), any())).thenReturn(new BigDecimal("500"));
 
         BigDecimal r = new DashboardCobrancaQueryAdapter(recebimento, parcela)
-                .recebimentosNoIntervalo(OffsetDateTime.parse("2026-05-26T03:00:00Z"), OffsetDateTime.parse("2026-05-27T03:00:00Z"));
+                .recebimentosNoIntervalo(
+                        OffsetDateTime.parse("2026-05-26T03:00:00Z"), OffsetDateTime.parse("2026-05-27T03:00:00Z"));
 
         assertThat(r).isEqualByComparingTo("500");
     }
@@ -34,7 +35,8 @@ class DashboardCobrancaQueryAdapterTest {
         when(recebimento.somarValorRecebidoNoIntervalo(any(), any())).thenReturn(null);
 
         BigDecimal r = new DashboardCobrancaQueryAdapter(recebimento, parcela)
-                .recebimentosNoIntervalo(OffsetDateTime.now(), OffsetDateTime.now().plusDays(1));
+                .recebimentosNoIntervalo(
+                        OffsetDateTime.now(), OffsetDateTime.now().plusDays(1));
 
         assertThat(r).isEqualByComparingTo(BigDecimal.ZERO);
     }

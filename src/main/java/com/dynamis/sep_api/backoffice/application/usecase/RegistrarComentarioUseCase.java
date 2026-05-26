@@ -37,8 +37,7 @@ public class RegistrarComentarioUseCase {
         }
         ComentarioInterno comentario = ComentarioInterno.registrar(itemId, autorId, conteudo);
         ComentarioInterno salvo = comentarioRepository.save(comentario);
-        eventPublisher.publishEvent(new ComentarioRegistradoEvent(
-                itemId, salvo.getId(), autorId, resumir(conteudo)));
+        eventPublisher.publishEvent(new ComentarioRegistradoEvent(itemId, salvo.getId(), autorId, resumir(conteudo)));
         return salvo;
     }
 

@@ -58,6 +58,7 @@ public class WebhookReprocessadorAdapter implements WebhookReprocessadorPort {
                 evento.getId(),
                 evento.getProvider(),
                 evento.getEvent());
-        return ResultadoReprocesso.sucesso("Webhook " + evento.getProvider() + "/" + evento.getEvent() + " reprocessado");
+        return ResultadoReprocesso.sucesso(
+                "Webhook " + evento.getProvider() + "/" + evento.getEvent() + " reprocessado");
     }
 }
