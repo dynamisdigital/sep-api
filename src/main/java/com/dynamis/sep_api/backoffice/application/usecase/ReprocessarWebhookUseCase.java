@@ -56,7 +56,13 @@ public class ReprocessarWebhookUseCase {
         Reprocesso salvo = reprocessoRepository.save(reprocesso);
 
         eventPublisher.publishEvent(new ReprocessoDisparadoEvent(
-                salvo.getId(), salvo.getTipo(), salvo.getIdentificadorExterno(), disparadoPor));
+                salvo.getId(),
+                salvo.getTipo(),
+                salvo.getTipoChamada(),
+                salvo.getIdentificadorExterno(),
+                salvo.getStatus(),
+                salvo.getItemId(),
+                disparadoPor));
         return salvo;
     }
 

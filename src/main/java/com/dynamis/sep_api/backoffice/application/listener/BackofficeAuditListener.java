@@ -49,78 +49,121 @@ public class BackofficeAuditListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void aoCriarItem(ItemFilaCriadoEvent event) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("itemId", event.itemId().toString());
-        payload.put("tipo", event.tipo().name());
-        payload.put("prioridade", event.prioridade().name());
-        payload.put("tipoEntidade", event.tipoEntidade().name());
-        payload.put("entidadeId", event.entidadeId().toString());
-        auditLogService.gravar(TipoEventoSeguranca.ITEM_FILA_CRIADO, null, serializar(payload, event.itemId()));
+        gravarSeguro(TipoEventoSeguranca.ITEM_FILA_CRIADO, null, event.itemId(), () -> {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("itemId", event.itemId().toString());
+            payload.put("tipo", event.tipo().name());
+            payload.put("prioridade", event.prioridade().name());
+            payload.put("tipoEntidade", event.tipoEntidade().name());
+            payload.put("entidadeId", event.entidadeId().toString());
+            return payload;
+        });
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void aoAssumirItem(ItemAssumidoEvent event) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("itemId", event.itemId().toString());
-        payload.put("atribuidoEm", event.atribuidoEm().toString());
-        auditLogService.gravar(TipoEventoSeguranca.ITEM_ASSUMIDO, event.atribuidoA(), serializar(payload, event.itemId()));
+        gravarSeguro(TipoEventoSeguranca.ITEM_ASSUMIDO, event.atribuidoA(), event.itemId(), () -> {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("itemId", event.itemId().toString());
+            payload.put("atribuidoEm", event.atribuidoEm().toString());
+            return payload;
+        });
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void aoRegistrarComentario(ComentarioRegistradoEvent event) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("itemId", event.itemId().toString());
-        payload.put("comentarioId", event.comentarioId().toString());
-        payload.put("conteudoResumido", truncar(event.conteudoResumido()));
-        auditLogService.gravar(
-                TipoEventoSeguranca.COMENTARIO_REGISTRADO, event.autorId(), serializar(payload, event.itemId()));
+        gravarSeguro(TipoEventoSeguranca.COMENTARIO_REGISTRADO, event.autorId(), event.itemId(), () -> {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("itemId", event.itemId().toString());
+            payload.put("comentarioId", event.comentarioId().toString());
+            payload.put("conteudoResumido", truncar(event.conteudoResumido()));
+            return payload;
+        });
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void aoResolverItem(ItemResolvidoEvent event) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("itemId", event.itemId().toString());
-        payload.put("justificativaResumida", truncar(event.justificativaResumida()));
-        auditLogService.gravar(
-                TipoEventoSeguranca.ITEM_RESOLVIDO, event.resolvidoPor(), serializar(payload, event.itemId()));
+        gravarSeguro(TipoEventoSeguranca.ITEM_RESOLVIDO, event.resolvidoPor(), event.itemId(), () -> {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("itemId", event.itemId().toString());
+            payload.put("justificativaResumida", truncar(event.justificativaResumida()));
+            return payload;
+        });
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void aoIgnorarItem(ItemIgnoradoEvent event) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("itemId", event.itemId().toString());
-        payload.put("justificativaResumida", truncar(event.justificativaResumida()));
-        auditLogService.gravar(
-                TipoEventoSeguranca.ITEM_IGNORADO, event.ignoradoPor(), serializar(payload, event.itemId()));
+        gravarSeguro(TipoEventoSeguranca.ITEM_IGNORADO, event.ignoradoPor(), event.itemId(), () -> {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("itemId", event.itemId().toString());
+            payload.put("justificativaResumida", truncar(event.justificativaResumida()));
+            return payload;
+        });
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void aoDispararReprocesso(ReprocessoDisparadoEvent event) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("reprocessoId", event.reprocessoId().toString());
-        payload.put("tipo", event.tipo().name());
-        payload.put("identificadorExterno", event.identificadorExterno());
-        auditLogService.gravar(
-                TipoEventoSeguranca.REPROCESSO_DISPARADO,
-                event.disparadoPor(),
-                serializar(payload, event.reprocessoId()));
+        gravarSeguro(TipoEventoSeguranca.REPROCESSO_DISPARADO, event.disparadoPor(), event.reprocessoId(), () -> {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("reprocessoId", event.reprocessoId().toString());
+            payload.put("tipo", event.tipo().name());
+            payload.put("status", event.status() != null ? event.status().name() : null);
+            payload.put("identificadorExterno", event.identificadorExterno());
+            if (event.tipoChamada() != null) {
+                payload.put("tipoChamada", event.tipoChamada().name());
+            }
+            if (event.itemId() != null) {
+                payload.put("itemId", event.itemId().toString());
+            }
+            return payload;
+        });
     }
 
     /**
-     * Defesa em profundidade (fix review manual Task 14.8): use cases ja truncam resumos em 80
-     * chars antes de publicar o evento, mas o listener nao confia no contrato upstream. Trunca
-     * novamente — se algum use case for refatorado e remover o truncamento, audit nao vaza.
+     * Wrapper que garante que falha de audit (serializacao, DB indisponivel, constraint) nao
+     * propague pra fora do listener — fix review manual Task 14.8 — "Falha de audit nao quebra
+     * fluxo principal".
+     */
+    private void gravarSeguro(
+            TipoEventoSeguranca tipo,
+            UUID usuarioId,
+            UUID contexto,
+            java.util.function.Supplier<Map<String, Object>> payloadSupplier) {
+        try {
+            String detalhes = serializar(payloadSupplier.get(), contexto);
+            auditLogService.gravar(tipo, usuarioId, detalhes);
+        } catch (RuntimeException ex) {
+            LOG.error("Falha ao gravar audit {} contexto={}; flow principal preservado", tipo, contexto, ex);
+        }
+    }
+
+    /**
+     * Sanitiza texto livre antes do audit (fix review manual Task 14.8): mascara CPF e CNPJ que
+     * o operador possa ter digitado em comentario/justificativa, depois trunca em 80 chars.
+     * Use cases ja truncam upstream — guard defensivo em camada extra.
      */
     private static String truncar(String texto) {
-        if (texto == null || texto.length() <= MAX_RESUMO_AUDIT) {
-            return texto;
+        if (texto == null) {
+            return null;
         }
-        return texto.substring(0, MAX_RESUMO_AUDIT) + "...";
+        String mascarado = mascararDocumentos(texto);
+        if (mascarado.length() <= MAX_RESUMO_AUDIT) {
+            return mascarado;
+        }
+        return mascarado.substring(0, MAX_RESUMO_AUDIT) + "...";
+    }
+
+    private static String mascararDocumentos(String texto) {
+        // CPF: 11 digitos (com/sem pontuacao) -> ***.***.***-**
+        String semCpf = texto.replaceAll("\\b\\d{3}\\.?\\d{3}\\.?\\d{3}-?\\d{2}\\b", "***.***.***-**");
+        // CNPJ: 14 digitos (com/sem pontuacao) -> **.***.***/****-**
+        return semCpf.replaceAll(
+                "\\b\\d{2}\\.?\\d{3}\\.?\\d{3}/?\\d{4}-?\\d{2}\\b", "**.***.***/****-**");
     }
 
     private static final int MAX_RESUMO_AUDIT = 80;

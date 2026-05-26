@@ -103,19 +103,97 @@ class BackofficeAuditListenerTest {
     }
 
     @Test
-    void aoDispararReprocesso_gravaReprocessoId() {
+    void aoDispararReprocesso_gravaCamposCompletos() {
         UUID reprocessoId = UUID.randomUUID();
         UUID operadorId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
         listener.aoDispararReprocesso(new ReprocessoDisparadoEvent(
-                reprocessoId, Reprocesso.Tipo.WEBHOOK, "webhook-id-X", operadorId));
+                reprocessoId,
+                Reprocesso.Tipo.PROVIDER,
+                com.dynamis.sep_api.backoffice.domain.vo.TipoChamadaProvider.KYC,
+                "entidade-id-X",
+                com.dynamis.sep_api.backoffice.domain.vo.StatusReprocesso.SUCESSO,
+                itemId,
+                operadorId));
 
         ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
         verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.REPROCESSO_DISPARADO),
                 org.mockito.ArgumentMatchers.eq(operadorId), payload.capture());
         assertThat(payload.getValue())
                 .contains(reprocessoId.toString())
+                .contains("PROVIDER")
+                .contains("KYC")
+                .contains("SUCESSO")
+                .contains("entidade-id-X")
+                .contains(itemId.toString());
+    }
+
+    @Test
+    void aoDispararReprocesso_webhookSemTipoChamadaNemItem() {
+        UUID reprocessoId = UUID.randomUUID();
+        listener.aoDispararReprocesso(new ReprocessoDisparadoEvent(
+                reprocessoId,
+                Reprocesso.Tipo.WEBHOOK,
+                null,
+                "webhook-id-X",
+                com.dynamis.sep_api.backoffice.domain.vo.StatusReprocesso.FALHA,
+                null,
+                UUID.randomUUID()));
+
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.REPROCESSO_DISPARADO),
+                org.mockito.ArgumentMatchers.any(), payload.capture());
+        assertThat(payload.getValue())
                 .contains("WEBHOOK")
-                .contains("webhook-id-X");
+                .contains("FALHA")
+                .doesNotContain("tipoChamada")
+                .doesNotContain("itemId");
+    }
+
+    @Test
+    void mascaraCpf_emConteudoComentario() {
+        UUID itemId = UUID.randomUUID();
+        UUID autorId = UUID.randomUUID();
+        // Operador digitou CPF — listener deve mascarar antes do audit
+        listener.aoRegistrarComentario(new ComentarioRegistradoEvent(
+                itemId, UUID.randomUUID(), autorId, "Tomador 529.982.247-25 confirmou pagamento"));
+
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.COMENTARIO_REGISTRADO),
+                org.mockito.ArgumentMatchers.eq(autorId), payload.capture());
+        assertThat(payload.getValue()).doesNotContain("529.982.247-25").doesNotContain("52998224725");
+        assertThat(payload.getValue()).contains("***.***.***-**");
+    }
+
+    @Test
+    void mascaraCnpj_emJustificativaResolver() {
+        UUID itemId = UUID.randomUUID();
+        UUID operadorId = UUID.randomUUID();
+        listener.aoResolverItem(new ItemResolvidoEvent(
+                itemId, operadorId, "PJ 11.222.333/0001-81 confirmou recibo de pagamento"));
+
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.ITEM_RESOLVIDO),
+                org.mockito.ArgumentMatchers.eq(operadorId), payload.capture());
+        assertThat(payload.getValue()).doesNotContain("11.222.333/0001-81").doesNotContain("11222333000181");
+        assertThat(payload.getValue()).contains("**.***.***/****-**");
+    }
+
+    @Test
+    void falhaAuditService_naoPropaga() {
+        // fix review manual Task 14.8: handler nao deve propagar excecao do audit service.
+        org.mockito.Mockito.doThrow(new RuntimeException("DB down"))
+                .when(auditLog)
+                .gravar(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.anyString());
+
+        listener.aoCriarItem(new ItemFilaCriadoEvent(
+                UUID.randomUUID(),
+                TipoItemFila.OUTRO,
+                PrioridadeItem.BAIXA,
+                TipoEntidadeReferenciada.OUTRO,
+                UUID.randomUUID()));
+        // se chegou aqui sem propagar, fluxo principal preservado
     }
 
     @Test
