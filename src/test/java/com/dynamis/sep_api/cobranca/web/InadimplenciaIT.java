@@ -171,6 +171,12 @@ class InadimplenciaIT {
         movimentacaoEscrowRepository.deleteAll();
         walletRepository.deleteAll();
         contaEscrowRepository.deleteAll();
+        // Hotfix code review Task 13.9: defesa contra rows leftover de RenegociacaoIT na mesma
+        // suite — agenda_substituida_id eh self-FK. Limpa substitutas (parcelas + agenda)
+        // antes do deleteAll geral.
+        jdbcTemplate.update(
+                "DELETE FROM parcela_cobranca WHERE agenda_id IN (SELECT id FROM agenda_pagamento WHERE agenda_substituida_id IS NOT NULL)");
+        jdbcTemplate.update("DELETE FROM agenda_pagamento WHERE agenda_substituida_id IS NOT NULL");
         agendaRepository.deleteAll();
         contratoRepository.deleteAll();
         propostaRepository.deleteAll();
