@@ -162,9 +162,10 @@ public class ApiExceptionHandler {
         return build(HttpStatus.TOO_MANY_REQUESTS, "Too Many Requests", ex.getMessage(), request);
     }
 
-    @ExceptionHandler(UnsupportedOperationException.class)
-    public ResponseEntity<ErrorResponseDto> handleUnsupported(
-            UnsupportedOperationException ex, HttpServletRequest request) {
+    @ExceptionHandler(com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException.class)
+    public ResponseEntity<ErrorResponseDto> handleTipoReprocesso(
+            com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException ex,
+            HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request);
     }
 

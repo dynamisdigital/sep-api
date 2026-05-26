@@ -71,12 +71,13 @@ class ReprocessarChamadaProviderUseCaseTest {
     }
 
     @Test
-    void tipoInvalido_propagaUnsupported() {
+    void tipoInvalido_propagaTipoReprocessoNaoSuportado() {
         UUID entidade = UUID.randomUUID();
         when(provider.reprocessar(any(), any()))
-                .thenThrow(new UnsupportedOperationException("tipo nao suportado"));
+                .thenThrow(new com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException(
+                        TipoChamadaProvider.KYB));
 
-        assertThatExceptionOfType(UnsupportedOperationException.class)
+        assertThatExceptionOfType(com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException.class)
                 .isThrownBy(() ->
                         useCase.executar(TipoChamadaProvider.KYB, entidade, UUID.randomUUID(), null));
     }

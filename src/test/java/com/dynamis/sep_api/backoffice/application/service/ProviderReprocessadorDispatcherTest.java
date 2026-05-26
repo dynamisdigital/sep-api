@@ -14,10 +14,10 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 class ProviderReprocessadorDispatcherTest {
 
     @Test
-    void tipoSemStrategy_lancaUnsupported() {
+    void tipoSemStrategy_lancaTipoReprocessoNaoSuportado() {
         ProviderReprocessadorDispatcher d = new ProviderReprocessadorDispatcher(List.of());
 
-        assertThatExceptionOfType(UnsupportedOperationException.class)
+        assertThatExceptionOfType(com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException.class)
                 .isThrownBy(() -> d.reprocessar(TipoChamadaProvider.KYC, UUID.randomUUID()));
     }
 

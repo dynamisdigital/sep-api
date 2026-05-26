@@ -77,7 +77,46 @@ class BackofficeDashboardControllerTest {
     @Test
     void consultar_backoffice200ComNoCache() throws Exception {
         autenticar(UUID.randomUUID(), Role.BACKOFFICE);
-        DashboardBackoffice d = new DashboardBackoffice(
+        when(consultarVisao.consultar()).thenReturn(dashboardVazio());
+
+        mockMvc.perform(get("/api/v1/backoffice/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.geradoEm").exists());
+    }
+
+    @Test
+    void consultar_financeiro200() throws Exception {
+        autenticar(UUID.randomUUID(), Role.FINANCEIRO);
+        when(consultarVisao.consultar()).thenReturn(dashboardVazio());
+
+        mockMvc.perform(get("/api/v1/backoffice/dashboard")).andExpect(status().isOk());
+    }
+
+    @Test
+    void consultar_admin200() throws Exception {
+        autenticar(UUID.randomUUID(), Role.ADMIN);
+        when(consultarVisao.consultar()).thenReturn(dashboardVazio());
+
+        mockMvc.perform(get("/api/v1/backoffice/dashboard")).andExpect(status().isOk());
+    }
+
+    @Test
+    void consultar_cliente_403() throws Exception {
+        autenticar(UUID.randomUUID(), Role.CLIENTE);
+
+        mockMvc.perform(get("/api/v1/backoffice/dashboard")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void consultar_semAutenticacao_401() throws Exception {
+        SecurityContextHolder.clearContext();
+
+        mockMvc.perform(get("/api/v1/backoffice/dashboard")).andExpect(status().isUnauthorized());
+    }
+
+    private DashboardBackoffice dashboardVazio() {
+        return new DashboardBackoffice(
                 List.of(),
                 List.of(),
                 List.of(),
@@ -88,11 +127,5 @@ class BackofficeDashboardControllerTest {
                 InadimplenciaConsolidada.vazia(),
                 List.of(),
                 Instant.parse("2026-05-26T12:00:00Z"));
-        when(consultarVisao.consultar()).thenReturn(d);
-
-        mockMvc.perform(get("/api/v1/backoffice/dashboard"))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Cache-Control", "no-store"))
-                .andExpect(jsonPath("$.geradoEm").exists());
     }
 }

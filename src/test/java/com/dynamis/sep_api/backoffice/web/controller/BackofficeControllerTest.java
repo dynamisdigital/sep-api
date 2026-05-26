@@ -118,6 +118,38 @@ class BackofficeControllerTest {
     }
 
     @Test
+    void listar_financeiro200() throws Exception {
+        autenticar(UUID.randomUUID(), Role.FINANCEIRO, false);
+        when(listarUseCase.listar(any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/v1/backoffice/fila")).andExpect(status().isOk());
+    }
+
+    @Test
+    void listar_admin200() throws Exception {
+        autenticar(UUID.randomUUID(), Role.ADMIN, false);
+        when(listarUseCase.listar(any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/v1/backoffice/fila")).andExpect(status().isOk());
+    }
+
+    @Test
+    void listar_cliente_403() throws Exception {
+        autenticar(UUID.randomUUID(), Role.CLIENTE, false);
+
+        mockMvc.perform(get("/api/v1/backoffice/fila")).andExpect(status().isForbidden());
+        verify(listarUseCase, never()).listar(any(), any());
+    }
+
+    @Test
+    void listar_semAutenticacao_401() throws Exception {
+        SecurityContextHolder.clearContext();
+
+        mockMvc.perform(get("/api/v1/backoffice/fila")).andExpect(status().isUnauthorized());
+        verify(listarUseCase, never()).listar(any(), any());
+    }
+
+    @Test
     void listar_stripSortPrioridade() throws Exception {
         autenticar(UUID.randomUUID(), Role.BACKOFFICE, false);
         when(listarUseCase.listar(any(), any())).thenReturn(new PageImpl<>(List.of()));

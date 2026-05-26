@@ -131,7 +131,8 @@ class BackofficeReprocessoControllerTest {
     void reprocessarProvider_dispatcherSemStrategy_400() throws Exception {
         autenticar(UUID.randomUUID(), Role.BACKOFFICE, false);
         when(reprocessarProvider.executar(any(), any(), any(), any()))
-                .thenThrow(new UnsupportedOperationException("tipo nao suportado: KYC"));
+                .thenThrow(new com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException(
+                        com.dynamis.sep_api.backoffice.domain.vo.TipoChamadaProvider.KYC));
 
         mockMvc.perform(post("/api/v1/backoffice/reprocessos/provider/{tipo}/{id}", "KYC", UUID.randomUUID()))
                 .andExpect(status().isBadRequest());
