@@ -129,6 +129,15 @@ app:
       access-token: ${APP_CLICKSIGN_ACCESS_TOKEN:}
       webhook:
         hmac-secret: ${APP_WEBHOOK_SECRET_CLICKSIGN:dev-clicksign-webhook-secret-change-me}
+  backoffice:
+    # Job consolidador da fila operacional (Sprint 14 Task 14.2). Varre tres fontes
+    # de pendencia baseadas em tempo (proposta parada, contrato sem assinatura, webhook
+    # falhou/pendente antigo) e cria itens via CriarItemFilaOperacionalService.
+    verificador:
+      cron: ${APP_BACKOFFICE_VERIFICADOR_CRON:0 */15 * * * *}
+      proposta-pendencia-horas: ${APP_BACKOFFICE_PROPOSTA_PENDENCIA_HORAS:24}
+      contrato-aceito-horas: ${APP_BACKOFFICE_CONTRATO_ACEITO_HORAS:48}
+      webhook-falhou-horas: ${APP_BACKOFFICE_WEBHOOK_FALHOU_HORAS:1}
   cobranca:
     # Email do time financeiro pra copia de comunicacao final de inadimplencia
     # (Sprint 13 Task 13.5 — fix review manual). Vazio = nao envia copia.
