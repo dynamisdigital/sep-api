@@ -69,7 +69,14 @@ public class EscaladorCobrancaJob {
         executar();
     }
 
-    /** Visivel pra testes — controla {@code Clock} e chama diretamente sem agendamento. */
+    /**
+     * Visivel pra testes — controla {@code Clock} e chama diretamente sem agendamento.
+     *
+     * <p>{@code @Transactional} abre sessao Hibernate pro loop conseguir resolver lazy load de
+     * {@code ParcelaCobranca.agenda}. Cada {@code escalarCobrancaUseCase.escalar} interno tem
+     * tx propria — falha numa parcela nao reverte as anteriores.
+     */
+    @org.springframework.transaction.annotation.Transactional
     public int executar() {
         LocalDate hoje = LocalDate.now(clock);
         List<ParcelaCobranca> atrasadas =
