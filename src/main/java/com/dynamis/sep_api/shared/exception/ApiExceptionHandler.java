@@ -155,6 +155,19 @@ public class ApiExceptionHandler {
         return build(status, error, ex.getMessage(), request);
     }
 
+    @ExceptionHandler(com.dynamis.sep_api.backoffice.domain.exception.LimiteReprocessoExcedidoException.class)
+    public ResponseEntity<ErrorResponseDto> handleLimiteReprocesso(
+            com.dynamis.sep_api.backoffice.domain.exception.LimiteReprocessoExcedidoException ex,
+            HttpServletRequest request) {
+        return build(HttpStatus.TOO_MANY_REQUESTS, "Too Many Requests", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(UnsupportedOperationException.class)
+    public ResponseEntity<ErrorResponseDto> handleUnsupported(
+            UnsupportedOperationException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponseDto> handleGeneric(Exception ex, HttpServletRequest request) {
         log.error("Erro nao tratado", ex);
