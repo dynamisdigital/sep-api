@@ -55,19 +55,26 @@ jobs:
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
 
+      # Sprint 14 follow-up: testes com @ActiveProfiles("dev") leem application-dev.yml
+      # que aponta pra banco `sep_dev`. O service postgres acima cria apenas `sep_test`
+      # via POSTGRES_DB, entao precisamos criar `sep_dev` manualmente pra evitar
+      # `FATAL: database "sep_dev" does not exist` no Flyway init. Testes profile=test
+      # continuam usando `sep_test`; profile=dev usam `sep_dev` (isolamento entre profiles
+      # mantido).
+      - name: Create sep_dev database
+        run: PGPASSWORD=sep psql -h localhost -U sep -d postgres -c "CREATE DATABASE sep_dev OWNER sep;"
+
       - name: Spotless check
         run: ./gradlew spotlessCheck --no-daemon
 
       - name: Test and JaCoCo verification
         run: ./gradlew test jacocoTestCoverageVerification --no-daemon
-        env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/sep_test
-          SPRING_DATASOURCE_USERNAME: sep
-          SPRING_DATASOURCE_PASSWORD: sep
-          # Sprint 13: profile=dev tests em CI hitam sep_test (URL override acima).
-          # Desabilita WorkflowCobrancaSeeder pra nao poluir sep_test e colidir
-          # com UNIQUE parcial de WorkflowCobrancaRepositoryTest.
-          APP_COBRANCA_WORKFLOW_SEED_HABILITADO: 'false'
+        # Sprint 14 follow-up: removido override SPRING_DATASOURCE_URL=sep_test
+        # (evidencia em CI mostrou que env vars do step nao chegavam ao Spring Boot
+        # test fork JVM via relaxed binding — Flyway tentava abrir sep_dev mesmo
+        # assim). Agora profile=dev usa sep_dev, profile=test usa sep_test, ambos
+        # bancos provisionados (sep_test pelo POSTGRES_DB, sep_dev pelo step acima).
+        # Defaults sep/sep do application*.yml batem com POSTGRES_USER/POSTGRES_PASSWORD.
 
       - name: JaCoCo report
         if: always()
