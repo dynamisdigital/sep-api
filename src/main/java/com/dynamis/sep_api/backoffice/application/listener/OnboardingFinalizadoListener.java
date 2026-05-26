@@ -7,6 +7,8 @@ import com.dynamis.sep_api.backoffice.domain.vo.TipoEntidadeReferenciada;
 import com.dynamis.sep_api.backoffice.domain.vo.TipoItemFila;
 import com.dynamis.sep_api.onboarding.domain.event.OnboardingFinalizadoEvent;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -26,6 +28,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 public class OnboardingFinalizadoListener {
 
+    private static final Logger LOG = LoggerFactory.getLogger(OnboardingFinalizadoListener.class);
+
     private final CriarItemFilaOperacionalService criarItem;
 
     public OnboardingFinalizadoListener(CriarItemFilaOperacionalService criarItem) {
@@ -34,6 +38,14 @@ public class OnboardingFinalizadoListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void aoFinalizar(OnboardingFinalizadoEvent event) {
+        try {
+            tratar(event);
+        } catch (RuntimeException ex) {
+            LOG.error("falha ao criar item fila pra onboarding {}; ignorada", event.solicitacaoId(), ex);
+        }
+    }
+
+    private void tratar(OnboardingFinalizadoEvent event) {
         StatusOnboarding status = event.statusFinal();
         TipoItemFila tipo;
         PrioridadeItem prioridade;

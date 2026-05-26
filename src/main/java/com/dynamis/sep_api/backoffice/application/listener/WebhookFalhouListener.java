@@ -46,7 +46,7 @@ public class WebhookFalhouListener {
 
     public void verificar() {
         OffsetDateTime corte = OffsetDateTime.now(clock).minusHours(properties.webhookFalhouHoras());
-        List<WebhookEventLog> nao = webhookRepository.findByStatusInAndDataCriacaoBefore(NAO_PROCESSADOS, corte);
+        List<WebhookEventLog> nao = webhookRepository.findByStatusInAndDataModificacaoBefore(NAO_PROCESSADOS, corte);
 
         for (WebhookEventLog w : nao) {
             PrioridadeItem prioridade =

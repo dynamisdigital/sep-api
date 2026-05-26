@@ -22,6 +22,17 @@ import static org.mockito.Mockito.when;
 class ParcelaInadimplenteListenerTest {
 
     @Test
+    void exception_noServico_naoPropagaPraEventBus() {
+        CriarItemFilaOperacionalService criarItem = mock(CriarItemFilaOperacionalService.class);
+        when(criarItem.criarSeAusente(any())).thenThrow(new RuntimeException("repo offline"));
+        ParcelaInadimplenteListener listener = new ParcelaInadimplenteListener(criarItem);
+
+        listener.aoMarcarInadimplente(new ParcelaInadimplenteEvent(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1,
+                LocalDate.of(2026, 1, 1), 90));
+    }
+
+    @Test
     void aoMarcarInadimplente_criaItemCobrancaInadimplenteAlta() {
         CriarItemFilaOperacionalService criarItem = mock(CriarItemFilaOperacionalService.class);
         when(criarItem.criarSeAusente(any())).thenReturn(Optional.of(UUID.randomUUID()));

@@ -44,7 +44,7 @@ class WebhookFalhouListenerTest {
         when(pendente.getProvider()).thenReturn("clicksign");
         when(pendente.getStatus()).thenReturn(WebhookEventStatus.PENDENTE);
 
-        when(repo.findByStatusInAndDataCriacaoBefore(any(), any())).thenReturn(List.of(falhou, pendente));
+        when(repo.findByStatusInAndDataModificacaoBefore(any(), any())).thenReturn(List.of(falhou, pendente));
         when(criarItem.criarSeAusente(any())).thenReturn(Optional.of(UUID.randomUUID()));
 
         new WebhookFalhouListener(repo, criarItem, props, clock).verificar();

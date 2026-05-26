@@ -6,6 +6,8 @@ import com.dynamis.sep_api.backoffice.domain.vo.PrioridadeItem;
 import com.dynamis.sep_api.backoffice.domain.vo.TipoEntidadeReferenciada;
 import com.dynamis.sep_api.backoffice.domain.vo.TipoItemFila;
 import com.dynamis.sep_api.cobranca.domain.event.ParcelaInadimplenteEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -17,6 +19,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 public class ParcelaInadimplenteListener {
 
+    private static final Logger LOG = LoggerFactory.getLogger(ParcelaInadimplenteListener.class);
+
     private final CriarItemFilaOperacionalService criarItem;
 
     public ParcelaInadimplenteListener(CriarItemFilaOperacionalService criarItem) {
@@ -25,15 +29,19 @@ public class ParcelaInadimplenteListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void aoMarcarInadimplente(ParcelaInadimplenteEvent event) {
-        String titulo = "Parcela " + event.numero() + " inadimplente ha " + event.diasAtraso() + " dias";
-        String descricao = "Contrato " + event.contratoId() + " / agenda " + event.agendaId();
+        try {
+            String titulo = "Parcela " + event.numero() + " inadimplente ha " + event.diasAtraso() + " dias";
+            String descricao = "Contrato " + event.contratoId() + " / agenda " + event.agendaId();
 
-        criarItem.criarSeAusente(new CriarItemCommand(
-                TipoItemFila.COBRANCA_INADIMPLENTE,
-                PrioridadeItem.ALTA,
-                TipoEntidadeReferenciada.PARCELA_COBRANCA,
-                event.parcelaId(),
-                titulo,
-                descricao));
+            criarItem.criarSeAusente(new CriarItemCommand(
+                    TipoItemFila.COBRANCA_INADIMPLENTE,
+                    PrioridadeItem.ALTA,
+                    TipoEntidadeReferenciada.PARCELA_COBRANCA,
+                    event.parcelaId(),
+                    titulo,
+                    descricao));
+        } catch (RuntimeException ex) {
+            LOG.error("falha ao criar item fila pra parcela inadimplente {}; ignorada", event.parcelaId(), ex);
+        }
     }
 }

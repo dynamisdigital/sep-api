@@ -79,6 +79,12 @@ public class CriarItemFilaOperacionalService {
                     salvo.getPrioridade(),
                     salvo.getTipoEntidade(),
                     salvo.getEntidadeId()));
+            LOG.info(
+                    "item fila criado id={} tipo={} prioridade={} entidade={}",
+                    salvo.getId(),
+                    salvo.getTipo(),
+                    salvo.getPrioridade(),
+                    salvo.getEntidadeId());
             return Optional.of(salvo.getId());
         } catch (DataIntegrityViolationException race) {
             LOG.info(

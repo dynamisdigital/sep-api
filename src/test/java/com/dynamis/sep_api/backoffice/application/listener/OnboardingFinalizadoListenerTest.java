@@ -74,6 +74,14 @@ class OnboardingFinalizadoListenerTest {
         verify(criarItem, never()).criarSeAusente(any());
     }
 
+    @Test
+    void exception_noServico_naoPropagaPraEventBus() {
+        when(criarItem.criarSeAusente(any())).thenThrow(new RuntimeException("repo offline"));
+
+        listener.aoFinalizar(new OnboardingFinalizadoEvent(
+                UUID.randomUUID(), UUID.randomUUID(), StatusOnboarding.PENDENCIA, "ext-5"));
+    }
+
     private CriarItemCommand capturar() {
         ArgumentCaptor<CriarItemCommand> captor = ArgumentCaptor.forClass(CriarItemCommand.class);
         verify(criarItem).criarSeAusente(captor.capture());
