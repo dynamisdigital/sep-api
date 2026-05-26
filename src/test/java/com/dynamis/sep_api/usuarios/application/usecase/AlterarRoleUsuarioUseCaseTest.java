@@ -88,4 +88,18 @@ class AlterarRoleUsuarioUseCaseTest {
         verify(repository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any());
     }
+
+    @Test
+    void promoveParaBackoffice_persisteEPublica() {
+        UUID alvoId = UUID.randomUUID();
+        UUID adminId = UUID.randomUUID();
+        Usuario alvo = Usuario.criar("op@sep.test", "hash", Role.CLIENTE);
+        when(repository.findById(alvoId)).thenReturn(Optional.of(alvo));
+        when(repository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Usuario salvo = useCase.executar(alvoId, Role.BACKOFFICE, adminId);
+
+        assertThat(salvo.getRole()).isEqualTo(Role.BACKOFFICE);
+        verify(eventPublisher).publishEvent(any(com.dynamis.sep_api.usuarios.domain.event.RoleAlteradaEvent.class));
+    }
 }
