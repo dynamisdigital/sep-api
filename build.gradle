@@ -177,6 +177,13 @@ jacoco {
 
 test {
 	useJUnitPlatform()
+	// Sprint 14 follow-up: heap default (~512MB) estoura em CI com 1421 testes e
+	// varios @SpringBootTest mantendo contexts no cache. PldFollowupIT triggava
+	// OutOfMemoryError em Streams.java:870. 2g cobre o pool atual com margem.
+	maxHeapSize = '2g'
+	// Limita o cache de contexts pra evitar acumulo (default = 32). Reduz pressao
+	// de heap quando configuracoes de @SpringBootTest variam entre suites.
+	systemProperty 'spring.test.context.cache.maxSize', '8'
 	finalizedBy jacocoTestReport
 }
 
