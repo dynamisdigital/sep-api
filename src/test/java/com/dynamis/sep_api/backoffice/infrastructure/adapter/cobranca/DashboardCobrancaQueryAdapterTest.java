@@ -6,7 +6,7 @@ import com.dynamis.sep_api.cobranca.infrastructure.persistence.RecebimentoReposi
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.OffsetDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,25 +16,25 @@ import static org.mockito.Mockito.when;
 class DashboardCobrancaQueryAdapterTest {
 
     @Test
-    void recebimentosNoDia_passaIntervaloUtc() {
+    void recebimentosNoIntervalo_delegaAoRepo() {
         RecebimentoRepository recebimento = mock(RecebimentoRepository.class);
         ParcelaCobrancaRepository parcela = mock(ParcelaCobrancaRepository.class);
         when(recebimento.somarValorRecebidoNoIntervalo(any(), any())).thenReturn(new BigDecimal("500"));
 
         BigDecimal r = new DashboardCobrancaQueryAdapter(recebimento, parcela)
-                .recebimentosNoDia(LocalDate.of(2026, 5, 26));
+                .recebimentosNoIntervalo(OffsetDateTime.parse("2026-05-26T03:00:00Z"), OffsetDateTime.parse("2026-05-27T03:00:00Z"));
 
         assertThat(r).isEqualByComparingTo("500");
     }
 
     @Test
-    void recebimentosNoDia_nullVoltaZero() {
+    void recebimentosNoIntervalo_nullVoltaZero() {
         RecebimentoRepository recebimento = mock(RecebimentoRepository.class);
         ParcelaCobrancaRepository parcela = mock(ParcelaCobrancaRepository.class);
         when(recebimento.somarValorRecebidoNoIntervalo(any(), any())).thenReturn(null);
 
         BigDecimal r = new DashboardCobrancaQueryAdapter(recebimento, parcela)
-                .recebimentosNoDia(LocalDate.of(2026, 5, 26));
+                .recebimentosNoIntervalo(OffsetDateTime.now(), OffsetDateTime.now().plusDays(1));
 
         assertThat(r).isEqualByComparingTo(BigDecimal.ZERO);
     }

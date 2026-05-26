@@ -131,9 +131,14 @@ app:
         hmac-secret: ${APP_WEBHOOK_SECRET_CLICKSIGN:dev-clicksign-webhook-secret-change-me}
   backoffice:
     # Dashboard de visao consolidada (Sprint 14 Task 14.5). timezone define o recorte
-    # do "dia operacional" usado pra somar recebimentos.
+    # do "dia operacional" usado pra somar recebimentos; demais campos sao thresholds
+    # operacionais (janela do tempo medio de resolucao, antiguidade pra item critico,
+    # limite do top tipos).
     dashboard:
       timezone: ${APP_BACKOFFICE_DASHBOARD_TIMEZONE:America/Sao_Paulo}
+      tempo-medio-janela-dias: ${APP_BACKOFFICE_DASHBOARD_TEMPO_MEDIO_JANELA_DIAS:30}
+      criticos-threshold-horas: ${APP_BACKOFFICE_DASHBOARD_CRITICOS_THRESHOLD_HORAS:48}
+      top-tipos-limit: ${APP_BACKOFFICE_DASHBOARD_TOP_TIPOS_LIMIT:5}
     # Job consolidador da fila operacional (Sprint 14 Task 14.2). Varre tres fontes
     # de pendencia baseadas em tempo (proposta parada, contrato sem assinatura, webhook
     # falhou/pendente antigo) e cria itens via CriarItemFilaOperacionalService.

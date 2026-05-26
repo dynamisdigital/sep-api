@@ -7,9 +7,7 @@ import com.dynamis.sep_api.cobranca.infrastructure.persistence.RecebimentoReposi
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 
 /** Adapter de fronteira — agregados de cobranca pro dashboard (Sprint 14 Task 14.5). */
 @Component
@@ -25,9 +23,7 @@ public class DashboardCobrancaQueryAdapter implements DashboardCobrancaQueryPort
     }
 
     @Override
-    public BigDecimal recebimentosNoDia(LocalDate dia) {
-        OffsetDateTime inicio = dia.atStartOfDay().atOffset(ZoneOffset.UTC);
-        OffsetDateTime fim = dia.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+    public BigDecimal recebimentosNoIntervalo(OffsetDateTime inicio, OffsetDateTime fim) {
         BigDecimal total = recebimentoRepository.somarValorRecebidoNoIntervalo(inicio, fim);
         return total != null ? total : BigDecimal.ZERO;
     }

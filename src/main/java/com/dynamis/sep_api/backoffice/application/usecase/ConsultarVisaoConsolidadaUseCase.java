@@ -21,6 +21,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -31,15 +32,21 @@ import java.util.function.Supplier;
  * Facade GoF (Sprint 14 Task 14.5): agrega leituras de {@code backoffice}, {@code cobranca} e
  * {@code credito} em um unico snapshot. Cada agregado eh resiliente — falha em uma fonte resulta
  * em campo vazio/zero no dashboard, nao em falha total.
+ *
+ * <p>Janelas configuraveis (fix review manual Task 14.5):
+ *
+ * <ul>
+ *   <li>{@code app.backoffice.dashboard.timezone} — zona do "dia operacional" de recebimentos.
+ *   <li>{@code app.backoffice.dashboard.tempo-medio-janela-dias} — janela de resolucao.
+ *   <li>{@code app.backoffice.dashboard.criticos-threshold-horas} — threshold de itens criticos.
+ *   <li>{@code app.backoffice.dashboard.top-tipos-limit} — top N tipos mais frequentes.
+ * </ul>
  */
 @Service
 public class ConsultarVisaoConsolidadaUseCase {
 
     private static final Logger LOG = LoggerFactory.getLogger(ConsultarVisaoConsolidadaUseCase.class);
 
-    private static final int TOP_TIPOS_LIMIT = 5;
-    private static final int TEMPO_MEDIO_JANELA_DIAS = 30;
-    private static final int CRITICOS_THRESHOLD_HORAS = 48;
     private static final Set<StatusItemFila> ATIVOS = Set.of(StatusItemFila.ABERTO, StatusItemFila.EM_TRATAMENTO);
 
     private final ItemFilaOperacionalRepository itemRepository;
@@ -64,9 +71,13 @@ public class ConsultarVisaoConsolidadaUseCase {
     @Transactional(readOnly = true)
     public DashboardBackoffice consultar() {
         OffsetDateTime agora = OffsetDateTime.now(clock);
-        OffsetDateTime cortePos30d = agora.minusDays(TEMPO_MEDIO_JANELA_DIAS);
-        OffsetDateTime corteCriticosAntes48h = agora.minusHours(CRITICOS_THRESHOLD_HORAS);
-        LocalDate hoje = LocalDate.now(clock.withZone(properties.zoneId()));
+        OffsetDateTime corteTempoMedio = agora.minusDays(properties.tempoMedioJanelaDias());
+        OffsetDateTime corteCriticos = agora.minusHours(properties.criticosThresholdHoras());
+
+        ZoneId zone = properties.zoneId();
+        LocalDate hoje = LocalDate.now(clock.withZone(zone));
+        OffsetDateTime inicioDia = hoje.atStartOfDay(zone).toOffsetDateTime();
+        OffsetDateTime fimDia = hoje.plusDays(1).atStartOfDay(zone).toOffsetDateTime();
 
         List<ContadorPorTipo> porTipo = resiliente("contarPorTipo", itemRepository::contarPorTipo, List.of());
         List<ContadorPorPrioridade> porPrioridade =
@@ -74,19 +85,21 @@ public class ConsultarVisaoConsolidadaUseCase {
         List<ContadorPorStatus> porStatus = resiliente("contarPorStatus", itemRepository::contarPorStatus, List.of());
         Duration tempoMedio = resiliente(
                 "tempoMedioResolucao",
-                () -> calcularTempoMedio(itemRepository.tempoMedioResolucaoSegundosDesde(cortePos30d)),
+                () -> calcularTempoMedio(itemRepository.tempoMedioResolucaoSegundosDesde(corteTempoMedio)),
                 Duration.ZERO);
         long criticosAbertosAntigos = resiliente(
-                "itensCriticosAbertosMais48h",
+                "itensCriticosAberto" + properties.criticosThresholdHoras() + "h",
                 () -> itemRepository.countByPrioridadeAndStatusInAndDataAberturaBefore(
-                        PrioridadeItem.CRITICA, ATIVOS, corteCriticosAntes48h),
+                        PrioridadeItem.CRITICA, ATIVOS, corteCriticos),
                 0L);
         List<ContadorPorTipo> topTipos = porTipo.stream()
                 .sorted(Comparator.comparingLong(ContadorPorTipo::total).reversed())
-                .limit(TOP_TIPOS_LIMIT)
+                .limit(properties.topTiposLimit())
                 .toList();
-        BigDecimal recebimentosHoje =
-                resiliente("recebimentosNoDia", () -> cobrancaQuery.recebimentosNoDia(hoje), BigDecimal.ZERO);
+        BigDecimal recebimentosHoje = resiliente(
+                "recebimentosNoIntervalo",
+                () -> cobrancaQuery.recebimentosNoIntervalo(inicioDia, fimDia),
+                BigDecimal.ZERO);
         InadimplenciaConsolidada inadimplencia =
                 resiliente("inadimplenciaTotal", cobrancaQuery::inadimplenciaTotal, InadimplenciaConsolidada.vazia());
         List<ContadorPorStatusProposta> propostasStatus =

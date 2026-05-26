@@ -41,7 +41,7 @@ class ConsultarVisaoConsolidadaUseCaseTest {
         cobranca = mock(DashboardCobrancaQueryPort.class);
         credito = mock(DashboardCreditoQueryPort.class);
         Clock clock = Clock.fixed(Instant.parse("2026-05-26T12:00:00Z"), ZoneOffset.UTC);
-        BackofficeDashboardProperties props = new BackofficeDashboardProperties("America/Sao_Paulo");
+        BackofficeDashboardProperties props = new BackofficeDashboardProperties("America/Sao_Paulo", 30, 48, 5);
         useCase = new ConsultarVisaoConsolidadaUseCase(itemRepo, cobranca, credito, props, clock);
     }
 
@@ -54,7 +54,7 @@ class ConsultarVisaoConsolidadaUseCaseTest {
         when(itemRepo.contarPorStatus()).thenReturn(List.of(new ContadorPorStatus(StatusItemFila.ABERTO, 7)));
         when(itemRepo.tempoMedioResolucaoSegundosDesde(any())).thenReturn(7200.0);
         when(itemRepo.countByPrioridadeAndStatusInAndDataAberturaBefore(any(), any(), any())).thenReturn(2L);
-        when(cobranca.recebimentosNoDia(any(LocalDate.class))).thenReturn(new BigDecimal("12345.67"));
+        when(cobranca.recebimentosNoIntervalo(any(), any())).thenReturn(new BigDecimal("12345.67"));
         when(cobranca.inadimplenciaTotal()).thenReturn(new InadimplenciaConsolidada(new BigDecimal("9000"), 3));
         when(credito.contagemPorStatus()).thenReturn(List.of(new ContadorPorStatusProposta("EM_ANALISE", 4)));
 
@@ -80,7 +80,7 @@ class ConsultarVisaoConsolidadaUseCaseTest {
         when(itemRepo.contarPorStatus()).thenReturn(List.of());
         when(itemRepo.tempoMedioResolucaoSegundosDesde(any())).thenReturn(null);
         when(itemRepo.countByPrioridadeAndStatusInAndDataAberturaBefore(any(), any(), any())).thenReturn(0L);
-        when(cobranca.recebimentosNoDia(any(LocalDate.class))).thenThrow(new RuntimeException("DB out"));
+        when(cobranca.recebimentosNoIntervalo(any(), any())).thenThrow(new RuntimeException("DB out"));
         when(cobranca.inadimplenciaTotal()).thenThrow(new RuntimeException("DB out"));
         when(credito.contagemPorStatus()).thenReturn(List.of());
 
@@ -105,7 +105,7 @@ class ConsultarVisaoConsolidadaUseCaseTest {
         when(itemRepo.contarPorStatus()).thenReturn(List.of());
         when(itemRepo.tempoMedioResolucaoSegundosDesde(any())).thenReturn(0.0);
         when(itemRepo.countByPrioridadeAndStatusInAndDataAberturaBefore(any(), any(), any())).thenReturn(0L);
-        when(cobranca.recebimentosNoDia(any(LocalDate.class))).thenReturn(BigDecimal.ZERO);
+        when(cobranca.recebimentosNoIntervalo(any(), any())).thenReturn(BigDecimal.ZERO);
         when(cobranca.inadimplenciaTotal()).thenReturn(InadimplenciaConsolidada.vazia());
         when(credito.contagemPorStatus()).thenReturn(List.of());
 
