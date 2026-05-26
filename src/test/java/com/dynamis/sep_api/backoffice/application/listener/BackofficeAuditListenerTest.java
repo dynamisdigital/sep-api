@@ -119,6 +119,23 @@ class BackofficeAuditListenerTest {
     }
 
     @Test
+    void guardDefensivo_truncaResumoMesmoQuandoEventoVemMaior() {
+        // fix review manual Task 14.8: defesa em profundidade. Se use case mudar e remover
+        // truncamento, listener garante que audit ainda nao vaza dado completo.
+        UUID itemId = UUID.randomUUID();
+        UUID autorId = UUID.randomUUID();
+        String resumoLongo = "x".repeat(200);
+        listener.aoRegistrarComentario(new ComentarioRegistradoEvent(itemId, UUID.randomUUID(), autorId, resumoLongo));
+
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+        verify(auditLog).gravar(org.mockito.ArgumentMatchers.eq(TipoEventoSeguranca.COMENTARIO_REGISTRADO),
+                org.mockito.ArgumentMatchers.eq(autorId), payload.capture());
+        // Truncado em 80 chars + "..."; nao deve conter o "xxx...xxx" inteiro de 200 chars
+        assertThat(payload.getValue()).doesNotContain("x".repeat(85));
+        assertThat(payload.getValue()).contains("...");
+    }
+
+    @Test
     void payload_naoCarregaDadosSensiveis() {
         // Defesa de sanitizacao: nenhum campo do listener serializa CPF/CNPJ/telefone/token.
         // Eventos do dominio carregam apenas UUIDs + resumos truncados pelos use cases.

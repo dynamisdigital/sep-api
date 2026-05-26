@@ -73,7 +73,7 @@ public class BackofficeAuditListener {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("itemId", event.itemId().toString());
         payload.put("comentarioId", event.comentarioId().toString());
-        payload.put("conteudoResumido", event.conteudoResumido());
+        payload.put("conteudoResumido", truncar(event.conteudoResumido()));
         auditLogService.gravar(
                 TipoEventoSeguranca.COMENTARIO_REGISTRADO, event.autorId(), serializar(payload, event.itemId()));
     }
@@ -83,7 +83,7 @@ public class BackofficeAuditListener {
     public void aoResolverItem(ItemResolvidoEvent event) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("itemId", event.itemId().toString());
-        payload.put("justificativaResumida", event.justificativaResumida());
+        payload.put("justificativaResumida", truncar(event.justificativaResumida()));
         auditLogService.gravar(
                 TipoEventoSeguranca.ITEM_RESOLVIDO, event.resolvidoPor(), serializar(payload, event.itemId()));
     }
@@ -93,7 +93,7 @@ public class BackofficeAuditListener {
     public void aoIgnorarItem(ItemIgnoradoEvent event) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("itemId", event.itemId().toString());
-        payload.put("justificativaResumida", event.justificativaResumida());
+        payload.put("justificativaResumida", truncar(event.justificativaResumida()));
         auditLogService.gravar(
                 TipoEventoSeguranca.ITEM_IGNORADO, event.ignoradoPor(), serializar(payload, event.itemId()));
     }
@@ -110,6 +110,20 @@ public class BackofficeAuditListener {
                 event.disparadoPor(),
                 serializar(payload, event.reprocessoId()));
     }
+
+    /**
+     * Defesa em profundidade (fix review manual Task 14.8): use cases ja truncam resumos em 80
+     * chars antes de publicar o evento, mas o listener nao confia no contrato upstream. Trunca
+     * novamente — se algum use case for refatorado e remover o truncamento, audit nao vaza.
+     */
+    private static String truncar(String texto) {
+        if (texto == null || texto.length() <= MAX_RESUMO_AUDIT) {
+            return texto;
+        }
+        return texto.substring(0, MAX_RESUMO_AUDIT) + "...";
+    }
+
+    private static final int MAX_RESUMO_AUDIT = 80;
 
     private String serializar(Map<String, Object> payload, UUID contexto) {
         try {
