@@ -46,7 +46,7 @@ class AssumirItemFilaUseCaseTest {
     @Test
     void happy_atribuiETransiciona() {
         ItemFilaOperacional item = novoItemAberto();
-        when(repository.findById(item.getId())).thenReturn(Optional.of(item));
+        when(repository.findByIdForUpdate(item.getId())).thenReturn(Optional.of(item));
         UUID operador = UUID.randomUUID();
 
         ItemFilaOperacional resultado = useCase.executar(item.getId(), operador);
@@ -59,7 +59,7 @@ class AssumirItemFilaUseCaseTest {
     @Test
     void naoEncontrado_lanca404() {
         UUID id = UUID.randomUUID();
-        when(repository.findById(id)).thenReturn(Optional.empty());
+        when(repository.findByIdForUpdate(id)).thenReturn(Optional.empty());
 
         assertThatExceptionOfType(ItemFilaNaoEncontradoException.class)
                 .isThrownBy(() -> useCase.executar(id, UUID.randomUUID()));
@@ -69,7 +69,7 @@ class AssumirItemFilaUseCaseTest {
     void transicaoInvalida_lanca409() {
         ItemFilaOperacional item = novoItemAberto();
         item.assumir(UUID.randomUUID());
-        when(repository.findById(item.getId())).thenReturn(Optional.of(item));
+        when(repository.findByIdForUpdate(item.getId())).thenReturn(Optional.of(item));
 
         assertThatExceptionOfType(TransicaoItemInvalidaException.class)
                 .isThrownBy(() -> useCase.executar(item.getId(), UUID.randomUUID()));

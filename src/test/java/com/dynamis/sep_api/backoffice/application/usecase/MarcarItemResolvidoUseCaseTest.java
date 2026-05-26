@@ -51,7 +51,7 @@ class MarcarItemResolvidoUseCaseTest {
     @Test
     void happy_transicionaPersisteJustificativa() {
         ItemFilaOperacional item = emTratamento();
-        when(itemRepo.findById(item.getId())).thenReturn(Optional.of(item));
+        when(itemRepo.findByIdForUpdate(item.getId())).thenReturn(Optional.of(item));
 
         ItemFilaOperacional resultado = useCase.executar(
                 item.getId(), UUID.randomUUID(), "Operador validou documentos manualmente");
@@ -70,7 +70,7 @@ class MarcarItemResolvidoUseCaseTest {
     @Test
     void itemNaoExiste_lanca404() {
         UUID id = UUID.randomUUID();
-        when(itemRepo.findById(id)).thenReturn(Optional.empty());
+        when(itemRepo.findByIdForUpdate(id)).thenReturn(Optional.empty());
 
         assertThatExceptionOfType(ItemFilaNaoEncontradoException.class)
                 .isThrownBy(() -> useCase.executar(id, UUID.randomUUID(), "Justificativa com mais de vinte caracteres"));
@@ -79,7 +79,7 @@ class MarcarItemResolvidoUseCaseTest {
     @Test
     void transicaoInvalidaQuandoNaoEstaEmTratamento_lanca409() {
         ItemFilaOperacional item = novoAberto();
-        when(itemRepo.findById(item.getId())).thenReturn(Optional.of(item));
+        when(itemRepo.findByIdForUpdate(item.getId())).thenReturn(Optional.of(item));
 
         assertThatExceptionOfType(TransicaoItemInvalidaException.class)
                 .isThrownBy(() -> useCase.executar(item.getId(), UUID.randomUUID(), "Justificativa com mais de vinte caracteres"));

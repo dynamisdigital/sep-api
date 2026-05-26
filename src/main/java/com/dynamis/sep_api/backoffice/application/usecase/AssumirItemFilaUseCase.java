@@ -33,7 +33,7 @@ public class AssumirItemFilaUseCase {
 
     @Transactional
     public ItemFilaOperacional executar(UUID itemId, UUID operadorId) {
-        ItemFilaOperacional item = repository.findById(itemId)
+        ItemFilaOperacional item = repository.findByIdForUpdate(itemId)
                 .orElseThrow(() -> new ItemFilaNaoEncontradoException(itemId));
         item.assumir(operadorId);
         ItemFilaOperacional salvo = repository.save(item);

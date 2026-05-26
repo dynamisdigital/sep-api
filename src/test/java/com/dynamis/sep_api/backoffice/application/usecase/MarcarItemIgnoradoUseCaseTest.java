@@ -50,7 +50,7 @@ class MarcarItemIgnoradoUseCaseTest {
     @Test
     void ignoraAPartirDeAberto() {
         ItemFilaOperacional item = novoAberto();
-        when(itemRepo.findById(item.getId())).thenReturn(Optional.of(item));
+        when(itemRepo.findByIdForUpdate(item.getId())).thenReturn(Optional.of(item));
 
         ItemFilaOperacional resultado = useCase.executar(
                 item.getId(), UUID.randomUUID(), "Onboarding ja resolvido manualmente fora do sistema");
@@ -63,7 +63,7 @@ class MarcarItemIgnoradoUseCaseTest {
     void ignoraAPartirDeEmTratamento() {
         ItemFilaOperacional item = novoAberto();
         item.assumir(UUID.randomUUID());
-        when(itemRepo.findById(item.getId())).thenReturn(Optional.of(item));
+        when(itemRepo.findByIdForUpdate(item.getId())).thenReturn(Optional.of(item));
 
         ItemFilaOperacional resultado = useCase.executar(
                 item.getId(), UUID.randomUUID(), "Justificativa adequada com mais de vinte caracteres");
@@ -76,7 +76,7 @@ class MarcarItemIgnoradoUseCaseTest {
         ItemFilaOperacional item = novoAberto();
         item.assumir(UUID.randomUUID());
         item.resolver(OffsetDateTime.now());
-        when(itemRepo.findById(item.getId())).thenReturn(Optional.of(item));
+        when(itemRepo.findByIdForUpdate(item.getId())).thenReturn(Optional.of(item));
 
         assertThatExceptionOfType(TransicaoItemInvalidaException.class)
                 .isThrownBy(() -> useCase.executar(item.getId(), UUID.randomUUID(), "Justificativa com tamanho minimo aceitavel"));

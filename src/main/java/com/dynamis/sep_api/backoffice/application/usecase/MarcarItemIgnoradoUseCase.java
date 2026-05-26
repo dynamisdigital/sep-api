@@ -48,7 +48,7 @@ public class MarcarItemIgnoradoUseCase {
         }
 
         ItemFilaOperacional item = itemRepository
-                .findById(itemId)
+                .findByIdForUpdate(itemId)
                 .orElseThrow(() -> new ItemFilaNaoEncontradoException(itemId));
 
         comentarioRepository.save(ComentarioInterno.registrar(itemId, operadorId, justificativa));
