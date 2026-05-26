@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Lembrete de pagamento</title>
+</head>
+<body>
+<p>Ola,</p>
+<p>Identificamos que a parcela <strong th:text="${numeroParcela}">N</strong> do seu contrato vence em
+    <strong th:text="${dataVencimento}">data</strong>.</p>
+<p>Valor a pagar: <strong th:text="${valor}">R$ 0,00</strong>.</p>
+<p>Caso ja tenha pago, por favor desconsidere esta mensagem. Em caso de duvida, entre em contato com o nosso atendimento.</p>
+<p>Atenciosamente,<br/>Equipe SEP</p>
+</body>
+</html>

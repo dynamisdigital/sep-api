@@ -23,6 +23,13 @@ management:
       exposure:
         include: "*" # em dev, expor todos para facilitar debug
 
+app:
+  # Sprint 13: WorkflowCobrancaSeeder e opt-in (matchIfMissing=false). Habilita aqui pra
+  # popular workflow_cobranca automaticamente no dev local. Em CI, env var
+  # APP_COBRANCA_WORKFLOW_SEED_HABILITADO=false sobrescreve quando profile=dev hita sep_test.
+  cobranca:
+    workflow-seed-habilitado: true
+
 logging:
   level:
     org.springframework.security: DEBUG

@@ -41,24 +41,29 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * Endpoints REST do modulo {@code cobranca} (Sprint 12 Task 12.6).
+ * Endpoints REST do modulo cobranca (Sprints 12 e 13).
  *
  * <ul>
- *   <li>{@code GET /api/v1/cobranca/contratos/{contratoId}/agenda} — owner ou FINANCEIRO/ADMIN
- *   <li>{@code GET /api/v1/cobranca/parcelas/{id}} — owner ou FINANCEIRO/ADMIN; retorna composicao
- *       atualizada com mora+multa pro-rata calculada contra {@code Clock} injetado
- *   <li>{@code POST /api/v1/cobranca/parcelas/{id}/recebimentos} — FINANCEIRO + Idempotency-Key
- *       obrigatorio
- *   <li>{@code GET /api/v1/cobranca/recebimentos} — FINANCEIRO; listagem ordenada
- *       por dataRecebimento DESC
+ *   <li>GET /api/v1/cobranca/contratos/{contratoId}/agenda - owner ou FINANCEIRO/ADMIN
+ *   <li>GET /api/v1/cobranca/parcelas/{id} - owner ou FINANCEIRO/ADMIN
+ *   <li>POST /api/v1/cobranca/parcelas/{id}/recebimentos - FINANCEIRO/ADMIN + Idempotency-Key
+ *   <li>GET /api/v1/cobranca/recebimentos - FINANCEIRO/ADMIN
+ *   <li>GET /api/v1/cobranca/inadimplencia - FINANCEIRO/ADMIN
+ *   <li>POST /api/v1/cobranca/parcelas/{id}/contato - FINANCEIRO/ADMIN
+ *   <li>POST /api/v1/cobranca/parcelas/{id}/renegociacao - FINANCEIRO/ADMIN + step-up
+ *   <li>PATCH /api/v1/cobranca/renegociacoes/{id}/aceite - tomador + step-up
+ *   <li>PATCH /api/v1/cobranca/renegociacoes/{id}/recusa - tomador
  * </ul>
  *
- * <p>Controller depende apenas dos use cases e da {@link ContratoCobrancaQueryPort} (ADR 0007):
- * cobranca nao conhece a persistencia do modulo {@code contratos}.
+ * <p>Controller depende apenas dos use cases e da porta ContratoCobrancaQueryPort (ADR 0007):
+ * cobranca nao conhece a persistencia do modulo contratos.
  */
 @RestController
 @RequestMapping("/api/v1/cobranca")
-@Tag(name = "cobranca", description = "Agenda de pagamento, parcelas, recebimentos e valores atualizados (Sprint 12).")
+@Tag(
+        name = "cobranca",
+        description =
+                "Agenda, parcelas, recebimentos, inadimplencia, eventos de cobranca e renegociacao (Sprints 12/13).")
 public class CobrancaController {
 
     /** Pattern conservador pra Idempotency-Key — recusa espacos, unicode, controle. */
@@ -70,6 +75,17 @@ public class CobrancaController {
     private final ConsultarRecebimentosUseCase consultarRecebimentosUseCase;
     private final ContratoCobrancaQueryPort contratoQueryPort;
     private final CobrancaWebMapper mapper;
+    // Sprint 13 Task 13.7: 5 endpoints novos (inadimplencia + renegociacao).
+    private final com.dynamis.sep_api.cobranca.application.usecase.ListarInadimplenciaUseCase
+            listarInadimplenciaUseCase;
+    private final com.dynamis.sep_api.cobranca.application.usecase.RegistrarContatoCobrancaUseCase
+            registrarContatoUseCase;
+    private final com.dynamis.sep_api.cobranca.application.usecase.IniciarRenegociacaoUseCase
+            iniciarRenegociacaoUseCase;
+    private final com.dynamis.sep_api.cobranca.application.usecase.AceitarRenegociacaoUseCase
+            aceitarRenegociacaoUseCase;
+    private final com.dynamis.sep_api.cobranca.application.usecase.RecusarRenegociacaoUseCase
+            recusarRenegociacaoUseCase;
 
     public CobrancaController(
             ConsultarAgendaPorContratoUseCase consultarAgendaUseCase,
@@ -77,13 +93,23 @@ public class CobrancaController {
             RegistrarRecebimentoUseCase registrarRecebimentoUseCase,
             ConsultarRecebimentosUseCase consultarRecebimentosUseCase,
             ContratoCobrancaQueryPort contratoQueryPort,
-            CobrancaWebMapper mapper) {
+            CobrancaWebMapper mapper,
+            com.dynamis.sep_api.cobranca.application.usecase.ListarInadimplenciaUseCase listarInadimplenciaUseCase,
+            com.dynamis.sep_api.cobranca.application.usecase.RegistrarContatoCobrancaUseCase registrarContatoUseCase,
+            com.dynamis.sep_api.cobranca.application.usecase.IniciarRenegociacaoUseCase iniciarRenegociacaoUseCase,
+            com.dynamis.sep_api.cobranca.application.usecase.AceitarRenegociacaoUseCase aceitarRenegociacaoUseCase,
+            com.dynamis.sep_api.cobranca.application.usecase.RecusarRenegociacaoUseCase recusarRenegociacaoUseCase) {
         this.consultarAgendaUseCase = consultarAgendaUseCase;
         this.calcularValorAtualizadoUseCase = calcularValorAtualizadoUseCase;
         this.registrarRecebimentoUseCase = registrarRecebimentoUseCase;
         this.consultarRecebimentosUseCase = consultarRecebimentosUseCase;
         this.contratoQueryPort = contratoQueryPort;
         this.mapper = mapper;
+        this.listarInadimplenciaUseCase = listarInadimplenciaUseCase;
+        this.registrarContatoUseCase = registrarContatoUseCase;
+        this.iniciarRenegociacaoUseCase = iniciarRenegociacaoUseCase;
+        this.aceitarRenegociacaoUseCase = aceitarRenegociacaoUseCase;
+        this.recusarRenegociacaoUseCase = recusarRenegociacaoUseCase;
     }
 
     @GetMapping("/contratos/{contratoId}/agenda")
@@ -250,7 +276,7 @@ public class CobrancaController {
     }
 
     /**
-     * Valida que a Idempotency-Key respeita {@code [A-Za-z0-9._-]{1,100}} — recusa espacos,
+     * Valida que a Idempotency-Key respeita o pattern [A-Za-z0-9._-]{1,100} — recusa espacos,
      * caracteres unicode/controle e strings longas demais que poderiam causar truncamento ou
      * comportamento divergente da UNIQUE constraint do DB.
      */
@@ -264,5 +290,145 @@ public class CobrancaController {
     private boolean operadorInterno(UsuarioAutenticado principal) {
         Role role = principal.role();
         return role == Role.ADMIN || role == Role.FINANCEIRO;
+    }
+
+    // ============================================================================
+    // Sprint 13 Task 13.7 — inadimplencia + renegociacao
+    // ============================================================================
+
+    @GetMapping("/inadimplencia")
+    @PreAuthorize("hasAnyRole('FINANCEIRO','ADMIN')")
+    @Operation(
+            summary = "Lista parcelas em inadimplencia",
+            description =
+                    "Triagem do backoffice/financeiro — parcelas ATRASADA ou INADIMPLENTE com filtros opcionais de dias de atraso.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Lista (pode estar vazia)."),
+        @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
+        @ApiResponse(responseCode = "403", description = "Sem role financeiro/admin.")
+    })
+    public ResponseEntity<List<com.dynamis.sep_api.cobranca.web.dto.InadimplenciaResponse>> listarInadimplencia(
+            @org.springframework.web.bind.annotation.RequestParam(value = "dias_atraso_min", required = false)
+                    Integer diasMin,
+            @org.springframework.web.bind.annotation.RequestParam(value = "dias_atraso_max", required = false)
+                    Integer diasMax,
+            @org.springframework.web.bind.annotation.RequestParam(value = "status", required = false)
+                    java.util.Set<com.dynamis.sep_api.cobranca.domain.vo.StatusParcela> statusFiltro) {
+        var filtro = new com.dynamis.sep_api.cobranca.application.usecase.ListarInadimplenciaUseCase.Filtro(
+                statusFiltro, diasMin, diasMax);
+        var linhas = listarInadimplenciaUseCase.listar(filtro);
+        var resposta = linhas.stream()
+                .map(l -> new com.dynamis.sep_api.cobranca.web.dto.InadimplenciaResponse(
+                        l.parcela().getId(),
+                        l.parcela().getAgenda().getId(),
+                        l.contratoId(),
+                        l.tomadorId(),
+                        l.parcela().getNumero(),
+                        l.parcela().getStatus(),
+                        l.parcela().getDataVencimento(),
+                        l.diasAtraso(),
+                        l.parcela().valorTotal()))
+                .toList();
+        return ResponseEntity.ok(resposta);
+    }
+
+    @PostMapping("/parcelas/{id}/contato")
+    @PreAuthorize("hasAnyRole('FINANCEIRO','ADMIN')")
+    @Operation(
+            summary = "Registra contato manual",
+            description =
+                    "Financeiro/admin registra contato com o tomador (telefonema, mensagem, presencial). Nao altera status da parcela.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "EventoCobranca criado."),
+        @ApiResponse(responseCode = "400", description = "Payload invalido."),
+        @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
+        @ApiResponse(responseCode = "403", description = "Sem role financeiro/admin."),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Parcela nao encontrada.",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<com.dynamis.sep_api.cobranca.web.dto.EventoCobrancaResponse> registrarContato(
+            @PathVariable UUID id,
+            @Valid @RequestBody com.dynamis.sep_api.cobranca.web.dto.RegistrarContatoRequest request,
+            @AuthenticationPrincipal UsuarioAutenticado principal) {
+        var evento = registrarContatoUseCase.executar(id, principal.id(), request.diasAtraso(), request.descricao());
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(com.dynamis.sep_api.cobranca.web.dto.EventoCobrancaResponse.from(evento));
+    }
+
+    @PostMapping("/parcelas/{id}/renegociacao")
+    @PreAuthorize("hasAnyRole('FINANCEIRO','ADMIN')")
+    @com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp
+    @Operation(
+            summary = "Propoe renegociacao",
+            description =
+                    "Financeiro/admin propoe nova condicao pra parcela atrasada/inadimplente. Exige step-up. Parcela vai pra EM_NEGOCIACAO; expira em 7 dias.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "Proposta criada."),
+        @ApiResponse(responseCode = "400", description = "Payload invalido."),
+        @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
+        @ApiResponse(responseCode = "403", description = "Sem role financeiro/admin ou step-up ausente."),
+        @ApiResponse(responseCode = "404", description = "Parcela nao encontrada."),
+        @ApiResponse(responseCode = "409", description = "Ja existe renegociacao ativa pra parcela.")
+    })
+    public ResponseEntity<com.dynamis.sep_api.cobranca.web.dto.RenegociacaoResponse> proporRenegociacao(
+            @PathVariable UUID id,
+            @Valid @RequestBody com.dynamis.sep_api.cobranca.web.dto.IniciarRenegociacaoRequest request,
+            @AuthenticationPrincipal UsuarioAutenticado principal) {
+        var renegociacao = iniciarRenegociacaoUseCase.executar(request.toCommand(id, principal.id()));
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(com.dynamis.sep_api.cobranca.web.dto.RenegociacaoResponse.from(renegociacao));
+    }
+
+    @org.springframework.web.bind.annotation.PatchMapping("/renegociacoes/{id}/aceite")
+    @PreAuthorize("isAuthenticated()")
+    @com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp
+    @Operation(
+            summary = "Aceita renegociacao",
+            description =
+                    "Tomador aceita a proposta. Exige ownership + step-up. Gera AgendaPagamento substituta; parcela vira RENEGOCIADA.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Renegociacao aceita."),
+        @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Owner invalido ou step-up ausente.",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(responseCode = "404", description = "Renegociacao nao encontrada."),
+        @ApiResponse(responseCode = "409", description = "Renegociacao ja decidida ou expirada.")
+    })
+    public ResponseEntity<com.dynamis.sep_api.cobranca.web.dto.RenegociacaoResponse> aceitarRenegociacao(
+            @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        var renegociacao = aceitarRenegociacaoUseCase.executar(id, principal.id());
+        return ResponseEntity.ok(com.dynamis.sep_api.cobranca.web.dto.RenegociacaoResponse.from(renegociacao));
+    }
+
+    /**
+     * Step-up assimetrico vs aceite (spec 13.6 — fix code review): recusa NAO gera obrigacao
+     * financeira nova; apenas reverte status. Aceite cria nova {@code AgendaPagamento} substituta
+     * com novas condicoes, entao exige confirmacao reforçada (step-up). Documentado aqui pra
+     * evitar drift entre spec e codigo.
+     */
+    @org.springframework.web.bind.annotation.PatchMapping("/renegociacoes/{id}/recusa")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Recusa renegociacao",
+            description =
+                    "Tomador recusa a proposta. Apenas ownership (sem step-up — recusa nao gera obrigacao financeira nova). Parcela volta ao status anterior (ATRASADA/INADIMPLENTE).")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Renegociacao recusada."),
+        @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Owner invalido.",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(responseCode = "404", description = "Renegociacao nao encontrada."),
+        @ApiResponse(responseCode = "409", description = "Renegociacao ja decidida ou expirada.")
+    })
+    public ResponseEntity<com.dynamis.sep_api.cobranca.web.dto.RenegociacaoResponse> recusarRenegociacao(
+            @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        var renegociacao = recusarRenegociacaoUseCase.executar(id, principal.id());
+        return ResponseEntity.ok(com.dynamis.sep_api.cobranca.web.dto.RenegociacaoResponse.from(renegociacao));
     }
 }

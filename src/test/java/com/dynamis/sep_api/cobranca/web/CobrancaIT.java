@@ -4,8 +4,10 @@ import com.dynamis.sep_api.cobranca.application.job.MarcarParcelaAtrasadaJob;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
 import com.dynamis.sep_api.cobranca.infrastructure.persistence.AgendaPagamentoRepository;
+import com.dynamis.sep_api.cobranca.infrastructure.persistence.EventoCobrancaRepository;
 import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
 import com.dynamis.sep_api.cobranca.infrastructure.persistence.RecebimentoRepository;
+import com.dynamis.sep_api.cobranca.infrastructure.persistence.RenegociacaoRepository;
 import com.dynamis.sep_api.contratos.domain.event.ContratoAssinadoEvent;
 import com.dynamis.sep_api.contratos.domain.model.Contrato;
 import com.dynamis.sep_api.contratos.domain.vo.TipoContrato;
@@ -89,6 +91,12 @@ class CobrancaIT {
     RecebimentoRepository recebimentoRepository;
 
     @Autowired
+    EventoCobrancaRepository eventoCobrancaRepository;
+
+    @Autowired
+    RenegociacaoRepository renegociacaoRepository;
+
+    @Autowired
     ContaEscrowRepository contaEscrowRepository;
 
     @Autowired
@@ -148,6 +156,10 @@ class CobrancaIT {
         }
         // Ordem FK-safe: filhos antes dos pais. Escrow tree separada da cobranca tree
         // (recebimento->parcela->agenda->contrato; movimentacao->wallet->conta).
+        // Sprint 13: evento_cobranca + renegociacao referenciam parcela/agenda. Limpar antes
+        // pra liberar cascade do agregado (agenda -> parcelas) sem violar FK.
+        renegociacaoRepository.deleteAll();
+        eventoCobrancaRepository.deleteAll();
         recebimentoRepository.deleteAll();
         movimentacaoEscrowRepository.deleteAll();
         walletRepository.deleteAll();

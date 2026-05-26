@@ -20,5 +20,22 @@ public interface ParcelaCobrancaRepository extends JpaRepository<ParcelaCobranca
 
     List<ParcelaCobranca> findByStatusAndDataVencimentoBefore(StatusParcela status, LocalDate dataLimite);
 
+    /**
+     * Sprint 13 fix review manual Task 13.9: variante com {@code JOIN FETCH agenda} pra resolver
+     * lazy load fora de transacao (usado pelo {@code EscaladorCobrancaJob}). Evita {@code
+     * @Transactional} outer que segurava locks do batch inteiro.
+     */
+    @Query(
+            "select p from ParcelaCobranca p join fetch p.agenda where p.status = :status and p.dataVencimento < :dataLimite")
+    List<ParcelaCobranca> findComAgendaByStatusAndDataVencimentoBefore(
+            @org.springframework.data.repository.query.Param("status") StatusParcela status,
+            @org.springframework.data.repository.query.Param("dataLimite") LocalDate dataLimite);
+
     List<ParcelaCobranca> findByAgenda_ContratoIdOrderByNumeroAsc(UUID contratoId);
+
+    /**
+     * Sprint 13 Task 13.7: listagem operacional pra GET /inadimplencia — filtra por conjunto
+     * de status (ATRASADA/INADIMPLENTE) ordenando por data de vencimento.
+     */
+    List<ParcelaCobranca> findByStatusInOrderByDataVencimentoAsc(java.util.Collection<StatusParcela> statuses);
 }

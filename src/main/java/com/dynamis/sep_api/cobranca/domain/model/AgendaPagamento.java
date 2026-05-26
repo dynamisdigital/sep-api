@@ -39,7 +39,7 @@ public class AgendaPagamento extends EntidadeAuditavel {
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "contrato_id", columnDefinition = "uuid", nullable = false, unique = true, updatable = false)
+    @Column(name = "contrato_id", columnDefinition = "uuid", nullable = false, updatable = false)
     private UUID contratoId;
 
     @Column(name = "numero_parcelas", nullable = false, updatable = false)
@@ -50,6 +50,12 @@ public class AgendaPagamento extends EntidadeAuditavel {
 
     @Column(name = "data_geracao", nullable = false, updatable = false)
     private OffsetDateTime dataGeracao;
+
+    @Column(name = "ativa", nullable = false)
+    private boolean ativa;
+
+    @Column(name = "agenda_substituida_id", columnDefinition = "uuid", updatable = false)
+    private UUID agendaSubstituidaId;
 
     @OneToMany(mappedBy = "agenda", cascade = CascadeType.ALL, orphanRemoval = false)
     @OrderBy("numero ASC")
@@ -64,6 +70,40 @@ public class AgendaPagamento extends EntidadeAuditavel {
         this.numeroParcelas = numeroParcelas;
         this.valorTotal = valorTotal;
         this.dataGeracao = dataGeracao;
+        this.ativa = true;
+        this.agendaSubstituidaId = null;
+    }
+
+    /**
+     * Marca esta agenda como substituida por outra (Sprint 13 Task 13.6 — renegociacao aceita).
+     * UNIQUE parcial WHERE ativa exige que esta seja inativada antes de persistir a substituta.
+     */
+    public void marcarSubstituida() {
+        if (!this.ativa) {
+            throw new IllegalStateException("agenda " + id + " ja esta inativa");
+        }
+        this.ativa = false;
+    }
+
+    /**
+     * Cria nova agenda substituta do mesmo contrato (Sprint 13 Task 13.6). A agenda anterior
+     * deve ter sido marcada via {@link #marcarSubstituida()} antes do save pra respeitar a
+     * unique parcial.
+     */
+    public static AgendaPagamento criarSubstituta(
+            UUID contratoId, UUID agendaSubstituidaId, List<ParcelaPlanejada> planejadas) {
+        Objects.requireNonNull(agendaSubstituidaId, "agendaSubstituidaId obrigatorio");
+        AgendaPagamento nova = criar(contratoId, planejadas);
+        nova.agendaSubstituidaId = agendaSubstituidaId;
+        return nova;
+    }
+
+    public boolean isAtiva() {
+        return ativa;
+    }
+
+    public UUID getAgendaSubstituidaId() {
+        return agendaSubstituidaId;
     }
 
     public static AgendaPagamento criar(UUID contratoId, List<ParcelaPlanejada> planejadas) {

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Parcela em atraso</title>
+</head>
+<body>
+<p>Ola,</p>
+<p>A parcela <strong th:text="${numeroParcela}">N</strong> do seu contrato esta em atraso ha
+    <strong th:text="${diasAtraso}">D</strong> dias.</p>
+<p>Regularize o pagamento o quanto antes pra evitar incidencia de encargos adicionais e a marcacao de
+    inadimplencia.</p>
+<p>Caso precise renegociar, responda esta mensagem ou entre em contato com nosso financeiro.</p>
+<p>Atenciosamente,<br/>Equipe SEP</p>
+</body>
+</html>
