@@ -10,6 +10,12 @@ import java.time.OffsetDateTime;
 /**
  * Conta reprocessos com mesmo {@code identificadorExterno} em janela de 24h (Sprint 14 Task 14.4).
  * Limite: 3 por entidade/24h — alem disso lanca {@link LimiteReprocessoExcedidoException} (429).
+ *
+ * <p>Risco residual conhecido (fix review manual Task 14.4): 2 threads concorrentes podem ler o
+ * mesmo {@code count} e ambas passar a validacao, permitindo um 4o reprocesso. Mitigacao real
+ * exigiria {@code pg_advisory_xact_lock} por identificador. Aceito como "best effort" pra
+ * Sprint 14 — operacao do backoffice tem poucos operadores e o limite eh defesa contra abuso,
+ * nao garantia matematica.
  */
 @Service
 public class AntiAbusoReprocessoService {

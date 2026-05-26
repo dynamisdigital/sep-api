@@ -20,6 +20,9 @@ import java.util.UUID;
  * Re-tenta chamada a provider externo (Sprint 14 Task 14.4). Dispatcher Strategy GoF escolhe a
  * implementacao por {@link TipoChamadaProvider}; tipo nao suportado eh
  * {@link UnsupportedOperationException} (mapeada para 400 em Task 14.7).
+ *
+ * <p>Ordem (fix code review Task 14.4): anti-abuso -&gt; adapter -&gt; criar Reprocesso ja com
+ * status final -&gt; salvar 1 vez -&gt; publicar event. Tudo na mesma tx outer.
  */
 @Service
 public class ReprocessarChamadaProviderUseCase {
@@ -47,10 +50,9 @@ public class ReprocessarChamadaProviderUseCase {
     public Reprocesso executar(TipoChamadaProvider tipo, UUID entidadeId, UUID disparadoPor, UUID itemId) {
         antiAbuso.validarLimite(entidadeId.toString());
 
-        Reprocesso reprocesso = reprocessoRepository.save(
-                Reprocesso.paraProvider(itemId, tipo, entidadeId, OffsetDateTime.now(clock), disparadoPor));
-
         ResultadoReprocesso resultado = providerReprocessador.reprocessar(tipo, entidadeId);
+
+        Reprocesso reprocesso = Reprocesso.paraProvider(itemId, tipo, entidadeId, OffsetDateTime.now(clock), disparadoPor);
         aplicarResultado(reprocesso, resultado);
         Reprocesso salvo = reprocessoRepository.save(reprocesso);
 

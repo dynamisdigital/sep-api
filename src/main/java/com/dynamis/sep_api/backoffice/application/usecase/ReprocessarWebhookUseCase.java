@@ -16,9 +16,12 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * Re-dispara processamento de evento da Outbox (Sprint 14 Task 14.4). Anti-abuso 3/24h aplicado
- * antes do disparo; resultado persistido em {@code reprocesso} + evento de audit publicado.
- * Step-up MFA aplicado na borda REST (Task 14.7).
+ * Re-dispara processamento de evento da Outbox (Sprint 14 Task 14.4).
+ *
+ * <p>Ordem (fix code review Task 14.4): anti-abuso -&gt; adapter -&gt; criar Reprocesso ja com
+ * status final -&gt; salvar 1 vez -&gt; publicar event. Tudo na mesma tx outer; se save falhar,
+ * rollback unificado tambem desfaz a marcacao do {@code WebhookEventLog} (adapter agora usa
+ * {@code @Transactional} padrao). Step-up MFA na borda REST (Task 14.7).
  */
 @Service
 public class ReprocessarWebhookUseCase {
@@ -46,10 +49,9 @@ public class ReprocessarWebhookUseCase {
     public Reprocesso executar(UUID webhookEventId, UUID disparadoPor, UUID itemId) {
         antiAbuso.validarLimite(webhookEventId.toString());
 
-        Reprocesso reprocesso = reprocessoRepository.save(
-                Reprocesso.paraWebhook(itemId, webhookEventId, OffsetDateTime.now(clock), disparadoPor));
-
         ResultadoReprocesso resultado = webhookReprocessador.reprocessar(webhookEventId);
+
+        Reprocesso reprocesso = Reprocesso.paraWebhook(itemId, webhookEventId, OffsetDateTime.now(clock), disparadoPor);
         aplicarResultado(reprocesso, resultado);
         Reprocesso salvo = reprocessoRepository.save(reprocesso);
 

@@ -8,7 +8,6 @@ import com.dynamis.sep_api.shared.infrastructure.persistence.WebhookEventLogRepo
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
@@ -42,7 +41,7 @@ public class WebhookReprocessadorAdapter implements WebhookReprocessadorPort {
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public ResultadoReprocesso reprocessar(UUID webhookEventId) {
         Optional<WebhookEventLog> opt = repository.findById(webhookEventId);
         if (opt.isEmpty()) {
