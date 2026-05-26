@@ -213,11 +213,18 @@ class BackofficeIT {
                 .statusCode(200)
                 .body("status", containsString("RESOLVIDO"));
 
-        // audit registrado
+        // audit registrado — 4 tipos exigidos pelo step (fix review Task 14.9)
         pollUntil(
-                () -> auditRepository.findAll().stream()
-                        .anyMatch(a -> a.getTipo() == TipoEventoSeguranca.ITEM_RESOLVIDO),
-                "audit ITEM_RESOLVIDO");
+                () -> {
+                    var tipos = auditRepository.findAll().stream()
+                            .map(a -> a.getTipo())
+                            .collect(java.util.stream.Collectors.toSet());
+                    return tipos.contains(TipoEventoSeguranca.ITEM_FILA_CRIADO)
+                            && tipos.contains(TipoEventoSeguranca.ITEM_ASSUMIDO)
+                            && tipos.contains(TipoEventoSeguranca.COMENTARIO_REGISTRADO)
+                            && tipos.contains(TipoEventoSeguranca.ITEM_RESOLVIDO);
+                },
+                "audit 4 tipos do happy path");
     }
 
     @Test
@@ -272,14 +279,36 @@ class BackofficeIT {
     void dashboard_retornaMetricasConsolidadas() {
         Autenticado op = criarELogar(Role.BACKOFFICE, false);
 
+        // Popula massa minima: 2 itens via eventos (REPROVADO e PENDENCIA) — fix review Task 14.9
+        publicarEventoEmTx(new OnboardingFinalizadoEvent(
+                UUID.randomUUID(), UUID.randomUUID(), StatusOnboarding.REPROVADO, "ext-d-1"));
+        publicarEventoEmTx(new OnboardingFinalizadoEvent(
+                UUID.randomUUID(), UUID.randomUUID(), StatusOnboarding.PENDENCIA, "ext-d-2"));
+        pollUntil(() -> itemRepository.count() == 2, "2 itens criados pra dashboard");
+
         RestAssured.given()
                 .header("Authorization", "Bearer " + op.token())
                 .when()
                 .get("/api/v1/backoffice/dashboard")
                 .then()
                 .statusCode(200)
+                // estrutura completa — todos os campos do DashboardBackoffice present
                 .body("geradoEm", org.hamcrest.Matchers.notNullValue())
-                .body("contadoresPorTipo", org.hamcrest.Matchers.notNullValue());
+                .body("contadoresPorTipo", org.hamcrest.Matchers.notNullValue())
+                .body("contadoresPorPrioridade", org.hamcrest.Matchers.notNullValue())
+                .body("contadoresPorStatus", org.hamcrest.Matchers.notNullValue())
+                .body("tempoMedioResolucao30d", org.hamcrest.Matchers.notNullValue())
+                .body("itensCriticosAbertosMais48h", org.hamcrest.Matchers.notNullValue())
+                .body("topCincoTiposMaisFrequentes", org.hamcrest.Matchers.notNullValue())
+                .body("recebimentosDoDia", org.hamcrest.Matchers.notNullValue())
+                .body("inadimplenciaTotal", org.hamcrest.Matchers.notNullValue())
+                .body("inadimplenciaTotal.valorTotal", org.hamcrest.Matchers.notNullValue())
+                .body("inadimplenciaTotal.numeroParcelas", org.hamcrest.Matchers.notNullValue())
+                .body("propostasPorStatus", org.hamcrest.Matchers.notNullValue())
+                // metricas refletem a massa criada — 2 itens, prioridades ALTA+MEDIA
+                .body("contadoresPorTipo.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(2))
+                .body("contadoresPorPrioridade.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(2))
+                .body("contadoresPorStatus.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(1));
     }
 
     @Test

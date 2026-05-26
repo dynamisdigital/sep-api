@@ -132,6 +132,11 @@ class ReprocessoIT {
         var r = reprocessoRepository.findAll().get(0);
         assertThat(r.getStatus()).isEqualTo(StatusReprocesso.SUCESSO);
         assertThat(r.getIdentificadorExterno()).isEqualTo(webhookId.toString());
+
+        // Outbox atualizada (fix review Task 14.9): adapter chama marcarProcessado
+        var webhookLog = webhookRepository.findById(webhookId).orElseThrow();
+        assertThat(webhookLog.getStatus())
+                .isEqualTo(com.dynamis.sep_api.shared.domain.model.WebhookEventStatus.PROCESSADO);
     }
 
     @Test
