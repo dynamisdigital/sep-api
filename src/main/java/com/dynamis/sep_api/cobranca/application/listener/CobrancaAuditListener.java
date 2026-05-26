@@ -1,9 +1,15 @@
 package com.dynamis.sep_api.cobranca.application.listener;
 
 import com.dynamis.sep_api.cobranca.domain.event.AgendaGeradaEvent;
+import com.dynamis.sep_api.cobranca.domain.event.EventoCobrancaRegistradoEvent;
 import com.dynamis.sep_api.cobranca.domain.event.ParcelaAtrasouEvent;
+import com.dynamis.sep_api.cobranca.domain.event.ParcelaInadimplenteEvent;
 import com.dynamis.sep_api.cobranca.domain.event.ParcelaPagaEvent;
 import com.dynamis.sep_api.cobranca.domain.event.RecebimentoRegistradoEvent;
+import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoAceitaEvent;
+import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoExpiradaEvent;
+import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoPropostaEvent;
+import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoRecusadaEvent;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.infrastructure.persistence.AgendaPagamentoRepository;
@@ -127,6 +133,116 @@ public class CobrancaAuditListener {
         }
         auditLogService.gravar(
                 TipoEventoSeguranca.MOVIMENTACAO_ESCROW_CRIADA, null, serializar(payload, event.movimentacaoId()));
+    }
+
+    // ============================================================================
+    // Sprint 13 Task 13.8 — inadimplencia + renegociacao
+    // ============================================================================
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoRegistrarEventoCobranca(EventoCobrancaRegistradoEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("eventoId", event.eventoId().toString());
+        payload.put("parcelaId", event.parcelaId().toString());
+        payload.put("tipo", event.tipo().name());
+        // Fix review manual Task 13.8: status/canal/template carregam contexto suficiente pra
+        // discriminar tentativa entregue de tentativa frustrada (FALHA), sem vazar corpo de
+        // mensagem nem dados pessoais (canal/template sao nomes tecnicos curtos —
+        // ex.: EMAIL, "cobranca-amigavel").
+        if (event.status() != null) {
+            payload.put("status", event.status().name());
+        }
+        if (event.canal() != null) {
+            payload.put("canal", event.canal().name());
+        }
+        if (event.template() != null) {
+            payload.put("template", event.template());
+        }
+        if (event.diasAtraso() != null) {
+            payload.put("diasAtraso", event.diasAtraso());
+        }
+        // LGPD: descricao de contato manual e corpo da mensagem ficam em EventoCobranca; templates
+        // sao auditados/revisados (sem CPF/CNPJ/telefone/email/agencia/conta).
+        // Discrimina NOTIFICACAO_AUTOMATICA -> NOTIFICACAO_ENVIADA pra distinguir entrega
+        // (sucesso ou falha) de outros eventos operacionais (mudanca de estado, contato manual).
+        TipoEventoSeguranca tipoAudit =
+                event.tipo() == com.dynamis.sep_api.cobranca.domain.vo.TipoEventoCobranca.NOTIFICACAO_AUTOMATICA
+                        ? TipoEventoSeguranca.NOTIFICACAO_ENVIADA
+                        : TipoEventoSeguranca.EVENTO_COBRANCA_REGISTRADO;
+        auditLogService.gravar(tipoAudit, event.registradoPor(), serializar(payload, event.eventoId()));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoMarcarInadimplente(ParcelaInadimplenteEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("parcelaId", event.parcelaId().toString());
+        payload.put("agendaId", event.agendaId().toString());
+        payload.put("contratoId", event.contratoId().toString());
+        payload.put("numero", event.numero());
+        payload.put("dataVencimento", event.dataVencimento().toString());
+        payload.put("diasAtraso", event.diasAtraso());
+        if (event.tomadorId() != null) {
+            payload.put("tomadorId", event.tomadorId().toString());
+        }
+        // Fix code review Task 13.8: actor=null porque eh job automatico
+        // (MarcarParcelaInadimplenteJob), nao o tomador. tomadorId vai pro payload pra rastreio
+        // sem confundir accountability. Coerente com PARCELA_ATRASADA (tambem job sem actor).
+        auditLogService.gravar(TipoEventoSeguranca.PARCELA_INADIMPLENTE, null, serializar(payload, event.parcelaId()));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoProporRenegociacao(RenegociacaoPropostaEvent event) {
+        // LGPD: justificativa (1000 chars potencialmente livre) NAO entra no audit; fica apenas
+        // na entidade Renegociacao com acesso restrito ao backoffice.
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("renegociacaoId", event.renegociacaoId().toString());
+        payload.put("parcelaOriginalId", event.parcelaOriginalId().toString());
+        auditLogService.gravar(
+                TipoEventoSeguranca.RENEGOCIACAO_PROPOSTA,
+                event.propostaPor(),
+                serializar(payload, event.renegociacaoId()));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoAceitarRenegociacao(RenegociacaoAceitaEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("renegociacaoId", event.renegociacaoId().toString());
+        payload.put("parcelaOriginalId", event.parcelaOriginalId().toString());
+        payload.put("agendaOriginalId", event.agendaOriginalId().toString());
+        payload.put("agendaSubstitutaId", event.agendaSubstitutaId().toString());
+        auditLogService.gravar(
+                TipoEventoSeguranca.RENEGOCIACAO_ACEITA,
+                event.tomadorId(),
+                serializar(payload, event.renegociacaoId()));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoRecusarRenegociacao(RenegociacaoRecusadaEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("renegociacaoId", event.renegociacaoId().toString());
+        payload.put("parcelaOriginalId", event.parcelaOriginalId().toString());
+        payload.put("statusParcelaRevertido", event.statusParcelaRevertido().name());
+        auditLogService.gravar(
+                TipoEventoSeguranca.RENEGOCIACAO_RECUSADA,
+                event.tomadorId(),
+                serializar(payload, event.renegociacaoId()));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoExpirarRenegociacao(RenegociacaoExpiradaEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("renegociacaoId", event.renegociacaoId().toString());
+        payload.put("parcelaOriginalId", event.parcelaOriginalId().toString());
+        payload.put("statusParcelaRevertido", event.statusParcelaRevertido().name());
+        // actor=null — job automatico (sem usuario).
+        auditLogService.gravar(
+                TipoEventoSeguranca.RENEGOCIACAO_EXPIRADA, null, serializar(payload, event.renegociacaoId()));
     }
 
     private void registrarParcelasCriadas(AgendaPagamento agenda, AgendaGeradaEvent event) {

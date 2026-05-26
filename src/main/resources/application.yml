@@ -129,6 +129,49 @@ app:
       access-token: ${APP_CLICKSIGN_ACCESS_TOKEN:}
       webhook:
         hmac-secret: ${APP_WEBHOOK_SECRET_CLICKSIGN:dev-clicksign-webhook-secret-change-me}
+  cobranca:
+    # Email do time financeiro pra copia de comunicacao final de inadimplencia
+    # (Sprint 13 Task 13.5 — fix review manual). Vazio = nao envia copia.
+    financeiro-email: ${APP_COBRANCA_FINANCEIRO_EMAIL:}
+    # Workflow default de cobranca (Sprint 13 Task 13.4). Etapas por dia de atraso —
+    # `EscalarCobrancaUseCase` casa o numero de dias e dispara as notificacoes correspondentes.
+    # Flags operacionais: `flag-contato-manual` sinaliza para o backoffice; `escalonar-backoffice`
+    # publica evento pra fila operacional; `marcar-inadimplente` informa que o `MarcarParcelaInadimplenteJob`
+    # (Task 13.5) eh quem efetiva a transicao 90+ dias.
+    workflow:
+      dias-atraso:
+        - dia: 0
+          notificacoes: [email-amigavel]
+        - dia: 5
+          notificacoes: [email-amigavel, sms-lembrete]
+        - dia: 15
+          notificacoes: [email-firme, sms-firme]
+        - dia: 30
+          notificacoes: [email-firme, sms-firme]
+          flag-contato-manual: true
+        - dia: 60
+          notificacoes: [email-final]
+          escalonar-backoffice: true
+        - dia: 90
+          notificacoes: [email-final, sms-firme]
+          marcar-inadimplente: true
+  notificacoes:
+    # Provider de envio (Sprint 13 - ADR 0014). `log` registra metadados sem enviar
+    # nada externo e eh default seguro. `smtp-zenvia` ativa email SMTP + SMS Zenvia.
+    provider: ${APP_NOTIFICACOES_PROVIDER:log}
+    # Default `no-reply@sep.local` eh sentinela nao-roteavel pra evitar envio
+    # acidental em dev/test caso provider=smtp-zenvia vaze sem APP_NOTIFICACOES_*
+    # configurado. Prod sobrescreve via APP_NOTIFICACOES_REMETENTE_EMAIL.
+    remetente-email: ${APP_NOTIFICACOES_REMETENTE_EMAIL:no-reply@sep.local}
+    # Env vars seguem prefixo APP_NOTIFICACOES_ZENVIA_* (alinhado a APP_CELCOIN_*
+    # e APP_CLICKSIGN_*) — uniformiza precedence parsing entre adapters.
+    zenvia:
+      base-url: ${APP_NOTIFICACOES_ZENVIA_BASE_URL:https://api.zenvia.com}
+      # Token vazio por default — adapter valida isBlank() ao bootar com
+      # provider=smtp-zenvia e falha rapido em prod sem credencial.
+      api-token: ${APP_NOTIFICACOES_ZENVIA_API_TOKEN:}
+      from: ${APP_NOTIFICACOES_ZENVIA_FROM:SEP}
+      timeout-ms: ${APP_NOTIFICACOES_ZENVIA_TIMEOUT_MS:5000}
   celcoin:
     kyc:
       base-url: ${APP_CELCOIN_KYC_BASE_URL:https://sandbox.openfinance.celcoin.dev/onboarding/v1}
@@ -193,6 +236,8 @@ resilience4j:
         baseConfig: default
       clicksign-assinatura:
         baseConfig: default
+      zenvia-sms:
+        baseConfig: default
   retry:
     configs:
       default:
@@ -238,6 +283,13 @@ resilience4j:
         # AssinaturaProviderHttpException eh a traducao de 4xx/5xx do adapter. Como Resilience4j
         # nao tem predicate via YAML, retry vai disparar tambem em 4xx — aceito pra MVP da Sprint
         # 11; ajuste com predicate Java (RetryConfig.retryOnException) fica como follow-up.
+      zenvia-sms:
+        maxAttempts: 3
+        waitDuration: 500ms
+        retryExceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
   timelimiter:
     configs:
       default:
@@ -252,6 +304,8 @@ resilience4j:
       celcoin-open-finance:
         timeoutDuration: 30s
       clicksign-assinatura:
+        timeoutDuration: 30s
+      zenvia-sms:
         timeoutDuration: 30s
   ratelimiter:
     configs:

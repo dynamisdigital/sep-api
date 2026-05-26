@@ -103,6 +103,36 @@ class AgendaPagamentoRepositoryTest {
         assertThat(agendaRepository.findByContratoId(UUID.randomUUID())).isEmpty();
     }
 
+    @Test
+    void agendaSubstituta_apenasUmaAtivaPorContrato() {
+        // Sprint 13 Task 13.6 fix review manual: UNIQUE parcial WHERE ativa=true permite
+        // multiplas agendas no historico desde que apenas uma esteja ativa por contrato.
+        AgendaPagamento original = agendaRepository.saveAndFlush(AgendaPagamento.criar(contratoId, planejadasDe(2)));
+        original.marcarSubstituida();
+        agendaRepository.saveAndFlush(original);
+
+        AgendaPagamento substituta = AgendaPagamento.criarSubstituta(contratoId, original.getId(), planejadasDe(3));
+        AgendaPagamento salva = agendaRepository.saveAndFlush(substituta);
+
+        assertThat(salva.getAgendaSubstituidaId()).isEqualTo(original.getId());
+        assertThat(salva.isAtiva()).isTrue();
+        AgendaPagamento ativa =
+                agendaRepository.findByContratoIdAndAtivaTrue(contratoId).orElseThrow();
+        assertThat(ativa.getId()).isEqualTo(salva.getId());
+        // Historico preservado: total 2 agendas no banco.
+        assertThat(agendaRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void agendaSubstituta_semInativarAnterior_falhaPorUniqueParcial() {
+        agendaRepository.saveAndFlush(AgendaPagamento.criar(contratoId, planejadasDe(2)));
+        AgendaPagamento substitutaSemInativar =
+                AgendaPagamento.criarSubstituta(contratoId, UUID.randomUUID(), planejadasDe(2));
+
+        assertThatThrownBy(() -> agendaRepository.saveAndFlush(substitutaSemInativar))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     private static List<ParcelaPlanejada> planejadasDe(int qtd) {
         return java.util.stream.IntStream.rangeClosed(1, qtd)
                 .mapToObj(i -> new ParcelaPlanejada(

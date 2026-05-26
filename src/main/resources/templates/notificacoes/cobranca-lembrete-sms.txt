@@ -1,0 +1,1 @@
+SEP: parcela [(${numeroParcela})] vence em [(${dataVencimento})]. Valor [(${valor})]. Em caso de duvida, fale com nosso atendimento.
