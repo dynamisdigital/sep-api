@@ -140,7 +140,7 @@ class ReprocessoIT {
         UUID webhookId = criarWebhookOutbox();
         String token = emitirStepUp(op.id());
 
-        // 3 reprocessos OK (limite eh 3); cada chamada usa step-up token novo.
+        // 3 reprocessos sequenciais (single-thread) — todos esperados em 201 (fix review Task 14.9).
         for (int i = 1; i <= 3; i++) {
             RestAssured.given()
                     .header("Authorization", "Bearer " + op.token())
@@ -150,7 +150,7 @@ class ReprocessoIT {
                     .when()
                     .post("/api/v1/backoffice/reprocessos/webhook/{id}", webhookId)
                     .then()
-                    .statusCode(org.hamcrest.Matchers.anyOf(org.hamcrest.Matchers.is(201), org.hamcrest.Matchers.is(429)));
+                    .statusCode(201);
         }
 
         // 4o reprocesso -> 429 garantido

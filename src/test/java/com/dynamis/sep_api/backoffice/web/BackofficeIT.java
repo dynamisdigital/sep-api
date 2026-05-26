@@ -291,13 +291,21 @@ class BackofficeIT {
         publicarEventoEmTx(ev);
         pollUntil(() -> itemRepository.count() == 1, "primeiro item criado");
 
+        // 2o evento — listener vai disparar mas criarSeAusente retorna empty (nao cria nem
+        // publica audit). Sem sinal positivo a aguardar; usa pollUntil invertido garantindo
+        // que count nunca cresceu acima de 1 em 1.5s (fix review Task 14.9 — substitui sleep
+        // direto por barreira ativa de assertion).
         publicarEventoEmTx(ev);
-        try {
-            Thread.sleep(500);
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
+        long deadline = System.currentTimeMillis() + 1500L;
+        while (System.currentTimeMillis() < deadline) {
+            assertThat(itemRepository.count()).isEqualTo(1);
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(ie);
+            }
         }
-
         assertThat(itemRepository.count()).isEqualTo(1);
     }
 }
