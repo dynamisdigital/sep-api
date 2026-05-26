@@ -31,7 +31,11 @@ class WorkflowCobrancaRepositoryTest {
 
     @BeforeEach
     void setup() {
-        repo.deleteAll();
+        // deleteAllInBatch emite DELETE imediato em vez de enfileirar no ActionQueue do Hibernate.
+        // Necessario porque saveAndFlush no teste ordena INSERTs antes de DELETEs no mesmo flush —
+        // em CI onde testes @ActiveProfiles("dev") commitam rows via Seeder no mesmo banco sep_test,
+        // o INSERT colidiria com a UNIQUE parcial antes do DELETE chegar ao banco.
+        repo.deleteAllInBatch();
     }
 
     @Test

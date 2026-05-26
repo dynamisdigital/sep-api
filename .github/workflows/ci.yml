@@ -64,6 +64,10 @@ jobs:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/sep_test
           SPRING_DATASOURCE_USERNAME: sep
           SPRING_DATASOURCE_PASSWORD: sep
+          # Sprint 13: profile=dev tests em CI hitam sep_test (URL override acima).
+          # Desabilita WorkflowCobrancaSeeder pra nao poluir sep_test e colidir
+          # com UNIQUE parcial de WorkflowCobrancaRepositoryTest.
+          APP_COBRANCA_WORKFLOW_SEED_HABILITADO: 'false'
 
       - name: JaCoCo report
         if: always()

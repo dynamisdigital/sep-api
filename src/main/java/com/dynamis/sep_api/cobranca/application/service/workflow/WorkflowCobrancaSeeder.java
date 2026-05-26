@@ -22,10 +22,12 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Idempotente: so popula se nao houver etapa ativa para o nome {@code default}. Em testes que
  * limpam o banco entre execucoes, re-popula automaticamente.
  *
- * <p>Pode ser desligado via {@code app.cobranca.workflow-seed-habilitado=false}.
+ * <p>Opt-in explicito via {@code app.cobranca.workflow-seed-habilitado=true}. Profiles devem
+ * habilitar quando precisarem do seed inicial (ex.: dev local em {@code application-dev.yml});
+ * profiles de teste e prod ficam off por default para nao poluir bancos compartilhados.
  */
 @Component
-@ConditionalOnProperty(name = "app.cobranca.workflow-seed-habilitado", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "app.cobranca.workflow-seed-habilitado", havingValue = "true")
 public class WorkflowCobrancaSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(WorkflowCobrancaSeeder.class);
