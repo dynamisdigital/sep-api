@@ -44,6 +44,20 @@ class ItemFilaOperacionalTest {
     }
 
     @Test
+    void abrir_descricaoAcima4000_lanca() {
+        String longa = "x".repeat(4001);
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> ItemFilaOperacional.abrir(
+                        TipoItemFila.OUTRO,
+                        PrioridadeItem.BAIXA,
+                        TipoEntidadeReferenciada.OUTRO,
+                        UUID.randomUUID(),
+                        "titulo",
+                        longa,
+                        AGORA));
+    }
+
+    @Test
     void abrir_tituloAcima255_lanca() {
         String longo = "x".repeat(256);
         assertThatIllegalArgumentException()

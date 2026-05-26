@@ -41,7 +41,7 @@ public class ItemFilaOperacional extends EntidadeAuditavel {
     private TipoItemFila tipo;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "prioridade", nullable = false, length = 20)
+    @Column(name = "prioridade", nullable = false, length = 20, updatable = false)
     private PrioridadeItem prioridade;
 
     @Enumerated(EnumType.STRING)
@@ -108,6 +108,9 @@ public class ItemFilaOperacional extends EntidadeAuditavel {
         if (titulo.length() > 255) {
             throw new IllegalArgumentException("titulo nao pode exceder 255 caracteres");
         }
+        if (descricao != null && descricao.length() > 4000) {
+            throw new IllegalArgumentException("descricao nao pode exceder 4000 caracteres");
+        }
         Objects.requireNonNull(dataAbertura, "dataAbertura obrigatoria");
         return new ItemFilaOperacional(
                 Generators.timeBasedReorderedGenerator().generate(),
@@ -123,8 +126,8 @@ public class ItemFilaOperacional extends EntidadeAuditavel {
     public void assumir(UUID operadorId) {
         Objects.requireNonNull(operadorId, "operadorId obrigatorio");
         exigirTransicao(StatusItemFila.EM_TRATAMENTO, this.status::permiteAssumir);
-        this.atribuidoA = operadorId;
         this.status = StatusItemFila.EM_TRATAMENTO;
+        this.atribuidoA = operadorId;
     }
 
     public void resolver(OffsetDateTime resolvidoEm) {
