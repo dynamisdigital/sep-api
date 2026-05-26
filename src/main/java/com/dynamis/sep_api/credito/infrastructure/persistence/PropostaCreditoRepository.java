@@ -46,4 +46,14 @@ public interface PropostaCreditoRepository extends JpaRepository<PropostaCredito
      * propostas paradas em analise alem do threshold operacional (default 24h).
      */
     List<PropostaCredito> findByStatusAndDataModificacaoBefore(StatusProposta status, OffsetDateTime corte);
+
+    /** Agregacao para dashboard do backoffice (Sprint 14 Task 14.5). */
+    @Query("select p.status as status, count(p) as total from PropostaCredito p group by p.status")
+    List<StatusContagemView> contarPorStatus();
+
+    interface StatusContagemView {
+        StatusProposta getStatus();
+
+        long getTotal();
+    }
 }
