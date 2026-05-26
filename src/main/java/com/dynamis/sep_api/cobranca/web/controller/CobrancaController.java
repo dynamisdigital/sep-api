@@ -41,24 +41,29 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * Endpoints REST do modulo {@code cobranca} (Sprint 12 Task 12.6).
+ * Endpoints REST do modulo cobranca (Sprints 12 e 13).
  *
  * <ul>
- *   <li>{@code GET /api/v1/cobranca/contratos/{contratoId}/agenda} — owner ou FINANCEIRO/ADMIN
- *   <li>{@code GET /api/v1/cobranca/parcelas/{id}} — owner ou FINANCEIRO/ADMIN; retorna composicao
- *       atualizada com mora+multa pro-rata calculada contra {@code Clock} injetado
- *   <li>{@code POST /api/v1/cobranca/parcelas/{id}/recebimentos} — FINANCEIRO + Idempotency-Key
- *       obrigatorio
- *   <li>{@code GET /api/v1/cobranca/recebimentos} — FINANCEIRO; listagem ordenada
- *       por dataRecebimento DESC
+ *   <li>GET /api/v1/cobranca/contratos/{contratoId}/agenda - owner ou FINANCEIRO/ADMIN
+ *   <li>GET /api/v1/cobranca/parcelas/{id} - owner ou FINANCEIRO/ADMIN
+ *   <li>POST /api/v1/cobranca/parcelas/{id}/recebimentos - FINANCEIRO/ADMIN + Idempotency-Key
+ *   <li>GET /api/v1/cobranca/recebimentos - FINANCEIRO/ADMIN
+ *   <li>GET /api/v1/cobranca/inadimplencia - FINANCEIRO/ADMIN
+ *   <li>POST /api/v1/cobranca/parcelas/{id}/contato - FINANCEIRO/ADMIN
+ *   <li>POST /api/v1/cobranca/parcelas/{id}/renegociacao - FINANCEIRO/ADMIN + step-up
+ *   <li>PATCH /api/v1/cobranca/renegociacoes/{id}/aceite - tomador + step-up
+ *   <li>PATCH /api/v1/cobranca/renegociacoes/{id}/recusa - tomador
  * </ul>
  *
- * <p>Controller depende apenas dos use cases e da {@link ContratoCobrancaQueryPort} (ADR 0007):
- * cobranca nao conhece a persistencia do modulo {@code contratos}.
+ * <p>Controller depende apenas dos use cases e da porta ContratoCobrancaQueryPort (ADR 0007):
+ * cobranca nao conhece a persistencia do modulo contratos.
  */
 @RestController
 @RequestMapping("/api/v1/cobranca")
-@Tag(name = "cobranca", description = "Agenda de pagamento, parcelas, recebimentos e valores atualizados (Sprint 12).")
+@Tag(
+        name = "cobranca",
+        description =
+                "Agenda, parcelas, recebimentos, inadimplencia, eventos de cobranca e renegociacao (Sprints 12/13).")
 public class CobrancaController {
 
     /** Pattern conservador pra Idempotency-Key — recusa espacos, unicode, controle. */
@@ -271,7 +276,7 @@ public class CobrancaController {
     }
 
     /**
-     * Valida que a Idempotency-Key respeita {@code [A-Za-z0-9._-]{1,100}} — recusa espacos,
+     * Valida que a Idempotency-Key respeita o pattern [A-Za-z0-9._-]{1,100} — recusa espacos,
      * caracteres unicode/controle e strings longas demais que poderiam causar truncamento ou
      * comportamento divergente da UNIQUE constraint do DB.
      */
