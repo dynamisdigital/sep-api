@@ -155,21 +155,12 @@ public class ProcessarWebhookAssinaturaUseCase {
         };
     }
 
-    private static final int PAYLOAD_RESUMO_MAX = 1000;
-
-    /**
-     * Trunca payload em {@value #PAYLOAD_RESUMO_MAX} chars pra evitar inflar o audit. Sprint 15
-     * — 15F-017: quando trunca, append sufixo `...[TRUNCATED:<len_original>]` pra preservar
-     * trilha auditavel do tamanho original. Mantem retro-compat: payloads <= max nao mudam.
-     */
     private static String truncarPayload(String payload) {
         if (payload == null) {
             return null;
         }
-        if (payload.length() <= PAYLOAD_RESUMO_MAX) {
-            return payload;
-        }
-        return payload.substring(0, PAYLOAD_RESUMO_MAX) + "...[TRUNCATED:" + payload.length() + "]";
+        int max = 1000;
+        return payload.length() > max ? payload.substring(0, max) : payload;
     }
 
     private static boolean isBlank(String value) {
