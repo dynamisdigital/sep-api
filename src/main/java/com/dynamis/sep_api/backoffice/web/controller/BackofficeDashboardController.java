@@ -29,11 +29,13 @@ public class BackofficeDashboardController {
     }
 
     @GetMapping
-    @Operation(summary = "Dashboard consolidado da operacao de backoffice")
+    @Operation(
+            summary = "Dashboard consolidado da operacao de backoffice",
+            description = "Roles aceitas: FINANCEIRO, BACKOFFICE ou ADMIN.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Snapshot retornado."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(responseCode = "403", description = "Sem role autorizada.")
+        @ApiResponse(responseCode = "403", description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN.")
     })
     public ResponseEntity<DashboardResponse> consultar() {
         DashboardResponse body = DashboardResponse.from(consultarVisao.consultar());

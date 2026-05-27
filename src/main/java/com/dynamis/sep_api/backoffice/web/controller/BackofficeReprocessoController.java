@@ -51,11 +51,14 @@ public class BackofficeReprocessoController {
     @RequireStepUp
     @Operation(
             summary = "Reprocessa webhook da Outbox",
-            description = "Exige step-up. Anti-abuso: 3 reprocessos por entidade em 24h.")
+            description = "Roles aceitas: FINANCEIRO, BACKOFFICE ou ADMIN. Exige step-up (header X-Step-Up-Token). "
+                    + "Anti-abuso: 3 reprocessos por entidade em 24h.")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Reprocesso registrado."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(responseCode = "403", description = "Sem role autorizada ou step-up ausente."),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN ou step-up ausente."),
         @ApiResponse(responseCode = "429", description = "Limite anti-abuso 3/24h excedido.")
     })
     public ResponseEntity<ReprocessoResponse> reprocessarWebhook(
@@ -71,13 +74,16 @@ public class BackofficeReprocessoController {
     @RequireStepUp
     @Operation(
             summary = "Reprocessa chamada a provider externo",
-            description =
-                    "Exige step-up. Anti-abuso: 3 reprocessos por entidade em 24h. tipoChamada eh um de KYC/KYB/PLD/OPEN_FINANCE/ASSINATURA_DIGITAL.")
+            description = "Roles aceitas: FINANCEIRO, BACKOFFICE ou ADMIN. Exige step-up "
+                    + "(header X-Step-Up-Token). Anti-abuso: 3 reprocessos por entidade em 24h. "
+                    + "tipoChamada eh um de KYC/KYB/PLD/OPEN_FINANCE/ASSINATURA_DIGITAL.")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Reprocesso registrado."),
         @ApiResponse(responseCode = "400", description = "tipoChamada nao suportado."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(responseCode = "403", description = "Sem role autorizada ou step-up ausente."),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN ou step-up ausente."),
         @ApiResponse(responseCode = "429", description = "Limite anti-abuso 3/24h excedido.")
     })
     public ResponseEntity<ReprocessoResponse> reprocessarProvider(
