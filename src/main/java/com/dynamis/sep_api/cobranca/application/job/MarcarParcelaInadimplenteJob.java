@@ -2,6 +2,7 @@ package com.dynamis.sep_api.cobranca.application.job;
 
 import com.dynamis.sep_api.cobranca.application.dto.EscalarCobrancaCommand;
 import com.dynamis.sep_api.cobranca.application.port.out.ContratoCobrancaQueryPort;
+import com.dynamis.sep_api.cobranca.application.service.calculo.ParametrosCobrancaProperties;
 import com.dynamis.sep_api.cobranca.application.usecase.EscalarCobrancaUseCase;
 import com.dynamis.sep_api.cobranca.domain.event.ParcelaInadimplenteEvent;
 import com.dynamis.sep_api.cobranca.domain.model.EventoCobranca;
@@ -60,8 +61,6 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "app.cobranca.scheduling-habilitado", havingValue = "true", matchIfMissing = true)
 public class MarcarParcelaInadimplenteJob {
 
-    public static final int DIAS_INADIMPLENCIA = 90;
-
     private static final Logger log = LoggerFactory.getLogger(MarcarParcelaInadimplenteJob.class);
     private static final DateTimeFormatter DATA_BR = DateTimeFormatter.ofPattern("dd/MM/yyyy", new Locale("pt", "BR"));
 
@@ -72,6 +71,7 @@ public class MarcarParcelaInadimplenteJob {
     private final EscalarCobrancaUseCase escalarUseCase;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate txTemplate;
+    private final ParametrosCobrancaProperties parametros;
     private final Clock clock;
     private final String financeiroEmail;
 
@@ -83,6 +83,7 @@ public class MarcarParcelaInadimplenteJob {
             EscalarCobrancaUseCase escalarUseCase,
             ApplicationEventPublisher eventPublisher,
             TransactionTemplate txTemplate,
+            ParametrosCobrancaProperties parametros,
             Clock clock,
             @Value("${app.cobranca.financeiro-email:}") String financeiroEmail) {
         this.parcelaRepository = parcelaRepository;
@@ -92,6 +93,7 @@ public class MarcarParcelaInadimplenteJob {
         this.escalarUseCase = escalarUseCase;
         this.eventPublisher = eventPublisher;
         this.txTemplate = txTemplate;
+        this.parametros = parametros;
         this.clock = clock;
         this.financeiroEmail = financeiroEmail;
     }
@@ -104,13 +106,13 @@ public class MarcarParcelaInadimplenteJob {
     /** Publico pra testes — controla {@code Clock} e invoca sem agendamento. */
     public int executar() {
         LocalDate hoje = LocalDate.now(clock);
-        LocalDate corte = hoje.minusDays(DIAS_INADIMPLENCIA);
+        LocalDate corte = hoje.minusDays(parametros.getDiasInadimplencia());
         List<ParcelaCobranca> elegiveis =
                 parcelaRepository.findByStatusAndDataVencimentoBefore(StatusParcela.ATRASADA, corte.plusDays(1));
         int processadas = 0;
         for (ParcelaCobranca parcela : elegiveis) {
             int dias = (int) ChronoUnit.DAYS.between(parcela.getDataVencimento(), hoje);
-            if (dias < DIAS_INADIMPLENCIA) {
+            if (dias < parametros.getDiasInadimplencia()) {
                 continue;
             }
             try {
@@ -198,7 +200,7 @@ public class MarcarParcelaInadimplenteJob {
                 .map(Usuario::getUsername)
                 .orElse(null);
         escalarUseCase.escalar(
-                new EscalarCobrancaCommand(parcelaId, DIAS_INADIMPLENCIA, email, null, variaveis(parcela, dias), null));
+                new EscalarCobrancaCommand(parcelaId, parametros.getDiasInadimplencia(), email, null, variaveis(parcela, dias), null));
     }
 
     /**
@@ -216,7 +218,7 @@ public class MarcarParcelaInadimplenteJob {
         // Variaveis incluem identificador da parcela (numero + vencimento) — suficiente pro
         // financeiro localizar o caso sem expor dados pessoais alem do necessario.
         escalarUseCase.escalar(new EscalarCobrancaCommand(
-                parcelaId, DIAS_INADIMPLENCIA, financeiroEmail, null, variaveis(parcela, dias), null));
+                parcelaId, parametros.getDiasInadimplencia(), financeiroEmail, null, variaveis(parcela, dias), null));
     }
 
     private static Map<String, Object> variaveis(ParcelaCobranca parcela, int dias) {

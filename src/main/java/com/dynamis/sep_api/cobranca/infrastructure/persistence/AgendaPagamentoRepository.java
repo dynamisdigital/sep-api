@@ -15,15 +15,5 @@ public interface AgendaPagamentoRepository extends JpaRepository<AgendaPagamento
      */
     Optional<AgendaPagamento> findByContratoIdAndAtivaTrue(UUID contratoId);
 
-    @Deprecated
-    default Optional<AgendaPagamento> findByContratoId(UUID contratoId) {
-        return findByContratoIdAndAtivaTrue(contratoId);
-    }
-
     boolean existsByContratoIdAndAtivaTrue(UUID contratoId);
-
-    @Deprecated
-    default boolean existsByContratoId(UUID contratoId) {
-        return existsByContratoIdAndAtivaTrue(contratoId);
-    }
 }

@@ -108,14 +108,6 @@ public class SolicitacaoOnboarding extends EntidadeAuditavel {
         return new SolicitacaoOnboarding(id, usuarioId, TipoSolicitante.EMPRESA, cnpj, null, razaoSocial, null);
     }
 
-    /**
-     * @deprecated usar {@link #criarPessoa(UUID, Cpf, String, LocalDate)}.
-     */
-    @Deprecated
-    public static SolicitacaoOnboarding criar(UUID usuarioId, Cpf cpf, String nomeCompleto, LocalDate dataNascimento) {
-        return criarPessoa(usuarioId, cpf, nomeCompleto, dataNascimento);
-    }
-
     /** Registra um novo documento; transiciona para {@code DOCUMENTOS_RECEBIDOS} se ainda nao estava. */
     public void registrarDocumentoEnviado() {
         if (status.isFinal()) {

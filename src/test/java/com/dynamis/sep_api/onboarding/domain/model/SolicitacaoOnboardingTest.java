@@ -17,7 +17,7 @@ class SolicitacaoOnboardingTest {
     private static final String CPF_VALIDO = "52998224725";
 
     private SolicitacaoOnboarding novaSolicitacao() {
-        return SolicitacaoOnboarding.criar(
+        return SolicitacaoOnboarding.criarPessoa(
                 UUID.randomUUID(), new Cpf(CPF_VALIDO), "Joao da Silva", LocalDate.of(1990, 1, 1));
     }
 

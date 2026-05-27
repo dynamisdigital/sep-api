@@ -261,9 +261,9 @@ class CobrancaIT {
 
         dispararContratoAssinadoEvent(fixture);
 
-        pollUntil(() -> agendaRepository.existsByContratoId(fixture.contratoId()), "agenda criada");
+        pollUntil(() -> agendaRepository.existsByContratoIdAndAtivaTrue(fixture.contratoId()), "agenda criada");
         AgendaPagamento agenda =
-                agendaRepository.findByContratoId(fixture.contratoId()).orElseThrow();
+                agendaRepository.findByContratoIdAndAtivaTrue(fixture.contratoId()).orElseThrow();
         assertThat(agenda.getNumeroParcelas()).isEqualTo(12);
         assertThat(parcelaRepository.findByAgenda_ContratoIdOrderByNumeroAsc(fixture.contratoId()))
                 .hasSize(12);
@@ -274,7 +274,7 @@ class CobrancaIT {
         Autenticado tomador = criarELogar(Role.CLIENTE);
         ContratoAssinadoFixture fixture = criarContratoAssinado(tomador);
         dispararContratoAssinadoEvent(fixture);
-        pollUntil(() -> agendaRepository.existsByContratoId(fixture.contratoId()), "agenda criada");
+        pollUntil(() -> agendaRepository.existsByContratoIdAndAtivaTrue(fixture.contratoId()), "agenda criada");
 
         RestAssured.given()
                 .header("Authorization", "Bearer " + tomador.token())
@@ -291,7 +291,7 @@ class CobrancaIT {
         Autenticado alheio = criarELogar(Role.CLIENTE);
         ContratoAssinadoFixture fixture = criarContratoAssinado(dono);
         dispararContratoAssinadoEvent(fixture);
-        pollUntil(() -> agendaRepository.existsByContratoId(fixture.contratoId()), "agenda criada");
+        pollUntil(() -> agendaRepository.existsByContratoIdAndAtivaTrue(fixture.contratoId()), "agenda criada");
 
         RestAssured.given()
                 .header("Authorization", "Bearer " + alheio.token())
@@ -307,7 +307,7 @@ class CobrancaIT {
         Autenticado financeiro = criarELogar(Role.FINANCEIRO);
         ContratoAssinadoFixture fixture = criarContratoAssinado(tomador);
         dispararContratoAssinadoEvent(fixture);
-        pollUntil(() -> agendaRepository.existsByContratoId(fixture.contratoId()), "agenda criada");
+        pollUntil(() -> agendaRepository.existsByContratoIdAndAtivaTrue(fixture.contratoId()), "agenda criada");
         UUID parcelaId = parcelaRepository
                 .findByAgenda_ContratoIdOrderByNumeroAsc(fixture.contratoId())
                 .get(0)
@@ -341,7 +341,7 @@ class CobrancaIT {
         Autenticado financeiro = criarELogar(Role.FINANCEIRO);
         ContratoAssinadoFixture fixture = criarContratoAssinado(tomador);
         dispararContratoAssinadoEvent(fixture);
-        pollUntil(() -> agendaRepository.existsByContratoId(fixture.contratoId()), "agenda criada");
+        pollUntil(() -> agendaRepository.existsByContratoIdAndAtivaTrue(fixture.contratoId()), "agenda criada");
         UUID parcelaId = parcelaRepository
                 .findByAgenda_ContratoIdOrderByNumeroAsc(fixture.contratoId())
                 .get(0)
@@ -365,7 +365,7 @@ class CobrancaIT {
         Autenticado tomador = criarELogar(Role.CLIENTE);
         ContratoAssinadoFixture fixture = criarContratoAssinado(tomador);
         dispararContratoAssinadoEvent(fixture);
-        pollUntil(() -> agendaRepository.existsByContratoId(fixture.contratoId()), "agenda criada");
+        pollUntil(() -> agendaRepository.existsByContratoIdAndAtivaTrue(fixture.contratoId()), "agenda criada");
         UUID parcelaId = parcelaRepository
                 .findByAgenda_ContratoIdOrderByNumeroAsc(fixture.contratoId())
                 .get(0)
@@ -389,7 +389,7 @@ class CobrancaIT {
         Autenticado financeiro = criarELogar(Role.FINANCEIRO);
         ContratoAssinadoFixture fixture = criarContratoAssinado(tomador);
         dispararContratoAssinadoEvent(fixture);
-        pollUntil(() -> agendaRepository.existsByContratoId(fixture.contratoId()), "agenda criada");
+        pollUntil(() -> agendaRepository.existsByContratoIdAndAtivaTrue(fixture.contratoId()), "agenda criada");
         UUID parcelaId = parcelaRepository
                 .findByAgenda_ContratoIdOrderByNumeroAsc(fixture.contratoId())
                 .get(0)
@@ -429,7 +429,7 @@ class CobrancaIT {
         Autenticado financeiro = criarELogar(Role.FINANCEIRO);
         ContratoAssinadoFixture fixture = criarContratoAssinado(tomador);
         dispararContratoAssinadoEvent(fixture);
-        pollUntil(() -> agendaRepository.existsByContratoId(fixture.contratoId()), "agenda criada");
+        pollUntil(() -> agendaRepository.existsByContratoIdAndAtivaTrue(fixture.contratoId()), "agenda criada");
         UUID parcelaId = parcelaRepository
                 .findByAgenda_ContratoIdOrderByNumeroAsc(fixture.contratoId())
                 .get(0)
@@ -468,7 +468,7 @@ class CobrancaIT {
         Autenticado financeiro = criarELogar(Role.FINANCEIRO);
         ContratoAssinadoFixture fixture = criarContratoAssinado(tomador);
         dispararContratoAssinadoEvent(fixture);
-        pollUntil(() -> agendaRepository.existsByContratoId(fixture.contratoId()), "agenda criada");
+        pollUntil(() -> agendaRepository.existsByContratoIdAndAtivaTrue(fixture.contratoId()), "agenda criada");
         UUID parcelaId = parcelaRepository
                 .findByAgenda_ContratoIdOrderByNumeroAsc(fixture.contratoId())
                 .get(0)
@@ -503,7 +503,7 @@ class CobrancaIT {
         Autenticado financeiro = criarELogar(Role.FINANCEIRO);
         ContratoAssinadoFixture fixture = criarContratoAssinado(tomador);
         dispararContratoAssinadoEvent(fixture);
-        pollUntil(() -> agendaRepository.existsByContratoId(fixture.contratoId()), "agenda criada");
+        pollUntil(() -> agendaRepository.existsByContratoIdAndAtivaTrue(fixture.contratoId()), "agenda criada");
         UUID parcelaId = parcelaRepository
                 .findByAgenda_ContratoIdOrderByNumeroAsc(fixture.contratoId())
                 .get(0)
