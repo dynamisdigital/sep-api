@@ -80,7 +80,8 @@ class AgendaPagamentoRepositoryTest {
         AgendaPagamento agenda = AgendaPagamento.criar(contratoId, planejadasDe(2));
 
         AgendaPagamento salva = agendaRepository.saveAndFlush(agenda);
-        AgendaPagamento achada = agendaRepository.findByContratoIdAndAtivaTrue(contratoId).orElseThrow();
+        AgendaPagamento achada =
+                agendaRepository.findByContratoIdAndAtivaTrue(contratoId).orElseThrow();
 
         assertThat(achada.getId()).isEqualTo(salva.getId());
         assertThat(achada.getNumeroParcelas()).isEqualTo(2);
@@ -100,7 +101,8 @@ class AgendaPagamentoRepositoryTest {
 
     @Test
     void findByContratoId_inexistenteRetornaEmpty() {
-        assertThat(agendaRepository.findByContratoIdAndAtivaTrue(UUID.randomUUID())).isEmpty();
+        assertThat(agendaRepository.findByContratoIdAndAtivaTrue(UUID.randomUUID()))
+                .isEmpty();
     }
 
     @Test

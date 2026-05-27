@@ -49,8 +49,8 @@ class SolicitacaoOnboardingRepositoryTest {
 
     @Test
     void persistirERecuperarSolicitacaoPreservaCampos() {
-        SolicitacaoOnboarding nova =
-                SolicitacaoOnboarding.criarPessoa(usuarioId, new Cpf(CPF_VALIDO), "Joao da Silva", LocalDate.of(1990, 1, 1));
+        SolicitacaoOnboarding nova = SolicitacaoOnboarding.criarPessoa(
+                usuarioId, new Cpf(CPF_VALIDO), "Joao da Silva", LocalDate.of(1990, 1, 1));
 
         SolicitacaoOnboarding salva = repository.saveAndFlush(nova);
         SolicitacaoOnboarding recarregada = repository.findById(salva.getId()).orElseThrow();
@@ -68,8 +68,7 @@ class SolicitacaoOnboardingRepositoryTest {
                 SolicitacaoOnboarding.criarPessoa(usuarioId, new Cpf(CPF_VALIDO), "Joao", LocalDate.of(1990, 1, 1)));
 
         boolean ativo = repository.existsByDocumentoAndStatusIn(CPF_VALIDO, List.of(StatusOnboarding.INICIADO));
-        boolean reprovado =
-                repository.existsByDocumentoAndStatusIn(CPF_VALIDO, List.of(StatusOnboarding.REPROVADO));
+        boolean reprovado = repository.existsByDocumentoAndStatusIn(CPF_VALIDO, List.of(StatusOnboarding.REPROVADO));
 
         assertThat(ativo).isTrue();
         assertThat(reprovado).isFalse();

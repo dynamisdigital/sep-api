@@ -13,14 +13,13 @@ import org.junit.jupiter.api.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.springframework.context.ApplicationEventPublisher;
 
-import java.util.function.IntSupplier;
-
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.IntSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -44,9 +43,11 @@ class MarcarParcelaAtrasadaJobTest {
         parcelaRepository = mock(ParcelaCobrancaRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         jobLock = mock(PostgresAdvisoryJobLock.class);
-        when(jobLock.runIfAcquired(org.mockito.ArgumentMatchers.eq(MarcarParcelaAtrasadaJob.LOCK_KEY),
+        when(jobLock.runIfAcquired(
+                        org.mockito.ArgumentMatchers.eq(MarcarParcelaAtrasadaJob.LOCK_KEY),
                         org.mockito.ArgumentMatchers.any(IntSupplier.class)))
-                .thenAnswer((InvocationOnMock inv) -> inv.<IntSupplier>getArgument(1).getAsInt());
+                .thenAnswer((InvocationOnMock inv) ->
+                        inv.<IntSupplier>getArgument(1).getAsInt());
         clock = Clock.fixed(LocalDate.of(2026, 7, 15).atStartOfDay(SP).toInstant(), SP);
         job = new MarcarParcelaAtrasadaJob(parcelaRepository, eventPublisher, jobLock, clock);
     }
@@ -96,15 +97,17 @@ class MarcarParcelaAtrasadaJobTest {
 
     @Test
     void quandoLockNaoAdquirido_naoExecutaEDevolveZero() {
-        when(jobLock.runIfAcquired(org.mockito.ArgumentMatchers.eq(MarcarParcelaAtrasadaJob.LOCK_KEY),
+        when(jobLock.runIfAcquired(
+                        org.mockito.ArgumentMatchers.eq(MarcarParcelaAtrasadaJob.LOCK_KEY),
                         org.mockito.ArgumentMatchers.any(IntSupplier.class)))
                 .thenReturn(0);
 
         int marcadas = job.executar();
 
         assertThat(marcadas).isZero();
-        verify(parcelaRepository, never()).findByStatusAndDataVencimentoBefore(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        verify(parcelaRepository, never())
+                .findByStatusAndDataVencimentoBefore(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         verify(eventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any());
     }
 

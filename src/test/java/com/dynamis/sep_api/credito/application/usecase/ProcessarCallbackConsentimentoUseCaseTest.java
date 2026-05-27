@@ -102,8 +102,7 @@ class ProcessarCallbackConsentimentoUseCaseTest {
 
         assertThat(c.getStatus()).isEqualTo(StatusConsentimento.NEGADO);
         verify(repository).save(c);
-        verify(publisher)
-                .publishEvent(any(com.dynamis.sep_api.credito.domain.event.OpenFinanceRevogadoEvent.class));
+        verify(publisher).publishEvent(any(com.dynamis.sep_api.credito.domain.event.OpenFinanceRevogadoEvent.class));
     }
 
     @Test

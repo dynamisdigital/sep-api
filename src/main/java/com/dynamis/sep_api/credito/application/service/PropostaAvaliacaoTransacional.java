@@ -1,7 +1,6 @@
 package com.dynamis.sep_api.credito.application.service;
 
 import com.dynamis.sep_api.credito.application.service.dto.ContextoAvaliacaoCredito;
-import com.dynamis.sep_api.credito.application.service.dto.RegraResultado;
 import com.dynamis.sep_api.credito.application.service.dto.ResultadoAvaliacaoCredito;
 import com.dynamis.sep_api.credito.domain.event.PropostaRejeitadaEvent;
 import com.dynamis.sep_api.credito.domain.exception.PropostaNaoEncontradaException;

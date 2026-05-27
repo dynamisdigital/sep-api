@@ -199,8 +199,8 @@ public class MarcarParcelaInadimplenteJob {
                 .flatMap(usuarioRepository::findById)
                 .map(Usuario::getUsername)
                 .orElse(null);
-        escalarUseCase.escalar(
-                new EscalarCobrancaCommand(parcelaId, parametros.getDiasInadimplencia(), email, null, variaveis(parcela, dias), null));
+        escalarUseCase.escalar(new EscalarCobrancaCommand(
+                parcelaId, parametros.getDiasInadimplencia(), email, null, variaveis(parcela, dias), null));
     }
 
     /**

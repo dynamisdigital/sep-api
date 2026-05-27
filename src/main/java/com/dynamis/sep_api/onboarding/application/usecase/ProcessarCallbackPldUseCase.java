@@ -300,7 +300,9 @@ public class ProcessarCallbackPldUseCase {
         // com mesmo CPF — improvavel mas possivel — sao todos atualizados).
         Map<String, List<RepresentanteLegal>> representantesPorCpf = new HashMap<>();
         for (RepresentanteLegal rep : representantes) {
-            representantesPorCpf.computeIfAbsent(rep.getCpf(), k -> new ArrayList<>()).add(rep);
+            representantesPorCpf
+                    .computeIfAbsent(rep.getCpf(), k -> new ArrayList<>())
+                    .add(rep);
         }
 
         for (CelcoinPldCallbackRequest.AlvoResultado alvo : callback.alvos()) {

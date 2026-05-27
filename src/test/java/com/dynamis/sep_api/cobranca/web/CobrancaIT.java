@@ -262,8 +262,9 @@ class CobrancaIT {
         dispararContratoAssinadoEvent(fixture);
 
         pollUntil(() -> agendaRepository.existsByContratoIdAndAtivaTrue(fixture.contratoId()), "agenda criada");
-        AgendaPagamento agenda =
-                agendaRepository.findByContratoIdAndAtivaTrue(fixture.contratoId()).orElseThrow();
+        AgendaPagamento agenda = agendaRepository
+                .findByContratoIdAndAtivaTrue(fixture.contratoId())
+                .orElseThrow();
         assertThat(agenda.getNumeroParcelas()).isEqualTo(12);
         assertThat(parcelaRepository.findByAgenda_ContratoIdOrderByNumeroAsc(fixture.contratoId()))
                 .hasSize(12);

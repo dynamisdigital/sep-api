@@ -182,9 +182,7 @@ public class BackofficeController {
         @ApiResponse(responseCode = "200", description = "Item resolvido."),
         @ApiResponse(responseCode = "400", description = "Justificativa curta ou invalida."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(
-                responseCode = "403",
-                description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN ou step-up ausente."),
+        @ApiResponse(responseCode = "403", description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN ou step-up ausente."),
         @ApiResponse(responseCode = "404", description = "Item nao encontrado."),
         @ApiResponse(responseCode = "409", description = "Item nao esta em EM_TRATAMENTO.")
     })
@@ -208,9 +206,7 @@ public class BackofficeController {
         @ApiResponse(responseCode = "200", description = "Item ignorado."),
         @ApiResponse(responseCode = "400", description = "Justificativa curta ou invalida."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(
-                responseCode = "403",
-                description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN ou step-up ausente."),
+        @ApiResponse(responseCode = "403", description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN ou step-up ausente."),
         @ApiResponse(responseCode = "404", description = "Item nao encontrado."),
         @ApiResponse(responseCode = "409", description = "Item ja esta em status final.")
     })

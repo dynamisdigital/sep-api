@@ -84,7 +84,8 @@ class MarcarParcelaInadimplenteJobTest {
                 "");
     }
 
-    private static com.dynamis.sep_api.cobranca.application.service.calculo.ParametrosCobrancaProperties parametrosPadrao() {
+    private static com.dynamis.sep_api.cobranca.application.service.calculo.ParametrosCobrancaProperties
+            parametrosPadrao() {
         return new com.dynamis.sep_api.cobranca.application.service.calculo.ParametrosCobrancaProperties();
     }
 

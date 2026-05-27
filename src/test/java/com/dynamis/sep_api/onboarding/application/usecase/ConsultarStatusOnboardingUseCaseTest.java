@@ -44,7 +44,8 @@ class ConsultarStatusOnboardingUseCaseTest {
         useCase = new ConsultarStatusOnboardingUseCase(solicitacaoRepository, documentoRepository, resultadoRepository);
 
         usuarioId = UUID.randomUUID();
-        solicitacao = SolicitacaoOnboarding.criarPessoa(usuarioId, new Cpf("52998224725"), "Joao", LocalDate.of(1990, 1, 1));
+        solicitacao =
+                SolicitacaoOnboarding.criarPessoa(usuarioId, new Cpf("52998224725"), "Joao", LocalDate.of(1990, 1, 1));
         when(solicitacaoRepository.findById(any())).thenReturn(Optional.of(solicitacao));
         when(documentoRepository.findBySolicitacaoId(any()))
                 .thenReturn(List.of(DocumentoCadastral.criar(

@@ -56,9 +56,7 @@ public class BackofficeReprocessoController {
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Reprocesso registrado."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(
-                responseCode = "403",
-                description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN ou step-up ausente."),
+        @ApiResponse(responseCode = "403", description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN ou step-up ausente."),
         @ApiResponse(responseCode = "429", description = "Limite anti-abuso 3/24h excedido.")
     })
     public ResponseEntity<ReprocessoResponse> reprocessarWebhook(
@@ -81,9 +79,7 @@ public class BackofficeReprocessoController {
         @ApiResponse(responseCode = "201", description = "Reprocesso registrado."),
         @ApiResponse(responseCode = "400", description = "tipoChamada nao suportado."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(
-                responseCode = "403",
-                description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN ou step-up ausente."),
+        @ApiResponse(responseCode = "403", description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN ou step-up ausente."),
         @ApiResponse(responseCode = "429", description = "Limite anti-abuso 3/24h excedido.")
     })
     public ResponseEntity<ReprocessoResponse> reprocessarProvider(

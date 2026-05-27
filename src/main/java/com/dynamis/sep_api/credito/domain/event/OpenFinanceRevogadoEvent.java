@@ -13,4 +13,5 @@ import java.util.UUID;
  * <p>{@code idExternoCelcoin} preserva rastreabilidade do consentimento externo revogado para a
  * trilha de auditoria — alinha payload com {@link OpenFinanceAutorizadoEvent}.
  */
-public record OpenFinanceRevogadoEvent(UUID consentimentoId, UUID propostaId, UUID tomadorId, String idExternoCelcoin) {}
+public record OpenFinanceRevogadoEvent(
+        UUID consentimentoId, UUID propostaId, UUID tomadorId, String idExternoCelcoin) {}

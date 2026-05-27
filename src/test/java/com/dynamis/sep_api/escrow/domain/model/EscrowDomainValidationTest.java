@@ -31,7 +31,8 @@ class EscrowDomainValidationTest {
 
     @Test
     void walletCreditarRejeitaValorZero() {
-        Wallet wallet = Wallet.criar(ContaEscrow.criar("SEP", StatusContaEscrow.ATIVA), UUID.randomUUID(), TipoWallet.PROPOSTA);
+        Wallet wallet =
+                Wallet.criar(ContaEscrow.criar("SEP", StatusContaEscrow.ATIVA), UUID.randomUUID(), TipoWallet.PROPOSTA);
         assertThatThrownBy(() -> wallet.creditar(BigDecimal.ZERO))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("positivo");
@@ -39,14 +40,15 @@ class EscrowDomainValidationTest {
 
     @Test
     void walletCreditarRejeitaValorNegativo() {
-        Wallet wallet = Wallet.criar(ContaEscrow.criar("SEP", StatusContaEscrow.ATIVA), UUID.randomUUID(), TipoWallet.PROPOSTA);
-        assertThatThrownBy(() -> wallet.creditar(new BigDecimal("-1.00")))
-                .isInstanceOf(IllegalArgumentException.class);
+        Wallet wallet =
+                Wallet.criar(ContaEscrow.criar("SEP", StatusContaEscrow.ATIVA), UUID.randomUUID(), TipoWallet.PROPOSTA);
+        assertThatThrownBy(() -> wallet.creditar(new BigDecimal("-1.00"))).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void movimentacaoCriarRecebimentoRejeitaValorNegativo() {
-        Wallet wallet = Wallet.criar(ContaEscrow.criar("SEP", StatusContaEscrow.ATIVA), UUID.randomUUID(), TipoWallet.PROPOSTA);
+        Wallet wallet =
+                Wallet.criar(ContaEscrow.criar("SEP", StatusContaEscrow.ATIVA), UUID.randomUUID(), TipoWallet.PROPOSTA);
         assertThatThrownBy(() -> MovimentacaoEscrow.criarRecebimento(
                         wallet, new BigDecimal("-10.00"), "idem-1", OffsetDateTime.now(), UUID.randomUUID()))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -55,7 +57,8 @@ class EscrowDomainValidationTest {
 
     @Test
     void movimentacaoCriarRecebimentoRejeitaIdempotencyKeyBlank() {
-        Wallet wallet = Wallet.criar(ContaEscrow.criar("SEP", StatusContaEscrow.ATIVA), UUID.randomUUID(), TipoWallet.PROPOSTA);
+        Wallet wallet =
+                Wallet.criar(ContaEscrow.criar("SEP", StatusContaEscrow.ATIVA), UUID.randomUUID(), TipoWallet.PROPOSTA);
         assertThatThrownBy(() -> MovimentacaoEscrow.criarRecebimento(
                         wallet, new BigDecimal("100.00"), "   ", OffsetDateTime.now(), UUID.randomUUID()))
                 .isInstanceOf(IllegalArgumentException.class)
