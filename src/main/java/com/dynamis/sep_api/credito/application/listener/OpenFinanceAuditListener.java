@@ -5,6 +5,7 @@ import com.dynamis.sep_api.credito.domain.event.OpenFinanceConsentimentoIniciado
 import com.dynamis.sep_api.credito.domain.event.OpenFinanceDadosRecebidosEvent;
 import com.dynamis.sep_api.credito.domain.event.OpenFinanceNegadoEvent;
 import com.dynamis.sep_api.credito.domain.event.OpenFinanceReavaliacaoEvent;
+import com.dynamis.sep_api.credito.domain.event.OpenFinanceRevogadoEvent;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -73,6 +74,15 @@ public class OpenFinanceAuditListener {
         payload.put("consentimentoId", event.consentimentoId().toString());
         payload.put("propostaId", event.propostaId().toString());
         auditLogService.gravar(TipoEventoSeguranca.OPEN_FINANCE_NEGADO, event.tomadorId(), serializar(payload));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoRevogar(OpenFinanceRevogadoEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("consentimentoId", event.consentimentoId().toString());
+        payload.put("propostaId", event.propostaId().toString());
+        auditLogService.gravar(TipoEventoSeguranca.OPEN_FINANCE_REVOGADO, event.tomadorId(), serializar(payload));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

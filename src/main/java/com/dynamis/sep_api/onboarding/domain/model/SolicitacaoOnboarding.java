@@ -12,6 +12,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -62,6 +63,10 @@ public class SolicitacaoOnboarding extends EntidadeAuditavel {
 
     @Column(name = "revisao_documentos", nullable = false)
     private int revisaoDocumentos;
+
+    @Version
+    @Column(name = "versao", nullable = false)
+    private long versao;
 
     protected SolicitacaoOnboarding() {
         // requerido pelo Hibernate
