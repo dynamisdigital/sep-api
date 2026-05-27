@@ -94,8 +94,24 @@ public class ConsultarStatusOnboardingEmpresaUseCase {
     }
 
     private StatusOnboardingEmpresaView.RepresentanteView mapearRepresentante(RepresentanteLegal r) {
+        // Sprint 15 — 15F-024: defesa em profundidade. Web mapper ja aplica mascararCpf antes
+        // de devolver pra HTTP; mascarar tambem na borda do application layer protege contra
+        // futuros consumers (cache, job, novo controller) que esquecam a mascara.
         return new StatusOnboardingEmpresaView.RepresentanteView(
-                r.getId(), r.getNome(), r.getCpf(), r.getCargo(), r.getStatusPld(), r.getDataConsultaPld());
+                r.getId(),
+                r.getNome(),
+                mascararCpf(r.getCpf()),
+                r.getCargo(),
+                r.getStatusPld(),
+                r.getDataConsultaPld());
+    }
+
+    private static String mascararCpf(String cpf) {
+        if (cpf == null || cpf.length() < 6) {
+            return "***";
+        }
+        int len = cpf.length();
+        return cpf.substring(0, 3) + "*".repeat(len - 5) + cpf.substring(len - 2);
     }
 
     private StatusOnboardingEmpresaView.ResultadoView mapearResultado(ResultadoVerificacao r) {

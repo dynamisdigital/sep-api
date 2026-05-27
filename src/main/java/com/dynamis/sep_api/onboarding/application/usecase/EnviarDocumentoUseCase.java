@@ -56,8 +56,10 @@ public class EnviarDocumentoUseCase {
                     CODIGO_MIME_INVALIDO, "MIME nao suportado: " + cmd.mimeType() + ". Aceitos: " + MIMES_ACEITOS);
         }
         if (cmd.conteudo().length > TAMANHO_MAXIMO_BYTES) {
-            throw new ValidacaoException(
-                    CODIGO_TAMANHO_EXCEDIDO, "Documento excede tamanho maximo de " + TAMANHO_MAXIMO_BYTES + " bytes");
+            // Sprint 15 — 15F-027: mensagem nao expoe o valor da constante interna pra evitar
+            // entregar detalhe de infraestrutura ao cliente. Limite oficial e documentado em
+            // ONBOARDING.md.
+            throw new ValidacaoException(CODIGO_TAMANHO_EXCEDIDO, "Documento excede o tamanho maximo permitido");
         }
 
         SolicitacaoOnboarding solicitacao = solicitacaoRepository
