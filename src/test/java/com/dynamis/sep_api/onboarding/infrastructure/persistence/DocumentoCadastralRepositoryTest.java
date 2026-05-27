@@ -46,7 +46,7 @@ class DocumentoCadastralRepositoryTest {
         usuarioRepository.deleteAll();
         Usuario u = usuarioRepository.saveAndFlush(Usuario.criar("kyc@sep.test", "hash", Role.CLIENTE));
         SolicitacaoOnboarding s = solicitacaoRepository.saveAndFlush(
-                SolicitacaoOnboarding.criar(u.getId(), new Cpf("52998224725"), "Joao", LocalDate.of(1990, 1, 1)));
+                SolicitacaoOnboarding.criarPessoa(u.getId(), new Cpf("52998224725"), "Joao", LocalDate.of(1990, 1, 1)));
         solicitacaoId = s.getId();
     }
 

@@ -90,7 +90,7 @@ public class BackofficeController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Listagem retornada."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(responseCode = "403", description = "Sem role autorizada.")
+        @ApiResponse(responseCode = "403", description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN.")
     })
     public ResponseEntity<Page<ItemFilaResponse>> listar(
             @RequestParam(required = false) TipoItemFila tipo,
@@ -125,7 +125,7 @@ public class BackofficeController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Detalhe retornado."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(responseCode = "403", description = "Sem role autorizada."),
+        @ApiResponse(responseCode = "403", description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN."),
         @ApiResponse(responseCode = "404", description = "Item nao encontrado.")
     })
     public ResponseEntity<ItemFilaDetalheResponse> consultar(@PathVariable UUID id) {
@@ -139,7 +139,7 @@ public class BackofficeController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Item assumido."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(responseCode = "403", description = "Sem role autorizada."),
+        @ApiResponse(responseCode = "403", description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN."),
         @ApiResponse(responseCode = "404", description = "Item nao encontrado."),
         @ApiResponse(responseCode = "409", description = "Transicao invalida (item nao esta ABERTO).")
     })
@@ -158,7 +158,7 @@ public class BackofficeController {
         @ApiResponse(responseCode = "201", description = "Comentario criado."),
         @ApiResponse(responseCode = "400", description = "Conteudo invalido."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(responseCode = "403", description = "Sem role autorizada."),
+        @ApiResponse(responseCode = "403", description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN."),
         @ApiResponse(responseCode = "404", description = "Item nao encontrado.")
     })
     public ResponseEntity<ComentarioInternoResponse> comentar(
@@ -175,13 +175,14 @@ public class BackofficeController {
     @RequireStepUp
     @Operation(
             summary = "Marca item como RESOLVIDO",
-            description =
-                    "Exige step-up. Justificativa minima de 20 caracteres; transiciona EM_TRATAMENTO -> RESOLVIDO.")
+            description = "Roles aceitas: FINANCEIRO, BACKOFFICE ou ADMIN. Exige step-up "
+                    + "(header X-Step-Up-Token). Justificativa minima de 20 caracteres; "
+                    + "transiciona EM_TRATAMENTO -> RESOLVIDO.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Item resolvido."),
         @ApiResponse(responseCode = "400", description = "Justificativa curta ou invalida."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(responseCode = "403", description = "Sem role autorizada ou step-up ausente."),
+        @ApiResponse(responseCode = "403", description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN ou step-up ausente."),
         @ApiResponse(responseCode = "404", description = "Item nao encontrado."),
         @ApiResponse(responseCode = "409", description = "Item nao esta em EM_TRATAMENTO.")
     })
@@ -198,12 +199,14 @@ public class BackofficeController {
     @RequireStepUp
     @Operation(
             summary = "Marca item como IGNORADO",
-            description = "Exige step-up. Justificativa minima de 20 caracteres; aceita ABERTO ou EM_TRATAMENTO.")
+            description = "Roles aceitas: FINANCEIRO, BACKOFFICE ou ADMIN. Exige step-up "
+                    + "(header X-Step-Up-Token). Justificativa minima de 20 caracteres; "
+                    + "aceita ABERTO ou EM_TRATAMENTO.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Item ignorado."),
         @ApiResponse(responseCode = "400", description = "Justificativa curta ou invalida."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(responseCode = "403", description = "Sem role autorizada ou step-up ausente."),
+        @ApiResponse(responseCode = "403", description = "Sem role FINANCEIRO/BACKOFFICE/ADMIN ou step-up ausente."),
         @ApiResponse(responseCode = "404", description = "Item nao encontrado."),
         @ApiResponse(responseCode = "409", description = "Item ja esta em status final.")
     })

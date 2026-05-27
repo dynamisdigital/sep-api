@@ -54,7 +54,8 @@ class IniciarVerificacaoKycUseCaseTest {
                 solicitacaoRepository, documentoRepository, kycProvider, eventPublisher);
 
         usuarioId = UUID.randomUUID();
-        solicitacao = SolicitacaoOnboarding.criar(usuarioId, new Cpf("52998224725"), "Joao", LocalDate.of(1990, 1, 1));
+        solicitacao =
+                SolicitacaoOnboarding.criarPessoa(usuarioId, new Cpf("52998224725"), "Joao", LocalDate.of(1990, 1, 1));
         solicitacao.registrarDocumentoEnviado(); // DOCUMENTOS_RECEBIDOS
 
         when(solicitacaoRepository.findById(any())).thenReturn(Optional.of(solicitacao));

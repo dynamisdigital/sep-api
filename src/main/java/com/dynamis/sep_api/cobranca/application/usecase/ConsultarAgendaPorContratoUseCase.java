@@ -25,7 +25,7 @@ public class ConsultarAgendaPorContratoUseCase {
 
     public AgendaPagamento executar(UUID contratoId) {
         return agendaRepository
-                .findByContratoId(contratoId)
+                .findByContratoIdAndAtivaTrue(contratoId)
                 .orElseThrow(() -> AgendaPagamentoNaoEncontradaException.porContrato(contratoId));
     }
 }

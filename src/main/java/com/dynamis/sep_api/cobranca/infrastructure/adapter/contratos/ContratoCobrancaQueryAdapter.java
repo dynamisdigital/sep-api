@@ -1,13 +1,18 @@
 package com.dynamis.sep_api.cobranca.infrastructure.adapter.contratos;
 
 import com.dynamis.sep_api.cobranca.application.port.out.ContratoCobrancaQueryPort;
+import com.dynamis.sep_api.contratos.domain.model.Contrato;
 import com.dynamis.sep_api.contratos.infrastructure.persistence.ContratoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 public class ContratoCobrancaQueryAdapter implements ContratoCobrancaQueryPort {
@@ -34,5 +39,14 @@ public class ContratoCobrancaQueryAdapter implements ContratoCobrancaQueryPort {
     @Override
     public Optional<UUID> tomadorIdDoContrato(UUID contratoId) {
         return contratoRepository.findById(contratoId).map(c -> c.getTomadorId());
+    }
+
+    @Override
+    public Map<UUID, UUID> tomadoresPorContratoIds(Collection<UUID> contratoIds) {
+        if (contratoIds == null || contratoIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return contratoRepository.findAllById(contratoIds).stream()
+                .collect(Collectors.toMap(Contrato::getId, Contrato::getTomadorId, (a, b) -> a));
     }
 }

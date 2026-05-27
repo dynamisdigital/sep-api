@@ -75,6 +75,8 @@ public enum TipoEventoSeguranca {
     OPEN_FINANCE_NEGADO,
     OPEN_FINANCE_DADOS_RECEBIDOS,
     OPEN_FINANCE_REAVALIACAO,
+    /** Sprint 15 — 15F-019: consentimento AUTORIZADO revogado tardiamente pelo detentor. */
+    OPEN_FINANCE_REVOGADO,
     CONTRATO_GERADO,
     CONTRATO_NOVA_VERSAO,
     CONTRATO_ACEITO,

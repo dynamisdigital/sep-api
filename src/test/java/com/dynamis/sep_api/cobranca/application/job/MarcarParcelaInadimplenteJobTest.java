@@ -79,8 +79,14 @@ class MarcarParcelaInadimplenteJobTest {
                 escalarUseCase,
                 eventPublisher,
                 txTemplate,
+                parametrosPadrao(),
                 CLOCK,
                 "");
+    }
+
+    private static com.dynamis.sep_api.cobranca.application.service.calculo.ParametrosCobrancaProperties
+            parametrosPadrao() {
+        return new com.dynamis.sep_api.cobranca.application.service.calculo.ParametrosCobrancaProperties();
     }
 
     @Test
@@ -210,7 +216,7 @@ class MarcarParcelaInadimplenteJobTest {
 
         ArgumentCaptor<EscalarCobrancaCommand> captor = ArgumentCaptor.forClass(EscalarCobrancaCommand.class);
         verify(escalarUseCase, times(1)).escalar(captor.capture());
-        assertThat(captor.getValue().diasAtraso()).isEqualTo(MarcarParcelaInadimplenteJob.DIAS_INADIMPLENCIA);
+        assertThat(captor.getValue().diasAtraso()).isEqualTo(parametrosPadrao().getDiasInadimplencia());
         assertThat(captor.getValue().emailTomador()).isEqualTo("x@y.com");
         assertThat(captor.getValue().variaveis()).containsEntry("diasAtraso", 97);
     }
@@ -236,6 +242,7 @@ class MarcarParcelaInadimplenteJobTest {
                 escalarUseCase,
                 eventPublisher,
                 txTemplate,
+                parametrosPadrao(),
                 CLOCK,
                 "financeiro@sep.com");
 

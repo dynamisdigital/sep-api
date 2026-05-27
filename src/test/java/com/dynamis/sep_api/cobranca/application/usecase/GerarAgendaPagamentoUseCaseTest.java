@@ -59,7 +59,7 @@ class GerarAgendaPagamentoUseCaseTest {
         UUID contratoId = UUID.randomUUID();
         UUID propostaId = UUID.randomUUID();
         UUID tomadorId = UUID.randomUUID();
-        when(agendaRepository.findByContratoId(contratoId)).thenReturn(Optional.empty());
+        when(agendaRepository.findByContratoIdAndAtivaTrue(contratoId)).thenReturn(Optional.empty());
         when(agendaRepository.saveAndFlush(any(AgendaPagamento.class))).thenAnswer(inv -> inv.getArgument(0));
 
         AgendaPagamento agenda = useCase.executar(new GerarAgendaPagamentoCommand(
@@ -88,7 +88,7 @@ class GerarAgendaPagamentoUseCaseTest {
     @Test
     void gera_agenda_24_parcelas() {
         UUID contratoId = UUID.randomUUID();
-        when(agendaRepository.findByContratoId(contratoId)).thenReturn(Optional.empty());
+        when(agendaRepository.findByContratoIdAndAtivaTrue(contratoId)).thenReturn(Optional.empty());
         when(agendaRepository.saveAndFlush(any(AgendaPagamento.class))).thenAnswer(inv -> inv.getArgument(0));
 
         AgendaPagamento agenda = useCase.executar(new GerarAgendaPagamentoCommand(
@@ -111,7 +111,7 @@ class GerarAgendaPagamentoUseCaseTest {
                 contratoId,
                 List.of(new ParcelaPlanejada(
                         1, ComposicaoValor.principalApenas(new BigDecimal("100")), LocalDate.of(2026, 6, 1))));
-        when(agendaRepository.findByContratoId(contratoId)).thenReturn(Optional.of(existente));
+        when(agendaRepository.findByContratoIdAndAtivaTrue(contratoId)).thenReturn(Optional.of(existente));
 
         AgendaPagamento ret = useCase.executar(new GerarAgendaPagamentoCommand(
                 contratoId,
@@ -137,7 +137,7 @@ class GerarAgendaPagamentoUseCaseTest {
                         1, ComposicaoValor.principalApenas(new BigDecimal("100")), LocalDate.of(2026, 6, 1))));
         // Primeira chamada (check inicial) volta vazia; segunda chamada (apos DIVE) volta com o
         // registro persistido pela outra transacao.
-        when(agendaRepository.findByContratoId(contratoId))
+        when(agendaRepository.findByContratoIdAndAtivaTrue(contratoId))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(existente));
         when(agendaRepository.saveAndFlush(any(AgendaPagamento.class)))
@@ -156,6 +156,6 @@ class GerarAgendaPagamentoUseCaseTest {
         assertThat(ret).isSameAs(existente);
         // Evento nao deve ser publicado em corrida — outra transacao ja publicou.
         verify(eventPublisher, never()).publishEvent(any());
-        verify(agendaRepository, times(2)).findByContratoId(eq(contratoId));
+        verify(agendaRepository, times(2)).findByContratoIdAndAtivaTrue(eq(contratoId));
     }
 }

@@ -91,7 +91,7 @@ public class GerarAgendaPagamentoUseCase {
     }
 
     private Optional<AgendaPagamento> buscarPorContrato(UUID contratoId) {
-        return txReadOnly.execute(status -> agendaRepository.findByContratoId(contratoId));
+        return txReadOnly.execute(status -> agendaRepository.findByContratoIdAndAtivaTrue(contratoId));
     }
 
     private AgendaPagamento criarPersistirEPublicar(GerarAgendaPagamentoCommand cmd) {

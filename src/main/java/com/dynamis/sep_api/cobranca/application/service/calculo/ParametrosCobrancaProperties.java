@@ -60,6 +60,14 @@ public class ParametrosCobrancaProperties {
     @NotBlank
     private String jobAtrasoCron = "0 0 2 * * *";
 
+    /**
+     * Dias de atraso a partir dos quais uma parcela transita de {@code ATRASADA} para
+     * {@code INADIMPLENTE} (Sprint 13 / 15F-006). 90 dias eh referencia BACEN para inadimplencia
+     * de credito; sobrescrever em ambientes de teste pra acelerar fluxos.
+     */
+    @Min(1)
+    private int diasInadimplencia = 90;
+
     public SistemaAmortizacao getAmortizacaoDefault() {
         return amortizacaoDefault;
     }
@@ -114,5 +122,13 @@ public class ParametrosCobrancaProperties {
 
     public void setJobAtrasoCron(String jobAtrasoCron) {
         this.jobAtrasoCron = jobAtrasoCron;
+    }
+
+    public int getDiasInadimplencia() {
+        return diasInadimplencia;
+    }
+
+    public void setDiasInadimplencia(int diasInadimplencia) {
+        this.diasInadimplencia = diasInadimplencia;
     }
 }
