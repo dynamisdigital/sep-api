@@ -128,7 +128,7 @@ public class AuthController {
                                 schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     public ResponseEntity<TokenResponseDto> refresh(
-            @RequestBody(required = false) @Valid RefreshTokenRequestDto dto,
+            @RequestBody(required = false) RefreshTokenRequestDto dto,
             @RequestHeader(value = ClientChannel.HEADER, required = false) String canalHeader,
             @CookieValue(name = "${app.refresh-cookie.name:sep-refresh}", required = false) String refreshCookie) {
         String refresh = (dto != null
@@ -158,7 +158,7 @@ public class AuthController {
                                 schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     public ResponseEntity<Void> logout(
-            @RequestBody(required = false) @Valid LogoutRequestDto dto,
+            @RequestBody(required = false) LogoutRequestDto dto,
             @RequestHeader(value = ClientChannel.HEADER, required = false) String canalHeader,
             @CookieValue(name = "${app.refresh-cookie.name:sep-refresh}", required = false) String refreshCookie) {
         String refresh = (dto != null
