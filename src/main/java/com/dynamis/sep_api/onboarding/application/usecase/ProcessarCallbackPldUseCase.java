@@ -292,6 +292,14 @@ public class ProcessarCallbackPldUseCase {
             List<RepresentanteLegal> representantes) {
         boolean houveHit = false;
 
+        // Sprint 15 Task 15.4 (15F-025): index representantes por CPF pra lookup O(1) em vez de
+        // varrer a lista por alvo REPRESENTANTE. Mantem mesma semantica (multiplos representantes
+        // com mesmo CPF — improvavel mas possivel — sao todos atualizados).
+        java.util.Map<String, java.util.List<RepresentanteLegal>> representantesPorCpf = new java.util.HashMap<>();
+        for (RepresentanteLegal rep : representantes) {
+            representantesPorCpf.computeIfAbsent(rep.getCpf(), k -> new java.util.ArrayList<>()).add(rep);
+        }
+
         for (CelcoinPldCallbackRequest.AlvoResultado alvo : callback.alvos()) {
             AlvoPld alvoTipo = mapearAlvo(alvo.alvoTipo(), tipo);
             String documento = alvo.documento();
@@ -320,15 +328,16 @@ public class ProcessarCallbackPldUseCase {
                 }
             }
             if (alvoTipo == AlvoPld.REPRESENTANTE) {
-                for (RepresentanteLegal rep : representantes) {
-                    if (rep.getCpf().equals(documento)) {
-                        if (alvoHit) {
-                            rep.marcarPldHit();
-                        } else {
-                            rep.marcarPldLimpo();
-                        }
-                        representanteRepository.save(rep);
+                List<RepresentanteLegal> matches = representantesPorCpf.getOrDefault(documento, List.of());
+                for (RepresentanteLegal rep : matches) {
+                    if (alvoHit) {
+                        rep.marcarPldHit();
+                    } else {
+                        rep.marcarPldLimpo();
                     }
+                }
+                if (!matches.isEmpty()) {
+                    representanteRepository.saveAll(matches);
                 }
             }
             if (!alvoHit) {

@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -145,10 +146,13 @@ public class PropostaAvaliacaoTransacional {
                 resultado.statusSugerido(),
                 resultado.falhas(),
                 resultado.pendencias()));
-        for (RegraResultado r : resultado.regras()) {
-            regraRepository.save(RegraCreditoAvaliada.registrar(
-                    proposta.getId(), r.nome(), r.resultado(), r.motivo(), r.bloqueante()));
-        }
+        // Sprint 15 Task 15.4 (15F-022): saveAll permite Hibernate agregar INSERTs em batch
+        // quando `hibernate.jdbc.batch_size` esta habilitado, evitando 1 INSERT por regra.
+        List<RegraCreditoAvaliada> regras = resultado.regras().stream()
+                .map(r -> RegraCreditoAvaliada.registrar(
+                        proposta.getId(), r.nome(), r.resultado(), r.motivo(), r.bloqueante()))
+                .toList();
+        regraRepository.saveAll(regras);
     }
 
     private void gravarAuditMotorSincrono(PropostaCredito proposta, ResultadoAvaliacaoCredito resultado) {

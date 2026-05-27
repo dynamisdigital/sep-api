@@ -96,7 +96,7 @@ class PropostaAvaliacaoTransacionalTest {
 
         assertThat(proposta.getStatus()).isEqualTo(StatusProposta.PRE_APROVADA);
         verify(scoreRepository).save(any(ScoreInterno.class));
-        verify(regraRepository).save(any(RegraCreditoAvaliada.class));
+        verify(regraRepository).saveAll(org.mockito.ArgumentMatchers.<Iterable<RegraCreditoAvaliada>>any());
         verify(propostaRepository).save(proposta);
         verify(auditLogService)
                 .gravar(eq(TipoEventoSeguranca.PROPOSTA_AVALIADA_MOTOR), eq(proposta.getTomadorId()), anyString());
