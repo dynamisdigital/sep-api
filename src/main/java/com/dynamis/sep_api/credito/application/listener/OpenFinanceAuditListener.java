@@ -82,6 +82,7 @@ public class OpenFinanceAuditListener {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("consentimentoId", event.consentimentoId().toString());
         payload.put("propostaId", event.propostaId().toString());
+        payload.put("idExternoCelcoin", event.idExternoCelcoin());
         auditLogService.gravar(TipoEventoSeguranca.OPEN_FINANCE_REVOGADO, event.tomadorId(), serializar(payload));
     }
 

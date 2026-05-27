@@ -67,7 +67,10 @@ public class ProcessarCallbackConsentimentoUseCase {
             consentimento.revogar();
             consentimentoRepository.save(consentimento);
             eventPublisher.publishEvent(new OpenFinanceRevogadoEvent(
-                    consentimento.getId(), consentimento.getPropostaId(), consentimento.getTomadorId()));
+                    consentimento.getId(),
+                    consentimento.getPropostaId(),
+                    consentimento.getTomadorId(),
+                    consentimento.getIdExternoCelcoin()));
             log.info(
                     "Consentimento Open Finance revogado tardiamente idExterno={} statusAnterior=AUTORIZADO",
                     cmd.idExternoCelcoin());

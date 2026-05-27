@@ -2,6 +2,8 @@ package com.dynamis.sep_api.shared.infrastructure.job;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.function.IntSupplier;
@@ -30,6 +32,8 @@ import java.util.function.IntSupplier;
 @Component
 public class PostgresAdvisoryJobLock {
 
+    private static final Logger log = LoggerFactory.getLogger(PostgresAdvisoryJobLock.class);
+
     @PersistenceContext
     private EntityManager em;
 
@@ -51,9 +55,15 @@ public class PostgresAdvisoryJobLock {
         try {
             return work.getAsInt();
         } finally {
-            em.createNativeQuery("SELECT pg_advisory_unlock(:k)")
-                    .setParameter("k", lockKey)
-                    .getSingleResult();
+            // Defensive: nao mascarar exception do work se unlock falhar (conexao fechada,
+            // timeout) — log + segue. Lock advisory libera automaticamente ao fim da sessao JDBC.
+            try {
+                em.createNativeQuery("SELECT pg_advisory_unlock(:k)")
+                        .setParameter("k", lockKey)
+                        .getSingleResult();
+            } catch (RuntimeException unlockEx) {
+                log.warn("Falha ao liberar advisory lock lockKey={}: {}", lockKey, unlockEx.getMessage());
+            }
         }
     }
 }
