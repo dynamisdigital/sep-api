@@ -65,8 +65,9 @@ public class ListarInadimplenciaUseCase {
         List<ParcelaCobranca> parcelas = parcelaRepository.findByStatusInOrderByDataVencimentoAsc(filtros);
 
         // Sprint 15 Task 15.4 (15F-002): coleta contratoIds dos itens que passam pelo filtro de
-        // dias e resolve tomadores em UMA query (em vez de uma por iteracao).
-        List<ParcelaCobranca> elegiveis = new ArrayList<>(parcelas.size());
+        // dias e resolve tomadores em UMA query (em vez de uma por iteracao). Cacheia (parcela,
+        // dias) pra evitar recalculo de ChronoUnit.DAYS na segunda passada.
+        List<ParcelaElegivel> elegiveis = new ArrayList<>(parcelas.size());
         Set<UUID> contratoIds = new LinkedHashSet<>();
         for (ParcelaCobranca parcela : parcelas) {
             int dias = (int) ChronoUnit.DAYS.between(parcela.getDataVencimento(), hoje);
@@ -76,19 +77,20 @@ public class ListarInadimplenciaUseCase {
             if (filtro.diasAtrasoMax() != null && dias > filtro.diasAtrasoMax()) {
                 continue;
             }
-            elegiveis.add(parcela);
+            elegiveis.add(new ParcelaElegivel(parcela, dias));
             contratoIds.add(parcela.getAgenda().getContratoId());
         }
 
         Map<UUID, UUID> tomadores = contratoQuery.tomadoresPorContratoIds(contratoIds);
         List<LinhaInadimplencia> resultado = new ArrayList<>(elegiveis.size());
-        for (ParcelaCobranca parcela : elegiveis) {
-            int dias = (int) ChronoUnit.DAYS.between(parcela.getDataVencimento(), hoje);
-            UUID contratoId = parcela.getAgenda().getContratoId();
-            resultado.add(new LinhaInadimplencia(parcela, contratoId, tomadores.get(contratoId), dias));
+        for (ParcelaElegivel e : elegiveis) {
+            UUID contratoId = e.parcela().getAgenda().getContratoId();
+            resultado.add(new LinhaInadimplencia(e.parcela(), contratoId, tomadores.get(contratoId), e.dias()));
         }
         return resultado;
     }
+
+    private record ParcelaElegivel(ParcelaCobranca parcela, int dias) {}
 
     public record Filtro(Set<StatusParcela> status, Integer diasAtrasoMin, Integer diasAtrasoMax) {}
 

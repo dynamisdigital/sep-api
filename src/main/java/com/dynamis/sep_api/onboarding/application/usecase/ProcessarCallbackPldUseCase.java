@@ -26,7 +26,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -199,7 +202,7 @@ public class ProcessarCallbackPldUseCase {
             return "PLD payload vazio: results obrigatorio";
         }
 
-        java.util.Map<String, AlvoNoCallback> alvosPorDocumento = new java.util.HashMap<>();
+        Map<String, AlvoNoCallback> alvosPorDocumento = new HashMap<>();
         for (CelcoinPldCallbackRequest.AlvoResultado alvo : callback.alvos()) {
             if (alvo == null) return "alvo nulo em results";
             if (alvo.documento() == null || alvo.documento().isBlank()) {
@@ -295,9 +298,9 @@ public class ProcessarCallbackPldUseCase {
         // Sprint 15 Task 15.4 (15F-025): index representantes por CPF pra lookup O(1) em vez de
         // varrer a lista por alvo REPRESENTANTE. Mantem mesma semantica (multiplos representantes
         // com mesmo CPF — improvavel mas possivel — sao todos atualizados).
-        java.util.Map<String, java.util.List<RepresentanteLegal>> representantesPorCpf = new java.util.HashMap<>();
+        Map<String, List<RepresentanteLegal>> representantesPorCpf = new HashMap<>();
         for (RepresentanteLegal rep : representantes) {
-            representantesPorCpf.computeIfAbsent(rep.getCpf(), k -> new java.util.ArrayList<>()).add(rep);
+            representantesPorCpf.computeIfAbsent(rep.getCpf(), k -> new ArrayList<>()).add(rep);
         }
 
         for (CelcoinPldCallbackRequest.AlvoResultado alvo : callback.alvos()) {
