@@ -79,10 +79,10 @@ public class ConsultarVisaoConsolidadaUseCase {
         OffsetDateTime inicioDia = hoje.atStartOfDay(zone).toOffsetDateTime();
         OffsetDateTime fimDia = hoje.plusDays(1).atStartOfDay(zone).toOffsetDateTime();
 
-        List<ContadorPorTipo> porTipo = resiliente("contarPorTipo", itemRepository::contarPorTipo, List.of());
+        List<ContadorPorTipo> porTipo = resilienteLista("contarPorTipo", itemRepository::contarPorTipo);
         List<ContadorPorPrioridade> porPrioridade =
-                resiliente("contarPorPrioridade", itemRepository::contarPorPrioridade, List.of());
-        List<ContadorPorStatus> porStatus = resiliente("contarPorStatus", itemRepository::contarPorStatus, List.of());
+                resilienteLista("contarPorPrioridade", itemRepository::contarPorPrioridade);
+        List<ContadorPorStatus> porStatus = resilienteLista("contarPorStatus", itemRepository::contarPorStatus);
         Duration tempoMedio = resiliente(
                 "tempoMedioResolucao",
                 () -> calcularTempoMedio(itemRepository.tempoMedioResolucaoSegundosDesde(corteTempoMedio)),
@@ -103,7 +103,7 @@ public class ConsultarVisaoConsolidadaUseCase {
         InadimplenciaConsolidada inadimplencia =
                 resiliente("inadimplenciaTotal", cobrancaQuery::inadimplenciaTotal, InadimplenciaConsolidada.vazia());
         List<ContadorPorStatusProposta> propostasStatus =
-                resiliente("propostasPorStatus", creditoQuery::contagemPorStatus, List.of());
+                resilienteLista("propostasPorStatus", creditoQuery::contagemPorStatus);
 
         return new DashboardBackoffice(
                 porTipo,
@@ -128,18 +128,24 @@ public class ConsultarVisaoConsolidadaUseCase {
     private static <T> T resiliente(String aspecto, Supplier<T> supplier, T fallback) {
         try {
             T resultado = supplier.get();
-            if (resultado == null) {
-                return fallback;
-            }
-            if (fallback instanceof List<?> && resultado instanceof List<?> lista) {
-                @SuppressWarnings("unchecked")
-                T immut = (T) Collections.unmodifiableList(lista);
-                return immut;
-            }
-            return resultado;
+            return resultado == null ? fallback : resultado;
         } catch (RuntimeException ex) {
             LOG.warn("dashboard {} falhou; usando fallback", aspecto, ex);
             return fallback;
+        }
+    }
+
+    /**
+     * Variante type-safe pra fluxos que retornam {@link List}. Sprint 15 — 15.8: substitui o cast
+     * com {@code @SuppressWarnings("unchecked")} do {@link #resiliente} original.
+     */
+    private static <E> List<E> resilienteLista(String aspecto, Supplier<List<E>> supplier) {
+        try {
+            List<E> resultado = supplier.get();
+            return resultado == null ? List.of() : Collections.unmodifiableList(resultado);
+        } catch (RuntimeException ex) {
+            LOG.warn("dashboard {} falhou; usando fallback", aspecto, ex);
+            return List.of();
         }
     }
 }

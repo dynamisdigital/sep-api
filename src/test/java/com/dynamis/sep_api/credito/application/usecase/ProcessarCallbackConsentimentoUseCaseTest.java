@@ -89,15 +89,32 @@ class ProcessarCallbackConsentimentoUseCaseTest {
     }
 
     @Test
-    void callbackConflitanteAposEstadoFinalNaoReverteEPublica() {
+    void callbackNegadoAposAutorizadoRevogaEPublicaRevogadoEvent() {
+        // Sprint 15 — 15F-019: revogacao tardia. Provider e source-of-truth; quando detentor
+        // revoga consentimento via app do banco apos AUTORIZADO, o agregado aceita transicao
+        // AUTORIZADO -> NEGADO e publica OpenFinanceRevogadoEvent (semantica distinta de
+        // OpenFinanceNegadoEvent emitido a partir de PENDENTE).
         ConsentimentoOpenFinance c = pendente();
         c.autorizar();
         when(repository.findByIdExternoCelcoin("ext-1")).thenReturn(Optional.of(c));
 
-        // Provider envia NEGADO depois de ja ter sido AUTORIZADO — ignorado (provider e source of truth externo).
         useCase.executar(new ProcessarCallbackConsentimentoCommand("ext-1", false));
 
-        assertThat(c.getStatus()).isEqualTo(StatusConsentimento.AUTORIZADO);
+        assertThat(c.getStatus()).isEqualTo(StatusConsentimento.NEGADO);
+        verify(repository).save(c);
+        verify(publisher).publishEvent(any(com.dynamis.sep_api.credito.domain.event.OpenFinanceRevogadoEvent.class));
+    }
+
+    @Test
+    void callbackConflitanteAposNegadoNaoReverteEPublica() {
+        // NEGADO/EXPIRADO sao terminais — callback AUTORIZADO tardio nao reverte.
+        ConsentimentoOpenFinance c = pendente();
+        c.negar();
+        when(repository.findByIdExternoCelcoin("ext-1")).thenReturn(Optional.of(c));
+
+        useCase.executar(new ProcessarCallbackConsentimentoCommand("ext-1", true));
+
+        assertThat(c.getStatus()).isEqualTo(StatusConsentimento.NEGADO);
         verify(publisher, never()).publishEvent(any());
         verify(repository, never()).save(any());
     }

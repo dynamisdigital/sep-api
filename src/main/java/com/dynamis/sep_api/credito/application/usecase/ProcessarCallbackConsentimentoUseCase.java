@@ -3,6 +3,7 @@ package com.dynamis.sep_api.credito.application.usecase;
 import com.dynamis.sep_api.credito.application.dto.ProcessarCallbackConsentimentoCommand;
 import com.dynamis.sep_api.credito.domain.event.OpenFinanceAutorizadoEvent;
 import com.dynamis.sep_api.credito.domain.event.OpenFinanceNegadoEvent;
+import com.dynamis.sep_api.credito.domain.event.OpenFinanceRevogadoEvent;
 import com.dynamis.sep_api.credito.domain.exception.ConsentimentoNaoEncontradoException;
 import com.dynamis.sep_api.credito.domain.model.ConsentimentoOpenFinance;
 import com.dynamis.sep_api.credito.domain.vo.StatusConsentimento;
@@ -58,13 +59,26 @@ public class ProcessarCallbackConsentimentoUseCase {
                     atual);
             return;
         }
+
+        // Sprint 15 — 15F-019: revogacao tardia. Open Finance Brasil permite que o detentor revogue
+        // consentimento via app do banco apos AUTORIZADO; provider notifica NEGADO tardio. Provider
+        // e source-of-truth — agregado aceita transicao AUTORIZADO -> NEGADO via revogar().
+        if (atual == StatusConsentimento.AUTORIZADO && alvo == StatusConsentimento.NEGADO) {
+            consentimento.revogar();
+            consentimentoRepository.save(consentimento);
+            eventPublisher.publishEvent(new OpenFinanceRevogadoEvent(
+                    consentimento.getId(),
+                    consentimento.getPropostaId(),
+                    consentimento.getTomadorId(),
+                    consentimento.getIdExternoCelcoin()));
+            log.info(
+                    "Consentimento Open Finance revogado tardiamente idExterno={} statusAnterior=AUTORIZADO",
+                    cmd.idExternoCelcoin());
+            return;
+        }
         if (atual.isFinal()) {
-            // TODO Sprint futura: revogacao tardia de consentimento Open Finance (NEGADO chegando
-            // pos AUTORIZADO) deve disparar fluxo de revogacao (/consents/{id}/revoke) — Open
-            // Finance Brasil prevê endpoint dedicado. Por ora, log WARN preserva trilha e nao
-            // reverte estado ja consolidado.
             log.warn(
-                    "Callback Open Finance conflitante idExterno={} statusAtual={} alvo={} — ignorado, provider e fonte de verdade externa",
+                    "Callback Open Finance conflitante idExterno={} statusAtual={} alvo={} — ignorado, transicao nao permitida",
                     cmd.idExternoCelcoin(),
                     atual,
                     alvo);

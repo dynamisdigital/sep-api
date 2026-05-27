@@ -7,8 +7,10 @@ import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
 import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
+import com.dynamis.sep_api.shared.infrastructure.job.PostgresAdvisoryJobLock;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.invocation.InvocationOnMock;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
@@ -17,6 +19,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.IntSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -31,6 +34,7 @@ class MarcarParcelaAtrasadaJobTest {
 
     private ParcelaCobrancaRepository parcelaRepository;
     private ApplicationEventPublisher eventPublisher;
+    private PostgresAdvisoryJobLock jobLock;
     private Clock clock;
     private MarcarParcelaAtrasadaJob job;
 
@@ -38,8 +42,14 @@ class MarcarParcelaAtrasadaJobTest {
     void setup() {
         parcelaRepository = mock(ParcelaCobrancaRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
+        jobLock = mock(PostgresAdvisoryJobLock.class);
+        when(jobLock.runIfAcquired(
+                        org.mockito.ArgumentMatchers.eq(MarcarParcelaAtrasadaJob.LOCK_KEY),
+                        org.mockito.ArgumentMatchers.any(IntSupplier.class)))
+                .thenAnswer((InvocationOnMock inv) ->
+                        inv.<IntSupplier>getArgument(1).getAsInt());
         clock = Clock.fixed(LocalDate.of(2026, 7, 15).atStartOfDay(SP).toInstant(), SP);
-        job = new MarcarParcelaAtrasadaJob(parcelaRepository, eventPublisher, clock);
+        job = new MarcarParcelaAtrasadaJob(parcelaRepository, eventPublisher, jobLock, clock);
     }
 
     @Test
@@ -82,6 +92,22 @@ class MarcarParcelaAtrasadaJobTest {
         int marcadas = job.executar();
 
         assertThat(marcadas).isZero();
+        verify(eventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void quandoLockNaoAdquirido_naoExecutaEDevolveZero() {
+        when(jobLock.runIfAcquired(
+                        org.mockito.ArgumentMatchers.eq(MarcarParcelaAtrasadaJob.LOCK_KEY),
+                        org.mockito.ArgumentMatchers.any(IntSupplier.class)))
+                .thenReturn(0);
+
+        int marcadas = job.executar();
+
+        assertThat(marcadas).isZero();
+        verify(parcelaRepository, never())
+                .findByStatusAndDataVencimentoBefore(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         verify(eventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any());
     }
 

@@ -147,6 +147,23 @@ public class ConsentimentoOpenFinance {
         this.status = StatusConsentimento.NEGADO;
     }
 
+    /**
+     * Revoga consentimento previamente {@link StatusConsentimento#AUTORIZADO} (Sprint 15 — 15F-019).
+     *
+     * <p>Open Finance Brasil permite que o detentor revogue o consentimento via app do banco apos
+     * ter autorizado; o provider notifica via callback NEGADO tardio. O provider e source-of-truth,
+     * entao o agregado aceita a transicao AUTORIZADO -> NEGADO e preserva a {@code dataAutorizacao}
+     * original como trilha de auditoria.
+     *
+     * <p>Estados {@code NEGADO} ou {@code EXPIRADO} ja sao terminais — rejeita transicao.
+     */
+    public void revogar() {
+        if (status != StatusConsentimento.AUTORIZADO) {
+            throw new ConsentimentoInvalidoException("revogar", status, StatusConsentimento.NEGADO);
+        }
+        this.status = StatusConsentimento.NEGADO;
+    }
+
     /** Marca como expirado. So aceita se nao houver decisao final. */
     public void expirar() {
         if (status.isFinal()) {

@@ -60,7 +60,7 @@ class ProcessarCallbackKycUseCaseTest {
         evento = WebhookEventLog.registrar("celcoin-kyc", "callback", "idem-1", "sig", "{}");
         when(webhookEventLogRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.of(evento));
 
-        solicitacao = SolicitacaoOnboarding.criar(
+        solicitacao = SolicitacaoOnboarding.criarPessoa(
                 UUID.randomUUID(), new Cpf("52998224725"), "Joao", LocalDate.of(1990, 1, 1));
         solicitacao.registrarDocumentoEnviado();
         solicitacao.marcarEmVerificacao("ext-1");

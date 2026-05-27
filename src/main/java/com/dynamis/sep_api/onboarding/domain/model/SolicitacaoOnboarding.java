@@ -12,6 +12,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -63,6 +64,10 @@ public class SolicitacaoOnboarding extends EntidadeAuditavel {
     @Column(name = "revisao_documentos", nullable = false)
     private int revisaoDocumentos;
 
+    @Version
+    @Column(name = "versao", nullable = false)
+    private long versao;
+
     protected SolicitacaoOnboarding() {
         // requerido pelo Hibernate
     }
@@ -101,14 +106,6 @@ public class SolicitacaoOnboarding extends EntidadeAuditavel {
     public static SolicitacaoOnboarding criarEmpresa(UUID usuarioId, String cnpj, String razaoSocial) {
         UUID id = Generators.timeBasedReorderedGenerator().generate();
         return new SolicitacaoOnboarding(id, usuarioId, TipoSolicitante.EMPRESA, cnpj, null, razaoSocial, null);
-    }
-
-    /**
-     * @deprecated usar {@link #criarPessoa(UUID, Cpf, String, LocalDate)}.
-     */
-    @Deprecated
-    public static SolicitacaoOnboarding criar(UUID usuarioId, Cpf cpf, String nomeCompleto, LocalDate dataNascimento) {
-        return criarPessoa(usuarioId, cpf, nomeCompleto, dataNascimento);
     }
 
     /** Registra um novo documento; transiciona para {@code DOCUMENTOS_RECEBIDOS} se ainda nao estava. */

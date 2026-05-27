@@ -45,7 +45,8 @@ class EnviarDocumentoUseCaseTest {
         useCase = new EnviarDocumentoUseCase(solicitacaoRepository, storage, eventPublisher);
 
         usuarioId = UUID.randomUUID();
-        solicitacao = SolicitacaoOnboarding.criar(usuarioId, new Cpf("52998224725"), "Joao", LocalDate.of(1990, 1, 1));
+        solicitacao =
+                SolicitacaoOnboarding.criarPessoa(usuarioId, new Cpf("52998224725"), "Joao", LocalDate.of(1990, 1, 1));
         when(solicitacaoRepository.findById(any())).thenReturn(Optional.of(solicitacao));
         when(solicitacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(storage.salvar(any())).thenAnswer(i -> i.getArgument(0));

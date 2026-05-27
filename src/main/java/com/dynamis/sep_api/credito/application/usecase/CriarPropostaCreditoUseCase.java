@@ -66,7 +66,7 @@ public class CriarPropostaCreditoUseCase {
                 cmd.solicitacaoOnboardingId(),
                 cmd.tipoOperacao(),
                 new Money(cmd.valorSolicitado(), "BRL"),
-                cmd.prazoMeses() == null ? 0 : cmd.prazoMeses());
+                cmd.prazoMeses());
 
         PropostaCredito salva = propostaRepository.save(proposta);
         eventPublisher.publishEvent(
