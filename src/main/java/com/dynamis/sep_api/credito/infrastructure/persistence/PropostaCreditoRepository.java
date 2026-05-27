@@ -11,7 +11,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.OffsetDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -38,4 +40,20 @@ public interface PropostaCreditoRepository extends JpaRepository<PropostaCredito
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from PropostaCredito p where p.id = :id")
     Optional<PropostaCredito> findByIdForUpdate(@Param("id") UUID id);
+
+    /**
+     * Consumido pelo {@code PropostaPendenciaListener} (Sprint 14 Task 14.2) pra detectar
+     * propostas paradas em analise alem do threshold operacional (default 24h).
+     */
+    List<PropostaCredito> findByStatusAndDataModificacaoBefore(StatusProposta status, OffsetDateTime corte);
+
+    /** Agregacao para dashboard do backoffice (Sprint 14 Task 14.5). */
+    @Query("select p.status as status, count(p) as total from PropostaCredito p group by p.status")
+    List<StatusContagemView> contarPorStatus();
+
+    interface StatusContagemView {
+        StatusProposta getStatus();
+
+        long getTotal();
+    }
 }

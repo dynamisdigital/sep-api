@@ -108,6 +108,20 @@ class CriarUsuarioUseCaseTest {
     }
 
     @Test
+    void cadastroInternoComRoleBackofficeEhRejeitado() {
+        // Sprint 14 fix code review Task 14.6 — BACKOFFICE so via /usuarios/{id}/role
+        UsuarioInternoCreateDto dto =
+                new UsuarioInternoCreateDto("backoffice@sep.test", "passphrase-backoffice-segura", Role.BACKOFFICE);
+
+        assertThatThrownBy(() -> useCase.executarInterno(dto))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("BACKOFFICE");
+
+        verify(repository, never()).save(any());
+        verify(passwordEncoder, never()).encode(any());
+    }
+
+    @Test
     void cadastroInternoLancaUsernameJaExisteQuandoExistsByUsernameRetornaTrue() {
         UsuarioInternoCreateDto dto =
                 new UsuarioInternoCreateDto("operador@sep.test", "outra-passphrase-segura", Role.ADMIN);
