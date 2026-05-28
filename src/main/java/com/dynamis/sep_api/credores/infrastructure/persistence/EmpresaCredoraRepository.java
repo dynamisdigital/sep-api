@@ -17,4 +17,6 @@ public interface EmpresaCredoraRepository extends JpaRepository<EmpresaCredora, 
     boolean existsByCnpj(String cnpj);
 
     boolean existsByUsuarioId(UUID usuarioId);
+
+    boolean existsByOnboardingId(UUID onboardingId);
 }
