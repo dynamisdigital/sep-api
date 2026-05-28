@@ -54,11 +54,18 @@ class GovernancaParametroIT {
     void seedInicialCarregadoEReaderLeValorGovernado() {
         assertThat(listar.executar())
                 .extracting("chave")
-                .contains("credito.valor.maximo.pf", "backoffice.webhook.pendente.horas");
+                .contains(
+                        "credito.valor.maximo.pf",
+                        "backoffice.webhook.pendente.horas",
+                        "credito.open-finance.bonus.entradas.altas",
+                        "credito.open-finance.bonus.entradas.minimas",
+                        "credito.open-finance.penalidade.saldo.negativo");
         // reader le o valor governado (seed)
         assertThat(reader.lerInteiro("backoffice.webhook.pendente.horas", 999)).isEqualTo(1);
         assertThat(reader.lerDecimal("credito.valor.maximo.pf", BigDecimal.ZERO))
                 .isEqualByComparingTo("50000.00");
+        assertThat(reader.lerInteiro("credito.open-finance.penalidade.saldo.negativo", 0))
+                .isEqualTo(150);
         // chave inexistente -> fallback ao default
         assertThat(reader.lerInteiro("nao.existe", 42)).isEqualTo(42);
     }

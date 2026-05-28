@@ -36,7 +36,7 @@ public class AlterarParametroOperacionalUseCase {
     @Transactional
     public ParametroOperacionalView executar(AlterarParametroCommand cmd) {
         ParametroOperacional parametro = parametroRepository
-                .findByChave(cmd.chave())
+                .findByChaveParaAtualizacao(cmd.chave())
                 .orElseThrow(() -> new ParametroOperacionalNaoEncontradoException(cmd.chave()));
 
         String anterior = parametro.alterarValor(cmd.novoValor());

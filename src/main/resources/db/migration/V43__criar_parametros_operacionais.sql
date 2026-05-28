@@ -44,7 +44,8 @@ CREATE TABLE versao_parametro_operacional (
     data_modificacao TIMESTAMP WITH TIME ZONE NOT NULL,
     criado_por VARCHAR(50) NOT NULL,
     modificado_por VARCHAR(50) NOT NULL,
-    CONSTRAINT fk_versao_parametro FOREIGN KEY (parametro_id) REFERENCES parametro_operacional (id)
+    CONSTRAINT fk_versao_parametro FOREIGN KEY (parametro_id) REFERENCES parametro_operacional (id),
+    CONSTRAINT uq_versao_parametro_versao UNIQUE (parametro_id, versao)
 );
 
 CREATE INDEX idx_versao_parametro ON versao_parametro_operacional (parametro_id, versao DESC);
@@ -73,4 +74,10 @@ VALUES
     (gen_random_uuid(), 'backoffice.contrato.aceito.horas', 'INTEGER', '48',
         'Limite (h) para contrato ACEITO sem assinatura virar pendencia', true, 1, now(), now(), 'system', 'system'),
     (gen_random_uuid(), 'backoffice.webhook.pendente.horas', 'INTEGER', '1',
-        'Limite (h) para webhook FALHOU/PENDENTE virar pendencia', true, 1, now(), now(), 'system', 'system');
+        'Limite (h) para webhook FALHOU/PENDENTE virar pendencia', true, 1, now(), now(), 'system', 'system'),
+    (gen_random_uuid(), 'credito.open-finance.bonus.entradas.altas', 'INTEGER', '200',
+        'Bonus de score (entradas >= 3x parcela estimada) no motor Open Finance', true, 1, now(), now(), 'system', 'system'),
+    (gen_random_uuid(), 'credito.open-finance.bonus.entradas.minimas', 'INTEGER', '100',
+        'Bonus de score (entradas >= 1x parcela estimada) no motor Open Finance', true, 1, now(), now(), 'system', 'system'),
+    (gen_random_uuid(), 'credito.open-finance.penalidade.saldo.negativo', 'INTEGER', '150',
+        'Penalidade de score por saldo medio negativo recorrente (Open Finance)', true, 1, now(), now(), 'system', 'system');
