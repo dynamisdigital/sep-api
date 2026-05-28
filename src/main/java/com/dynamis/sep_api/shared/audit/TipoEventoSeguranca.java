@@ -111,5 +111,9 @@ public enum TipoEventoSeguranca {
     // Sprint 16 Task 16.6: jornada da empresa credora.
     CREDORA_CADASTRADA,
     CREDORA_ELEGIVEL,
-    CREDORA_INELEGIVEL
+    CREDORA_INELEGIVEL,
+    // Sprint 17 Task 17.6: oportunidades e carteira da credora.
+    CREDORA_INTERESSE_REGISTRADO,
+    CREDORA_INTERESSE_CANCELADO,
+    CREDORA_OPERACAO_ASSOCIADA
 }

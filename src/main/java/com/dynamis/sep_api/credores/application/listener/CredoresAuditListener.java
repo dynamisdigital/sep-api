@@ -2,6 +2,9 @@ package com.dynamis.sep_api.credores.application.listener;
 
 import com.dynamis.sep_api.credores.domain.event.EmpresaCredoraCadastradaEvent;
 import com.dynamis.sep_api.credores.domain.event.EmpresaCredoraElegibilidadeDefinidaEvent;
+import com.dynamis.sep_api.credores.domain.event.InteresseCredoraCanceladoEvent;
+import com.dynamis.sep_api.credores.domain.event.InteresseCredoraRegistradoEvent;
+import com.dynamis.sep_api.credores.domain.event.OperacaoFinanciadaAssociadaEvent;
 import com.dynamis.sep_api.credores.domain.vo.StatusElegibilidade;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
@@ -62,6 +65,37 @@ public class CredoresAuditListener {
             payload.put("motivo", event.motivo());
         }
         auditLogService.gravar(tipo, event.usuarioId(), serializar(payload));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoRegistrarInteresse(InteresseCredoraRegistradoEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("interesseId", event.interesseId().toString());
+        payload.put("empresaCredoraId", event.empresaCredoraId().toString());
+        payload.put("oportunidadeId", event.oportunidadeId().toString());
+        auditLogService.gravar(
+                TipoEventoSeguranca.CREDORA_INTERESSE_REGISTRADO, event.usuarioId(), serializar(payload));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoCancelarInteresse(InteresseCredoraCanceladoEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("interesseId", event.interesseId().toString());
+        payload.put("empresaCredoraId", event.empresaCredoraId().toString());
+        payload.put("oportunidadeId", event.oportunidadeId().toString());
+        auditLogService.gravar(TipoEventoSeguranca.CREDORA_INTERESSE_CANCELADO, event.usuarioId(), serializar(payload));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoAssociarOperacao(OperacaoFinanciadaAssociadaEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("operacaoId", event.operacaoId().toString());
+        payload.put("empresaCredoraId", event.empresaCredoraId().toString());
+        payload.put("contratoId", event.contratoId().toString());
+        auditLogService.gravar(TipoEventoSeguranca.CREDORA_OPERACAO_ASSOCIADA, event.usuarioId(), serializar(payload));
     }
 
     private String serializar(Map<String, Object> payload) {
