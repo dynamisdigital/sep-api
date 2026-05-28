@@ -1,13 +1,18 @@
 package com.dynamis.sep_api.usuarios.web.controller;
 
+import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
 import com.dynamis.sep_api.usuarios.application.usecase.AlterarRoleUsuarioUseCase;
 import com.dynamis.sep_api.usuarios.application.usecase.AlterarSenhaUseCase;
 import com.dynamis.sep_api.usuarios.application.usecase.ConsultarUsuarioUseCase;
 import com.dynamis.sep_api.usuarios.application.usecase.CriarUsuarioUseCase;
+import com.dynamis.sep_api.usuarios.application.usecase.GerenciarRolesUsuarioUseCase;
 import com.dynamis.sep_api.usuarios.application.usecase.ListarUsuariosUseCase;
+import com.dynamis.sep_api.usuarios.domain.model.Role;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
+import com.dynamis.sep_api.usuarios.web.dto.RolesResponseDto;
+import com.dynamis.sep_api.usuarios.web.dto.SubstituirRolesRequest;
 import com.dynamis.sep_api.usuarios.web.dto.UsuarioCreateDto;
 import com.dynamis.sep_api.usuarios.web.dto.UsuarioResponseDto;
 import com.dynamis.sep_api.usuarios.web.dto.UsuarioRoleUpdateDto;
@@ -33,6 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -45,6 +51,7 @@ public class UsuarioController {
     private final ListarUsuariosUseCase listarUsuariosUseCase;
     private final AlterarSenhaUseCase alterarSenhaUseCase;
     private final AlterarRoleUsuarioUseCase alterarRoleUsuarioUseCase;
+    private final GerenciarRolesUsuarioUseCase gerenciarRolesUsuarioUseCase;
     private final UsuarioMapper mapper;
 
     public UsuarioController(
@@ -53,13 +60,19 @@ public class UsuarioController {
             ListarUsuariosUseCase listarUsuariosUseCase,
             AlterarSenhaUseCase alterarSenhaUseCase,
             AlterarRoleUsuarioUseCase alterarRoleUsuarioUseCase,
+            GerenciarRolesUsuarioUseCase gerenciarRolesUsuarioUseCase,
             UsuarioMapper mapper) {
         this.criarUsuarioUseCase = criarUsuarioUseCase;
         this.consultarUsuarioUseCase = consultarUsuarioUseCase;
         this.listarUsuariosUseCase = listarUsuariosUseCase;
         this.alterarSenhaUseCase = alterarSenhaUseCase;
         this.alterarRoleUsuarioUseCase = alterarRoleUsuarioUseCase;
+        this.gerenciarRolesUsuarioUseCase = gerenciarRolesUsuarioUseCase;
         this.mapper = mapper;
+    }
+
+    private static RolesResponseDto toRolesResponse(Usuario u) {
+        return new RolesResponseDto(u.getRoles(), u.getRole());
     }
 
     @PostMapping
@@ -257,5 +270,97 @@ public class UsuarioController {
             @AuthenticationPrincipal UsuarioAutenticado principal) {
         Usuario salvo = alterarRoleUsuarioUseCase.executar(id, dto.role(), principal.id());
         return ResponseEntity.ok(mapper.toResponse(salvo));
+    }
+
+    @GetMapping("/{id}/roles")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Consultar o conjunto de roles do usuario (admin)")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Roles retornadas"),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Nao e ADMIN",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Usuario nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<RolesResponseDto> consultarRoles(@PathVariable UUID id) {
+        Set<Role> roles = gerenciarRolesUsuarioUseCase.consultar(id);
+        return ResponseEntity.ok(new RolesResponseDto(roles, Role.principalDe(roles)));
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/{id}/roles")
+    @PreAuthorize("hasRole('ADMIN')")
+    @RequireStepUp
+    @Operation(summary = "Substituir o conjunto de roles do usuario (admin + step-up)")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Roles substituidas"),
+        @ApiResponse(
+                responseCode = "400",
+                description = "Conjunto de roles vazio",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Nao e ADMIN, step-up ausente ou alteracao das proprias roles",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Usuario nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<RolesResponseDto> substituirRoles(
+            @PathVariable UUID id,
+            @Valid @RequestBody SubstituirRolesRequest body,
+            @AuthenticationPrincipal UsuarioAutenticado principal) {
+        Usuario salvo = gerenciarRolesUsuarioUseCase.substituir(id, body.roles(), principal.id());
+        return ResponseEntity.ok(toRolesResponse(salvo));
+    }
+
+    @PostMapping("/{id}/roles/{role}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @RequireStepUp
+    @Operation(summary = "Adicionar uma role ao usuario (admin + step-up)")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Role adicionada"),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Nao e ADMIN, step-up ausente ou alteracao das proprias roles",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Usuario nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<RolesResponseDto> adicionarRole(
+            @PathVariable UUID id, @PathVariable Role role, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        Usuario salvo = gerenciarRolesUsuarioUseCase.adicionar(id, role, principal.id());
+        return ResponseEntity.ok(toRolesResponse(salvo));
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}/roles/{role}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @RequireStepUp
+    @Operation(summary = "Remover uma role do usuario (admin + step-up); nao remove a ultima role")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Role removida"),
+        @ApiResponse(
+                responseCode = "400",
+                description = "Tentativa de remover a ultima role",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Nao e ADMIN, step-up ausente ou alteracao das proprias roles",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Usuario nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<RolesResponseDto> removerRole(
+            @PathVariable UUID id, @PathVariable Role role, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        Usuario salvo = gerenciarRolesUsuarioUseCase.remover(id, role, principal.id());
+        return ResponseEntity.ok(toRolesResponse(salvo));
     }
 }

@@ -19,5 +19,22 @@ public enum Role {
     ADMIN,
     CLIENTE,
     FINANCEIRO,
-    BACKOFFICE
+    BACKOFFICE;
+
+    /**
+     * Precedencia para derivar a role principal (denormalizada) de um conjunto cumulativo de roles
+     * (Sprint 18). Quanto mais cedo na lista, maior a precedencia.
+     */
+    private static final java.util.List<Role> PRECEDENCIA = java.util.List.of(ADMIN, FINANCEIRO, BACKOFFICE, CLIENTE);
+
+    /** Role de maior precedencia presente no conjunto. Lanca se o conjunto for vazio/invalido. */
+    public static Role principalDe(java.util.Set<Role> roles) {
+        if (roles == null || roles.isEmpty()) {
+            throw new IllegalArgumentException("conjunto de roles vazio");
+        }
+        return PRECEDENCIA.stream()
+                .filter(roles::contains)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("conjunto de roles invalido: " + roles));
+    }
 }

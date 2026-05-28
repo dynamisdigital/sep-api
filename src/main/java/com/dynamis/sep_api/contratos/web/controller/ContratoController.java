@@ -418,8 +418,7 @@ public class ContratoController {
     }
 
     private boolean operadorInterno(UsuarioAutenticado principal) {
-        Role role = principal.role();
-        return role == Role.ADMIN || role == Role.FINANCEIRO;
+        return principal.temRole(Role.ADMIN) || principal.temRole(Role.FINANCEIRO);
     }
 
     /**
