@@ -22,7 +22,7 @@ public class ConsultarUsuarioUseCase {
 
     @Transactional(readOnly = true)
     public Usuario executar(UUID id, UsuarioAutenticado principal) {
-        if (principal.role() != Role.ADMIN && !principal.id().equals(id)) {
+        if (!principal.temRole(Role.ADMIN) && !principal.id().equals(id)) {
             throw new AccessDeniedException("Acesso negado: cliente so pode consultar o proprio usuario");
         }
         return repository.findById(id).orElseThrow(() -> new UsuarioNaoEncontradoException(id));

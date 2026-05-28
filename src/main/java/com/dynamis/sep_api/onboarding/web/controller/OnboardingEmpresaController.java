@@ -155,7 +155,7 @@ public class OnboardingEmpresaController {
         } catch (IOException ex) {
             throw new ValidacaoException(CODIGO_ARQUIVO_INVALIDO, "Falha ao ler bytes do arquivo");
         }
-        boolean isAdmin = principal.role() == Role.ADMIN;
+        boolean isAdmin = principal.temRole(Role.ADMIN);
         enviarDocumentoUseCase.executar(id, principal.id(), isAdmin, cmd);
         return ResponseEntity.noContent().build();
     }
@@ -184,7 +184,7 @@ public class OnboardingEmpresaController {
     })
     public ResponseEntity<Void> disparar(@PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
         String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
-        boolean isAdmin = principal.role() == Role.ADMIN;
+        boolean isAdmin = principal.temRole(Role.ADMIN);
         iniciarVerificacaoUseCase.executar(id, principal.id(), isAdmin, correlationId);
         return ResponseEntity.accepted().build();
     }
@@ -209,7 +209,7 @@ public class OnboardingEmpresaController {
     })
     public ResponseEntity<StatusOnboardingEmpresaResponse> consultar(
             @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
-        boolean isAdmin = principal.role() == Role.ADMIN;
+        boolean isAdmin = principal.temRole(Role.ADMIN);
         StatusOnboardingEmpresaView view = consultarStatusUseCase.executar(id, principal.id(), isAdmin);
         return ResponseEntity.ok(mapper.toStatusResponse(view));
     }
@@ -234,7 +234,7 @@ public class OnboardingEmpresaController {
     })
     public ResponseEntity<List<RepresentanteLegalResponse>> listarRepresentantes(
             @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
-        boolean isAdmin = principal.role() == Role.ADMIN;
+        boolean isAdmin = principal.temRole(Role.ADMIN);
         var representantes = consultarRepresentantesUseCase.executar(id, principal.id(), isAdmin).stream()
                 .map(mapper::toRepresentanteResponse)
                 .toList();

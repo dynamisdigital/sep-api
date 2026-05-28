@@ -15,7 +15,6 @@ import jakarta.persistence.Table;
 
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -62,9 +61,6 @@ public class Usuario extends EntidadeAuditavel {
 
     @Column(name = "mfa_habilitado", nullable = false)
     private boolean mfaHabilitado;
-
-    /** Precedencia para derivar a role principal (denormalizada) a partir do conjunto. */
-    private static final List<Role> PRECEDENCIA = List.of(Role.ADMIN, Role.FINANCEIRO, Role.BACKOFFICE, Role.CLIENTE);
 
     protected Usuario() {
         // requerido pelo Hibernate
@@ -181,9 +177,6 @@ public class Usuario extends EntidadeAuditavel {
     }
 
     private void sincronizarPrincipal() {
-        this.role = PRECEDENCIA.stream()
-                .filter(this.roles::contains)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("conjunto de roles vazio ou invalido"));
+        this.role = Role.principalDe(this.roles);
     }
 }
