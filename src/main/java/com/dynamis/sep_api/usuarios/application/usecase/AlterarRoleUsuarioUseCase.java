@@ -53,7 +53,10 @@ public class AlterarRoleUsuarioUseCase {
         Usuario alvo =
                 repository.findById(usuarioAlvoId).orElseThrow(() -> new UsuarioNaoEncontradoException(usuarioAlvoId));
         Role anterior = alvo.getRole();
-        if (anterior == novaRole) {
+        // Idempotencia pelo CONJUNTO: no-op apenas se o usuario ja possui exatamente {novaRole}.
+        // Comparar so o principal mascararia roles secundarias (ex.: FINANCEIRO + BACKOFFICE),
+        // impedindo a revogacao da role extra via endpoint legado de role unica.
+        if (alvo.getRoles().equals(java.util.Set.of(novaRole))) {
             return alvo;
         }
 

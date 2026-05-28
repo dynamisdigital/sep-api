@@ -15,7 +15,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import javax.crypto.SecretKey;
 
@@ -76,7 +78,12 @@ public class JwtTokenProvider {
         var builder = Jwts.builder()
                 .subject(usuario.getId().toString())
                 .claim("email", usuario.getUsername())
-                .claim("roles", List.of("ROLE_" + usuario.getRole().name()))
+                .claim(
+                        "roles",
+                        usuario.getRoles().stream()
+                                .map(r -> "ROLE_" + r.name())
+                                .sorted()
+                                .toList())
                 .issuedAt(Date.from(agora))
                 .expiration(Date.from(expiracao));
         if (usuario.isPrecisaRedefinirSenha()) {
@@ -105,17 +112,21 @@ public class JwtTokenProvider {
                 .getPayload();
         UUID id = UUID.fromString(claims.getSubject());
         String email = claims.get("email", String.class);
-        Role role = extrairRole(claims);
+        Set<Role> roles = extrairRoles(claims);
         Boolean resetRequired = claims.get(CLAIM_PASSWORD_RESET_REQUIRED, Boolean.class);
-        return new UsuarioAutenticado(id, email, role, Boolean.TRUE.equals(resetRequired));
+        return new UsuarioAutenticado(id, email, roles, Boolean.TRUE.equals(resetRequired));
     }
 
-    private static Role extrairRole(Claims claims) {
+    private static Set<Role> extrairRoles(Claims claims) {
         Object roles = claims.get("roles");
         if (roles instanceof List<?> lista && !lista.isEmpty()) {
-            String primeiro = lista.get(0).toString();
-            String semPrefixo = primeiro.startsWith("ROLE_") ? primeiro.substring(5) : primeiro;
-            return Role.valueOf(semPrefixo);
+            Set<Role> resultado = EnumSet.noneOf(Role.class);
+            for (Object item : lista) {
+                String valor = item.toString();
+                String semPrefixo = valor.startsWith("ROLE_") ? valor.substring(5) : valor;
+                resultado.add(Role.valueOf(semPrefixo));
+            }
+            return resultado;
         }
         throw new IllegalArgumentException("Claim 'roles' ausente ou vazia no token");
     }
