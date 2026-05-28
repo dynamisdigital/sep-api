@@ -228,6 +228,10 @@ class CarteiraCredoraIT {
         p.registrarDecisaoManual(DecisaoParecer.APROVAR);
         p = propostaRepository.saveAndFlush(p);
         Contrato c = Contrato.criar(p.getId(), tomador.getId(), TipoContrato.MUTUO);
+        c.adicionarVersao("conteudo do contrato de teste", "a".repeat(64));
+        c.marcarAceito();
+        c.marcarEmAssinatura();
+        c.marcarAssinado();
         return contratoRepository.saveAndFlush(c).getId();
     }
 

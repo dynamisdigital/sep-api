@@ -86,6 +86,7 @@ CREATE TABLE operacao_financiada (
     modificado_por VARCHAR(50) NOT NULL,
     CONSTRAINT fk_operacao_credora FOREIGN KEY (empresa_credora_id) REFERENCES empresa_credora (id),
     CONSTRAINT fk_operacao_oportunidade FOREIGN KEY (oportunidade_id) REFERENCES oportunidade_investimento (id),
+    CONSTRAINT uq_operacao_credora_contrato UNIQUE (empresa_credora_id, contrato_id),
     CONSTRAINT chk_operacao_status CHECK (status IN ('ASSOCIADA', 'ENCERRADA'))
 );
 

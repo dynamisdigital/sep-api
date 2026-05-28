@@ -227,6 +227,22 @@ class CarteiraCredoraUseCaseTest {
     }
 
     @Test
+    void associarOperacaoContratoNaoAssinado() {
+        var uc = new AssociarOperacaoFinanciadaUseCase(
+                empresaRepository, oportunidadeRepository, operacaoRepository, contratoPort, enricher, eventPublisher);
+        EmpresaCredora credora = credoraElegivel();
+        UUID contratoId = UUID.randomUUID();
+        var cmd = new AssociarOperacaoFinanciadaCommand(credora.getId(), contratoId, null, "x", UUID.randomUUID());
+
+        when(empresaRepository.findById(credora.getId())).thenReturn(Optional.of(credora));
+        when(contratoPort.consultarPorId(contratoId))
+                .thenReturn(Optional.of(new ContratoCarteiraView(contratoId, UUID.randomUUID(), "GERADO")));
+
+        assertThatThrownBy(() -> uc.executar(cmd)).isInstanceOf(ContratoNaoElegivelException.class);
+        verify(operacaoRepository, never()).save(any());
+    }
+
+    @Test
     void associarOperacaoDuplicada() {
         var uc = new AssociarOperacaoFinanciadaUseCase(
                 empresaRepository, oportunidadeRepository, operacaoRepository, contratoPort, enricher, eventPublisher);

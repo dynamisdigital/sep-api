@@ -3,6 +3,7 @@ package com.dynamis.sep_api.credores.application.usecase;
 import com.dynamis.sep_api.credores.application.dto.AssociarOperacaoFinanciadaCommand;
 import com.dynamis.sep_api.credores.application.dto.OperacaoCarteiraView;
 import com.dynamis.sep_api.credores.application.port.out.ConsultarContratoParaCarteiraCredoraPort;
+import com.dynamis.sep_api.credores.application.port.out.ContratoCarteiraView;
 import com.dynamis.sep_api.credores.application.service.OperacaoCarteiraEnricher;
 import com.dynamis.sep_api.credores.domain.event.OperacaoFinanciadaAssociadaEvent;
 import com.dynamis.sep_api.credores.domain.exception.ContratoNaoElegivelException;
@@ -35,6 +36,9 @@ import java.util.UUID;
  */
 @Service
 public class AssociarOperacaoFinanciadaUseCase {
+
+    /** Apenas contratos formalizados (assinados) entram na carteira (fronteira da Sprint 17). */
+    private static final String STATUS_CONTRATO_ELEGIVEL = "ASSINADO";
 
     private final EmpresaCredoraRepository empresaRepository;
     private final OportunidadeInvestimentoRepository oportunidadeRepository;
@@ -82,7 +86,14 @@ public class AssociarOperacaoFinanciadaUseCase {
                 contratoId = contratoDaOportunidade;
             }
         }
-        if (contratoId == null || contratoPort.consultarPorId(contratoId).isEmpty()) {
+        if (contratoId == null) {
+            throw new ContratoNaoElegivelException();
+        }
+        String statusContrato = contratoPort
+                .consultarPorId(contratoId)
+                .map(ContratoCarteiraView::status)
+                .orElseThrow(ContratoNaoElegivelException::new);
+        if (!STATUS_CONTRATO_ELEGIVEL.equals(statusContrato)) {
             throw new ContratoNaoElegivelException();
         }
 

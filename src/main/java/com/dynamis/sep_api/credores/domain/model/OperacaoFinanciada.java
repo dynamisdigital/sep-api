@@ -61,6 +61,11 @@ public class OperacaoFinanciada extends EntidadeAuditavel {
      */
     public static OperacaoFinanciada associar(
             UUID empresaCredoraId, UUID contratoId, UUID oportunidadeId, String justificativa) {
+        java.util.Objects.requireNonNull(empresaCredoraId, "empresaCredoraId obrigatorio");
+        java.util.Objects.requireNonNull(contratoId, "contratoId obrigatorio");
+        if (justificativa == null || justificativa.isBlank()) {
+            throw new IllegalArgumentException("justificativa obrigatoria");
+        }
         UUID id = Generators.timeBasedReorderedGenerator().generate();
         return new OperacaoFinanciada(id, empresaCredoraId, contratoId, oportunidadeId, justificativa);
     }

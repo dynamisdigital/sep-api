@@ -47,6 +47,8 @@ public class InteresseCredora extends EntidadeAuditavel {
     }
 
     public static InteresseCredora registrar(UUID empresaCredoraId, UUID oportunidadeId) {
+        java.util.Objects.requireNonNull(empresaCredoraId, "empresaCredoraId obrigatorio");
+        java.util.Objects.requireNonNull(oportunidadeId, "oportunidadeId obrigatorio");
         UUID id = Generators.timeBasedReorderedGenerator().generate();
         return new InteresseCredora(id, empresaCredoraId, oportunidadeId);
     }

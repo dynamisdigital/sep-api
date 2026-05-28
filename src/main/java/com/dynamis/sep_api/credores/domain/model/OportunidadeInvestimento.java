@@ -66,6 +66,14 @@ public class OportunidadeInvestimento extends EntidadeAuditavel {
 
     public static OportunidadeInvestimento criar(
             UUID propostaId, UUID contratoId, BigDecimal valor, int prazoMeses, BigDecimal taxaJurosMensal) {
+        java.util.Objects.requireNonNull(propostaId, "propostaId obrigatorio");
+        java.util.Objects.requireNonNull(valor, "valor obrigatorio");
+        if (valor.signum() < 0) {
+            throw new IllegalArgumentException("valor nao pode ser negativo");
+        }
+        if (prazoMeses <= 0) {
+            throw new IllegalArgumentException("prazoMeses deve ser positivo");
+        }
         UUID id = Generators.timeBasedReorderedGenerator().generate();
         return new OportunidadeInvestimento(id, propostaId, contratoId, valor, prazoMeses, taxaJurosMensal);
     }
