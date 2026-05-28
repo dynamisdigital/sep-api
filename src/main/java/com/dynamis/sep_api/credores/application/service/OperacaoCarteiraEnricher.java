@@ -8,6 +8,7 @@ import com.dynamis.sep_api.credores.domain.model.OperacaoFinanciada;
 import com.dynamis.sep_api.credores.domain.model.OportunidadeInvestimento;
 import com.dynamis.sep_api.credores.infrastructure.persistence.OportunidadeInvestimentoRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 
@@ -32,6 +33,7 @@ public class OperacaoCarteiraEnricher {
         this.cobrancaPort = cobrancaPort;
     }
 
+    @Transactional(readOnly = true)
     public OperacaoCarteiraView enriquecer(OperacaoFinanciada operacao) {
         BigDecimal valor = null;
         Integer prazoMeses = null;

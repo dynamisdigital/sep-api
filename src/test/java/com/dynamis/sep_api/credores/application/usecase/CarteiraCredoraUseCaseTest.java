@@ -244,6 +244,27 @@ class CarteiraCredoraUseCaseTest {
         verify(operacaoRepository, never()).save(any());
     }
 
+    @Test
+    void associarOperacaoContratoDivergenteDaOportunidade() {
+        var uc = new AssociarOperacaoFinanciadaUseCase(
+                empresaRepository, oportunidadeRepository, operacaoRepository, contratoPort, enricher, eventPublisher);
+        EmpresaCredora credora = credoraElegivel();
+        UUID oportunidadeId = UUID.randomUUID();
+        UUID contratoDaOportunidade = UUID.randomUUID();
+        UUID contratoDivergente = UUID.randomUUID();
+        OportunidadeInvestimento oportunidade = OportunidadeInvestimento.criar(
+                UUID.randomUUID(), contratoDaOportunidade, new BigDecimal("1000.00"), 6, null);
+        var cmd = new AssociarOperacaoFinanciadaCommand(
+                credora.getId(), contratoDivergente, oportunidadeId, "x", UUID.randomUUID());
+
+        when(empresaRepository.findById(credora.getId())).thenReturn(Optional.of(credora));
+        when(oportunidadeRepository.findById(oportunidadeId)).thenReturn(Optional.of(oportunidade));
+
+        assertThatThrownBy(() -> uc.executar(cmd))
+                .isInstanceOf(com.dynamis.sep_api.shared.exception.ValidacaoException.class);
+        verify(operacaoRepository, never()).save(any());
+    }
+
     // ===== Sincronizar =====
 
     @Test

@@ -18,6 +18,7 @@ import com.dynamis.sep_api.credores.domain.vo.StatusElegibilidade;
 import com.dynamis.sep_api.credores.infrastructure.persistence.EmpresaCredoraRepository;
 import com.dynamis.sep_api.credores.infrastructure.persistence.OperacaoFinanciadaRepository;
 import com.dynamis.sep_api.credores.infrastructure.persistence.OportunidadeInvestimentoRepository;
+import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,8 +73,13 @@ public class AssociarOperacaoFinanciadaUseCase {
             OportunidadeInvestimento oportunidade = oportunidadeRepository
                     .findById(oportunidadeId)
                     .orElseThrow(() -> new OportunidadeNaoEncontradaException(oportunidadeId));
-            if (oportunidade.getContratoId() != null) {
-                contratoId = oportunidade.getContratoId();
+            UUID contratoDaOportunidade = oportunidade.getContratoId();
+            if (contratoDaOportunidade != null) {
+                if (contratoId != null && !contratoId.equals(contratoDaOportunidade)) {
+                    throw new ValidacaoException(
+                            "CRD-400-001", "contratoId informado diverge do contrato da oportunidade");
+                }
+                contratoId = contratoDaOportunidade;
             }
         }
         if (contratoId == null || contratoPort.consultarPorId(contratoId).isEmpty()) {
