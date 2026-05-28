@@ -18,16 +18,17 @@ public enum TipoParametroOperacional {
             return false;
         }
         return switch (this) {
-            case INTEGER -> parseLong(valor);
+            case INTEGER -> parseInteiro(valor);
             case DECIMAL -> parseDecimal(valor);
             case BOOLEAN -> "true".equalsIgnoreCase(valor) || "false".equalsIgnoreCase(valor);
             case STRING -> !valor.isBlank();
         };
     }
 
-    private static boolean parseLong(String valor) {
+    /** Valida em range de {@code int} — coerente com {@code ParametroOperacionalReader.lerInteiro}. */
+    private static boolean parseInteiro(String valor) {
         try {
-            Long.parseLong(valor.trim());
+            Integer.parseInt(valor.trim());
             return true;
         } catch (NumberFormatException ex) {
             return false;

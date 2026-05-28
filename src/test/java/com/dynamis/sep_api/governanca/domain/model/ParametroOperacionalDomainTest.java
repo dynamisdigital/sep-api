@@ -46,6 +46,8 @@ class ParametroOperacionalDomainTest {
     void tipoAceitaValidaCorretamente() {
         assertThat(TipoParametroOperacional.INTEGER.aceita("12")).isTrue();
         assertThat(TipoParametroOperacional.INTEGER.aceita("12.5")).isFalse();
+        // fora do range de int -> rejeitado (coerente com lerInteiro/Integer.parseInt)
+        assertThat(TipoParametroOperacional.INTEGER.aceita("3000000000")).isFalse();
         assertThat(TipoParametroOperacional.DECIMAL.aceita("12.5")).isTrue();
         assertThat(TipoParametroOperacional.BOOLEAN.aceita("false")).isTrue();
         assertThat(TipoParametroOperacional.BOOLEAN.aceita("x")).isFalse();

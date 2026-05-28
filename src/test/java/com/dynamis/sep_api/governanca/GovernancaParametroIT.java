@@ -65,27 +65,31 @@ class GovernancaParametroIT {
 
     @Test
     void alterarParametroVersionaEGravaHistorico() {
-        var antesVersoes = versaoRepository.findAll().size();
+        // Estado pode acumular entre execucoes (sep_test compartilhado, seed nao resetado):
+        // asserts relativos ao estado atual + restauracao do valor original.
+        var atual =
+                parametroRepository.findByChave("credito.score.pre-aprovacao").orElseThrow();
+        var parametroId = atual.getId();
+        String valorOriginal = atual.getValor();
+        int versaoAntes = atual.getVersao();
+        int historicoAntes =
+                versaoRepository.findByParametroIdOrderByVersaoDesc(parametroId).size();
+
         var view = alterar.executar(new AlterarParametroCommand(
                 "credito.score.pre-aprovacao", "750", "Ajuste de politica de credito", UUID.randomUUID()));
 
-        assertThat(view.versao()).isEqualTo(2);
+        assertThat(view.versao()).isEqualTo(versaoAntes + 1);
         assertThat(view.valor()).isEqualTo("750");
         assertThat(reader.lerInteiro("credito.score.pre-aprovacao", 0)).isEqualTo(750);
 
-        var parametroId = parametroRepository
-                .findByChave("credito.score.pre-aprovacao")
-                .orElseThrow()
-                .getId();
         var historico = versaoRepository.findByParametroIdOrderByVersaoDesc(parametroId);
-        assertThat(historico).hasSize(1);
-        assertThat(historico.get(0).getValorAnterior()).isEqualTo("700");
+        assertThat(historico).hasSize(historicoAntes + 1);
+        assertThat(historico.get(0).getValorAnterior()).isEqualTo(valorOriginal);
         assertThat(historico.get(0).getValorNovo()).isEqualTo("750");
         assertThat(historico.get(0).getJustificativa()).isEqualTo("Ajuste de politica de credito");
-        assertThat(versaoRepository.findAll().size()).isEqualTo(antesVersoes + 1);
 
-        // restaura para nao impactar outros testes do mesmo banco compartilhado
+        // restaura valor original para nao impactar outros testes do banco compartilhado
         alterar.executar(new AlterarParametroCommand(
-                "credito.score.pre-aprovacao", "700", "Restauracao pos-teste", UUID.randomUUID()));
+                "credito.score.pre-aprovacao", valorOriginal, "Restauracao pos-teste", UUID.randomUUID()));
     }
 }
