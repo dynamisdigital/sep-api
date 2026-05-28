@@ -2,11 +2,14 @@ package com.dynamis.sep_api.credores.application.usecase;
 
 import com.dynamis.sep_api.credores.application.dto.CadastrarEmpresaCredoraCommand;
 import com.dynamis.sep_api.credores.application.dto.EmpresaCredoraView;
+import com.dynamis.sep_api.credores.domain.event.EmpresaCredoraCadastradaEvent;
+import com.dynamis.sep_api.credores.domain.event.EmpresaCredoraElegibilidadeDefinidaEvent;
 import com.dynamis.sep_api.credores.domain.exception.CredoraJaCadastradaException;
 import com.dynamis.sep_api.credores.domain.exception.OnboardingInvalidoParaCredoraException;
 import com.dynamis.sep_api.credores.domain.exception.OwnershipCredoraException;
 import com.dynamis.sep_api.credores.domain.model.EmpresaCredora;
 import com.dynamis.sep_api.credores.domain.model.PerfilCredora;
+import com.dynamis.sep_api.credores.domain.vo.StatusElegibilidade;
 import com.dynamis.sep_api.credores.infrastructure.persistence.EmpresaCredoraRepository;
 import com.dynamis.sep_api.credores.infrastructure.persistence.PerfilCredoraRepository;
 import com.dynamis.sep_api.onboarding.application.query.ConsultarEmpresaParaCredoraQuery;
@@ -14,6 +17,7 @@ import com.dynamis.sep_api.onboarding.application.query.EmpresaParaCredoraResumo
 import com.dynamis.sep_api.onboarding.domain.exception.OnboardingNaoEncontradoException;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.TipoSolicitante;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,14 +42,17 @@ public class CadastrarEmpresaCredoraUseCase {
     private final EmpresaCredoraRepository empresaRepository;
     private final PerfilCredoraRepository perfilRepository;
     private final ConsultarEmpresaParaCredoraQuery onboardingQuery;
+    private final ApplicationEventPublisher eventPublisher;
 
     public CadastrarEmpresaCredoraUseCase(
             EmpresaCredoraRepository empresaRepository,
             PerfilCredoraRepository perfilRepository,
-            ConsultarEmpresaParaCredoraQuery onboardingQuery) {
+            ConsultarEmpresaParaCredoraQuery onboardingQuery,
+            ApplicationEventPublisher eventPublisher) {
         this.empresaRepository = empresaRepository;
         this.perfilRepository = perfilRepository;
         this.onboardingQuery = onboardingQuery;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -80,6 +87,16 @@ public class CadastrarEmpresaCredoraUseCase {
 
         PerfilCredora perfil = PerfilCredora.criar(empresa.getId(), cmd.tipoCredora(), cmd.capacidadeAporte());
         perfilRepository.save(perfil);
+
+        eventPublisher.publishEvent(
+                new EmpresaCredoraCadastradaEvent(empresa.getId(), empresa.getUsuarioId(), empresa.getCnpj()));
+        if (empresa.getElegibilidade() != StatusElegibilidade.PENDENTE) {
+            eventPublisher.publishEvent(new EmpresaCredoraElegibilidadeDefinidaEvent(
+                    empresa.getId(),
+                    empresa.getUsuarioId(),
+                    empresa.getElegibilidade(),
+                    empresa.getMotivoInelegibilidade()));
+        }
 
         return EmpresaCredoraView.de(empresa, perfil);
     }
