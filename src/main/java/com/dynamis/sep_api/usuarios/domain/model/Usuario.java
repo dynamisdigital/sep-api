@@ -152,7 +152,10 @@ public class Usuario extends EntidadeAuditavel {
         if (novasRoles == null || novasRoles.isEmpty()) {
             throw new IllegalArgumentException("usuario deve possuir ao menos uma role");
         }
-        this.roles = EnumSet.copyOf(novasRoles);
+        // Mutacao in-place preserva a colecao gerenciada pelo Hibernate (@ElementCollection);
+        // substituir a referencia quebraria o change-tracking da PersistentSet.
+        this.roles.clear();
+        this.roles.addAll(novasRoles);
         sincronizarPrincipal();
     }
 
