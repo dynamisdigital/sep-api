@@ -57,9 +57,11 @@ class CarteiraCredoraDomainTest {
     }
 
     @Test
-    void operacaoFinanciadaNasceAtivaEEncerra() {
-        OperacaoFinanciada op = OperacaoFinanciada.associar(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
-        assertThat(op.getStatus()).isEqualTo(StatusOperacaoFinanciada.ATIVA);
+    void operacaoFinanciadaNasceAssociadaEEncerra() {
+        OperacaoFinanciada op = OperacaoFinanciada.associar(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "Associacao operacional assistida");
+        assertThat(op.getStatus()).isEqualTo(StatusOperacaoFinanciada.ASSOCIADA);
+        assertThat(op.getJustificativa()).isEqualTo("Associacao operacional assistida");
 
         op.encerrar();
         assertThat(op.getStatus()).isEqualTo(StatusOperacaoFinanciada.ENCERRADA);

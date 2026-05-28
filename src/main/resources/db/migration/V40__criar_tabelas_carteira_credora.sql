@@ -79,13 +79,14 @@ CREATE TABLE operacao_financiada (
     contrato_id UUID NOT NULL,
     oportunidade_id UUID,
     status VARCHAR(20) NOT NULL,
+    justificativa VARCHAR(500) NOT NULL,
     data_criacao TIMESTAMP WITH TIME ZONE NOT NULL,
     data_modificacao TIMESTAMP WITH TIME ZONE NOT NULL,
     criado_por VARCHAR(50) NOT NULL,
     modificado_por VARCHAR(50) NOT NULL,
     CONSTRAINT fk_operacao_credora FOREIGN KEY (empresa_credora_id) REFERENCES empresa_credora (id),
     CONSTRAINT fk_operacao_oportunidade FOREIGN KEY (oportunidade_id) REFERENCES oportunidade_investimento (id),
-    CONSTRAINT chk_operacao_status CHECK (status IN ('ATIVA', 'ENCERRADA'))
+    CONSTRAINT chk_operacao_status CHECK (status IN ('ASSOCIADA', 'ENCERRADA'))
 );
 
 CREATE INDEX idx_operacao_credora_status ON operacao_financiada (empresa_credora_id, status, data_criacao DESC);

@@ -38,21 +38,31 @@ public class OperacaoFinanciada extends EntidadeAuditavel {
     @Column(name = "status", nullable = false, length = 20)
     private StatusOperacaoFinanciada status;
 
+    @Column(name = "justificativa", nullable = false, length = 500, updatable = false)
+    private String justificativa;
+
     protected OperacaoFinanciada() {
         // requerido pelo Hibernate
     }
 
-    private OperacaoFinanciada(UUID id, UUID empresaCredoraId, UUID contratoId, UUID oportunidadeId) {
+    private OperacaoFinanciada(
+            UUID id, UUID empresaCredoraId, UUID contratoId, UUID oportunidadeId, String justificativa) {
         this.id = id;
         this.empresaCredoraId = empresaCredoraId;
         this.contratoId = contratoId;
         this.oportunidadeId = oportunidadeId;
-        this.status = StatusOperacaoFinanciada.ATIVA;
+        this.justificativa = justificativa;
+        this.status = StatusOperacaoFinanciada.ASSOCIADA;
     }
 
-    public static OperacaoFinanciada associar(UUID empresaCredoraId, UUID contratoId, UUID oportunidadeId) {
+    /**
+     * Cria a associacao operacional assistida entre credora e contrato (Sprint 17). {@code
+     * justificativa} registra a motivacao operacional da associacao (sem matching/aporte real).
+     */
+    public static OperacaoFinanciada associar(
+            UUID empresaCredoraId, UUID contratoId, UUID oportunidadeId, String justificativa) {
         UUID id = Generators.timeBasedReorderedGenerator().generate();
-        return new OperacaoFinanciada(id, empresaCredoraId, contratoId, oportunidadeId);
+        return new OperacaoFinanciada(id, empresaCredoraId, contratoId, oportunidadeId, justificativa);
     }
 
     public void encerrar() {
@@ -77,5 +87,9 @@ public class OperacaoFinanciada extends EntidadeAuditavel {
 
     public StatusOperacaoFinanciada getStatus() {
         return status;
+    }
+
+    public String getJustificativa() {
+        return justificativa;
     }
 }
