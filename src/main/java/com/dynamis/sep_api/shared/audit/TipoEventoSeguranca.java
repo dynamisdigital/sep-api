@@ -107,5 +107,9 @@ public enum TipoEventoSeguranca {
     COMENTARIO_REGISTRADO,
     ITEM_RESOLVIDO,
     ITEM_IGNORADO,
-    REPROCESSO_DISPARADO
+    REPROCESSO_DISPARADO,
+    // Sprint 16 Task 16.6: jornada da empresa credora.
+    CREDORA_CADASTRADA,
+    CREDORA_ELEGIVEL,
+    CREDORA_INELEGIVEL
 }
