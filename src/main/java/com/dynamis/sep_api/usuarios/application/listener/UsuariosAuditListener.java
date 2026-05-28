@@ -3,6 +3,8 @@ package com.dynamis.sep_api.usuarios.application.listener;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaService;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import com.dynamis.sep_api.usuarios.domain.event.RoleAlteradaEvent;
+import com.dynamis.sep_api.usuarios.domain.event.RolesUsuarioAlteradasEvent;
+import com.dynamis.sep_api.usuarios.domain.model.Role;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -43,6 +45,20 @@ public class UsuariosAuditListener {
         payload.put("roleAnterior", event.roleAnterior().name());
         payload.put("roleNova", event.roleNova().name());
         auditLogService.gravar(TipoEventoSeguranca.ROLE_ALTERADO, event.atorAdminId(), serializar(payload));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoAlterarRoles(RolesUsuarioAlteradasEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("usuarioAlvoId", event.usuarioAlvoId().toString());
+        payload.put("rolesAnteriores", nomes(event.rolesAnteriores()));
+        payload.put("rolesNovas", nomes(event.rolesNovas()));
+        auditLogService.gravar(TipoEventoSeguranca.USUARIO_ROLES_ALTERADAS, event.atorAdminId(), serializar(payload));
+    }
+
+    private static java.util.List<String> nomes(java.util.Set<Role> roles) {
+        return roles.stream().map(Role::name).sorted().toList();
     }
 
     private String serializar(Map<String, Object> payload) {

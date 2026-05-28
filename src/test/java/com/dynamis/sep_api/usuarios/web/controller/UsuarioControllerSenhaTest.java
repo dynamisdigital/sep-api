@@ -68,6 +68,9 @@ class UsuarioControllerSenhaTest {
     private com.dynamis.sep_api.usuarios.application.usecase.AlterarRoleUsuarioUseCase alterarRoleUsuarioUseCase;
 
     @MockBean
+    private com.dynamis.sep_api.usuarios.application.usecase.GerenciarRolesUsuarioUseCase gerenciarRolesUsuarioUseCase;
+
+    @MockBean
     private UsuarioMapper mapper;
 
     @MockBean

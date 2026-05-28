@@ -115,5 +115,8 @@ public enum TipoEventoSeguranca {
     // Sprint 17 Task 17.6: oportunidades e carteira da credora.
     CREDORA_INTERESSE_REGISTRADO,
     CREDORA_INTERESSE_CANCELADO,
-    CREDORA_OPERACAO_ASSOCIADA
+    CREDORA_OPERACAO_ASSOCIADA,
+    // Sprint 18 Task 18.6: governanca avancada (RBAC cumulativo + parametros).
+    USUARIO_ROLES_ALTERADAS,
+    PARAMETRO_OPERACIONAL_ALTERADO
 }
