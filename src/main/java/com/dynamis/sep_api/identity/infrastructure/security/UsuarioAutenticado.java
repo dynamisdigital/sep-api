@@ -27,13 +27,18 @@ import java.util.UUID;
 public record UsuarioAutenticado(UUID id, String username, Role role, Set<Role> roles, boolean passwordResetRequired)
         implements UserDetails {
 
-    /** Normaliza o conjunto de roles (nao nulo/nao vazio, copia defensiva). */
+    /**
+     * Normaliza o conjunto de roles (nao nulo/nao vazio, copia defensiva) e DERIVA a role principal
+     * do conjunto, garantindo a invariante {@code role() in roles()} mesmo em chamada direta do
+     * construtor canonico (evita desync entre role e roles).
+     */
     public UsuarioAutenticado {
         if (roles == null || roles.isEmpty()) {
             roles = EnumSet.of(role);
         } else {
             roles = EnumSet.copyOf(roles);
         }
+        role = Role.principalDe(roles);
     }
 
     /** Construtor de conveniencia single-role mantido para chamadas legadas/testes. */

@@ -45,4 +45,18 @@ class JwtTokenProviderMultiRoleTest {
         assertThat(principal.role()).isEqualTo(Role.CLIENTE);
         assertThat(principal.getAuthorities()).extracting("authority").containsExactly("ROLE_CLIENTE");
     }
+
+    @Test
+    void principalDerivadoDoConjuntoEvitaDesync() {
+        // construtor canonico chamado com role incoerente com o conjunto -> principal corrigido
+        UsuarioAutenticado p = new UsuarioAutenticado(
+                java.util.UUID.randomUUID(),
+                "x@sep.test",
+                Role.CLIENTE,
+                java.util.EnumSet.of(Role.FINANCEIRO, Role.BACKOFFICE),
+                false);
+        assertThat(p.role()).isEqualTo(Role.FINANCEIRO); // derivado por precedencia, nao CLIENTE
+        assertThat(p.temRole(Role.CLIENTE)).isFalse();
+        assertThat(p.roles()).containsExactlyInAnyOrder(Role.FINANCEIRO, Role.BACKOFFICE);
+    }
 }
