@@ -90,6 +90,23 @@ class AlterarRoleUsuarioUseCaseTest {
     }
 
     @Test
+    void multiRoleParaRoleUnicaRevogaRoleSecundaria() {
+        // FINANCEIRO + BACKOFFICE; admin reduz para apenas FINANCEIRO via endpoint legado.
+        // Principal ja eh FINANCEIRO, mas o conjunto tem BACKOFFICE extra -> NAO pode ser no-op.
+        UUID alvoId = UUID.randomUUID();
+        UUID adminId = UUID.randomUUID();
+        Usuario alvo = Usuario.criar("op@sep.test", "hash", Role.FINANCEIRO);
+        alvo.adicionarRole(Role.BACKOFFICE);
+        when(repository.findById(alvoId)).thenReturn(Optional.of(alvo));
+
+        Usuario salvo = useCase.executar(alvoId, Role.FINANCEIRO, adminId);
+
+        assertThat(salvo.getRoles()).containsExactly(Role.FINANCEIRO); // BACKOFFICE revogada
+        verify(repository).save(alvo);
+        verify(eventPublisher).publishEvent(any(RoleAlteradaEvent.class));
+    }
+
+    @Test
     void promoveParaBackoffice_persisteEPublica() {
         UUID alvoId = UUID.randomUUID();
         UUID adminId = UUID.randomUUID();
