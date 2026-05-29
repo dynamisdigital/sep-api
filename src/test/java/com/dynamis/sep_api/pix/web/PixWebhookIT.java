@@ -247,6 +247,9 @@ class PixWebhookIT {
         PixWebhookEvent evento =
                 webhookEventRepository.findByProviderAndEventId("celcoin-pix", eventId).orElseThrow();
         assertThat(evento.getStatus()).isEqualTo(StatusPixWebhookEvent.IGNORADO);
+        // Auditoria: RECEBIDO gravado, mas PROCESSADO suprimido para evento ignorado.
+        assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_RECEBIDO, eventId)).isTrue();
+        assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_PROCESSADO, eventId)).isFalse();
     }
 
     private static String computeHmac(String payload) {
