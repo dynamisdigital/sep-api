@@ -32,6 +32,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PixRepositoryTest {
 
     private static final BigDecimal VALOR = new BigDecimal("150.00");
+    private static final String HASH_1 = "1".repeat(64);
+    private static final String HASH_2 = "2".repeat(64);
 
     @Autowired
     private PixTransferenciaRepository transferenciaRepository;
@@ -88,7 +90,7 @@ class PixRepositoryTest {
 
     @Test
     void webhookEventPersisteEDetectaDuplicado() {
-        PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.RECEBIMENTO_PIX, "hash-1");
+        PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.RECEBIMENTO_PIX, HASH_1);
         webhookEventRepository.saveAndFlush(e);
 
         assertThat(webhookEventRepository.existsByProviderAndEventId("celcoin", "evt-1")).isTrue();
@@ -100,10 +102,10 @@ class PixRepositoryTest {
     @Test
     void webhookEventProviderEventIdDuplicadoFalha() {
         webhookEventRepository.saveAndFlush(
-                PixWebhookEvent.receber("celcoin", "evt-dup", TipoPixWebhookEvent.RECEBIMENTO_PIX, "hash-1"));
+                PixWebhookEvent.receber("celcoin", "evt-dup", TipoPixWebhookEvent.RECEBIMENTO_PIX, HASH_1));
 
         PixWebhookEvent outro =
-                PixWebhookEvent.receber("celcoin", "evt-dup", TipoPixWebhookEvent.STATUS_TRANSFERENCIA, "hash-2");
+                PixWebhookEvent.receber("celcoin", "evt-dup", TipoPixWebhookEvent.STATUS_TRANSFERENCIA, HASH_2);
         assertThatThrownBy(() -> webhookEventRepository.saveAndFlush(outro))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
@@ -111,9 +113,9 @@ class PixRepositoryTest {
     @Test
     void webhookEventMesmoEventIdProviderDiferentePersiste() {
         webhookEventRepository.saveAndFlush(
-                PixWebhookEvent.receber("celcoin", "evt-x", TipoPixWebhookEvent.RECEBIMENTO_PIX, "hash-1"));
+                PixWebhookEvent.receber("celcoin", "evt-x", TipoPixWebhookEvent.RECEBIMENTO_PIX, HASH_1));
         webhookEventRepository.saveAndFlush(
-                PixWebhookEvent.receber("outro", "evt-x", TipoPixWebhookEvent.RECEBIMENTO_PIX, "hash-2"));
+                PixWebhookEvent.receber("outro", "evt-x", TipoPixWebhookEvent.RECEBIMENTO_PIX, HASH_2));
 
         assertThat(webhookEventRepository.count()).isEqualTo(2);
     }

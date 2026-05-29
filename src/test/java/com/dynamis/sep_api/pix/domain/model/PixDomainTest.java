@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PixDomainTest {
 
     private static final BigDecimal VALOR = new BigDecimal("150.00");
+    private static final String HASH64 = "0".repeat(64);
 
     @Nested
     class Transferencia {
@@ -45,6 +46,13 @@ class PixDomainTest {
             assertThatThrownBy(() -> PixTransferencia.criar(VALOR, "x", "  ", "corr-1"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("idempotencyKey");
+        }
+
+        @Test
+        void criarRejeitaValorComMaisDeDuasCasas() {
+            assertThatThrownBy(() -> PixTransferencia.criar(new BigDecimal("10.005"), "x", "idem-1", "corr-1"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("2 casas");
         }
 
         @Test
@@ -122,6 +130,19 @@ class PixDomainTest {
         }
 
         @Test
+        void normalizaEndToEndIdBlankParaNulo() {
+            PixRecebimento r = PixRecebimento.registrar("   ", VALOR, OffsetDateTime.now(), "corr-1");
+            assertThat(r.getEndToEndId()).isNull();
+        }
+
+        @Test
+        void registrarRejeitaValorComMaisDeDuasCasas() {
+            assertThatThrownBy(() -> PixRecebimento.registrar("E2E-1", new BigDecimal("10.005"), OffsetDateTime.now(), "corr-1"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("2 casas");
+        }
+
+        @Test
         void conciliaAposProcessamento() {
             PixRecebimento r = PixRecebimento.registrar("E2E-1", VALOR, OffsetDateTime.now(), "corr-1");
             r.marcarEmProcessamento();
@@ -142,21 +163,28 @@ class PixDomainTest {
 
         @Test
         void receberNasceEmRecebido() {
-            PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.RECEBIMENTO_PIX, "hash-abc");
+            PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.RECEBIMENTO_PIX, HASH64);
             assertThat(e.getStatus()).isEqualTo(StatusPixWebhookEvent.RECEBIDO);
             assertThat(e.getReceivedAt()).isNotNull();
         }
 
         @Test
         void receberRejeitaEventIdBlank() {
-            assertThatThrownBy(() -> PixWebhookEvent.receber("celcoin", "  ", TipoPixWebhookEvent.DESCONHECIDO, "hash"))
+            assertThatThrownBy(() -> PixWebhookEvent.receber("celcoin", "  ", TipoPixWebhookEvent.DESCONHECIDO, HASH64))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("eventId");
         }
 
         @Test
+        void receberRejeitaPayloadHashNaoSha256() {
+            assertThatThrownBy(() -> PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.RECEBIMENTO_PIX, "hash-abc"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("SHA-256");
+        }
+
+        @Test
         void processadoEhIdempotente() {
-            PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.RECEBIMENTO_PIX, "hash");
+            PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.RECEBIMENTO_PIX, HASH64);
             e.marcarProcessado();
             e.marcarProcessado();
             assertThat(e.getStatus()).isEqualTo(StatusPixWebhookEvent.PROCESSADO);
@@ -165,7 +193,7 @@ class PixDomainTest {
 
         @Test
         void ignoradoRegistraMotivo() {
-            PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.DESCONHECIDO, "hash");
+            PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.DESCONHECIDO, HASH64);
             e.marcarIgnorado("tipo nao mapeado");
             assertThat(e.getStatus()).isEqualTo(StatusPixWebhookEvent.IGNORADO);
             assertThat(e.getErro()).isEqualTo("tipo nao mapeado");
@@ -173,10 +201,32 @@ class PixDomainTest {
 
         @Test
         void falhouRegistraErro() {
-            PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.RECEBIMENTO_PIX, "hash");
+            PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.RECEBIMENTO_PIX, HASH64);
             e.marcarFalhou("erro tecnico");
             assertThat(e.getStatus()).isEqualTo(StatusPixWebhookEvent.FALHOU);
             assertThat(e.getErro()).isEqualTo("erro tecnico");
+        }
+
+        @Test
+        void naoReprocessaEventoProcessado() {
+            PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.RECEBIMENTO_PIX, HASH64);
+            e.marcarProcessado();
+            assertThatThrownBy(() -> e.marcarFalhou("x")).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> e.marcarIgnorado("x")).isInstanceOf(IllegalStateException.class);
+        }
+
+        @Test
+        void eventoFalhadoNaoViraProcessado() {
+            PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.RECEBIMENTO_PIX, HASH64);
+            e.marcarFalhou("erro");
+            assertThatThrownBy(e::marcarProcessado).isInstanceOf(IllegalStateException.class);
+        }
+
+        @Test
+        void eventoIgnoradoNaoViraProcessado() {
+            PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.DESCONHECIDO, HASH64);
+            e.marcarIgnorado("desconhecido");
+            assertThatThrownBy(e::marcarProcessado).isInstanceOf(IllegalStateException.class);
         }
     }
 }

@@ -96,7 +96,8 @@ CREATE TABLE pix_webhook_event (
     ),
     CONSTRAINT chk_pix_webhook_event_status CHECK (
         status IN ('RECEBIDO', 'PROCESSADO', 'IGNORADO', 'FALHOU')
-    )
+    ),
+    CONSTRAINT chk_pix_webhook_event_payload_hash CHECK (payload_hash ~ '^[a-fA-F0-9]{64}$')
 );
 
 CREATE INDEX idx_pix_webhook_event_status_data ON pix_webhook_event (status, received_at);

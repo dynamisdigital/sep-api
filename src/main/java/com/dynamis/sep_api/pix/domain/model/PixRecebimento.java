@@ -11,7 +11,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
@@ -67,10 +66,15 @@ public class PixRecebimento extends EntidadeAuditavel {
         if (valor.signum() <= 0) {
             throw new IllegalArgumentException("valor deve ser positivo");
         }
+        if (valor.scale() > 2) {
+            throw new IllegalArgumentException("valor nao pode ter mais de 2 casas decimais");
+        }
         Objects.requireNonNull(recebidoEm, "recebidoEm obrigatorio");
+        // Blank vira null: a unique parcial so ignora NULL, entao blank geraria duplicidade artificial.
+        String endToEndIdNormalizado = (endToEndId != null && endToEndId.isBlank()) ? null : endToEndId;
         UUID id = Generators.timeBasedReorderedGenerator().generate();
         return new PixRecebimento(
-                id, endToEndId, valor.setScale(2, RoundingMode.HALF_UP), StatusPixRecebimento.RECEBIDO, recebidoEm, correlationId);
+                id, endToEndIdNormalizado, valor.setScale(2), StatusPixRecebimento.RECEBIDO, recebidoEm, correlationId);
     }
 
     /** Marca que o recebimento entrou em processamento interno. */

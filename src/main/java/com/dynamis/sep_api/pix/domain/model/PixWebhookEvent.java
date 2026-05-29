@@ -14,6 +14,7 @@ import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Snapshot operacional de um evento de webhook Pix recebido (Epic 15 / Sprint 19).
@@ -25,6 +26,9 @@ import java.util.UUID;
 @Entity
 @Table(name = "pix_webhook_event")
 public class PixWebhookEvent extends EntidadeAuditavel {
+
+    /** SHA-256 em hex: exatamente 64 caracteres hexadecimais (minimizacao de dados sensiveis). */
+    private static final Pattern SHA256_HEX = Pattern.compile("[a-fA-F0-9]{64}");
 
     @Id
     @Column(name = "id")
@@ -73,30 +77,48 @@ public class PixWebhookEvent extends EntidadeAuditavel {
         exigirTexto(provider, "provider");
         exigirTexto(eventId, "eventId");
         exigirTexto(payloadHash, "payloadHash");
+        if (!SHA256_HEX.matcher(payloadHash).matches()) {
+            throw new IllegalArgumentException("payloadHash deve ser SHA-256 hex (64 caracteres)");
+        }
         Objects.requireNonNull(eventType, "eventType obrigatorio");
         UUID id = Generators.timeBasedReorderedGenerator().generate();
         return new PixWebhookEvent(id, provider, eventId, eventType, StatusPixWebhookEvent.RECEBIDO, payloadHash);
     }
 
-    /** Marca como processado com sucesso. Idempotente: repeticao mantem o estado sem regredir. */
+    /**
+     * Marca como processado com sucesso. Idempotente: repeticao mantem o estado. So permitido a
+     * partir de {@link StatusPixWebhookEvent#RECEBIDO} — estados IGNORADO/FALHOU nao reprocessam aqui.
+     */
     public void marcarProcessado() {
         if (this.status == StatusPixWebhookEvent.PROCESSADO) {
             return;
         }
+        exigirEstado(StatusPixWebhookEvent.RECEBIDO);
         this.status = StatusPixWebhookEvent.PROCESSADO;
         this.erro = null;
     }
 
     /** Marca como ignorado (evento desconhecido), registrando o motivo tecnico. */
     public void marcarIgnorado(String motivo) {
+        exigirEstado(StatusPixWebhookEvent.RECEBIDO);
         this.status = StatusPixWebhookEvent.IGNORADO;
         this.erro = motivo;
     }
 
     /** Marca falha de processamento, registrando a causa sanitizada para reprocesso futuro. */
     public void marcarFalhou(String erro) {
+        exigirEstado(StatusPixWebhookEvent.RECEBIDO);
         this.status = StatusPixWebhookEvent.FALHOU;
         this.erro = erro;
+    }
+
+    private void exigirEstado(StatusPixWebhookEvent... permitidos) {
+        for (StatusPixWebhookEvent permitido : permitidos) {
+            if (this.status == permitido) {
+                return;
+            }
+        }
+        throw new IllegalStateException("transicao invalida a partir de " + this.status);
     }
 
     private static void exigirTexto(String valor, String campo) {

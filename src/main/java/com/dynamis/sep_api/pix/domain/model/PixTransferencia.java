@@ -11,7 +11,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -71,13 +70,16 @@ public class PixTransferencia extends EntidadeAuditavel {
         if (valor.signum() <= 0) {
             throw new IllegalArgumentException("valor deve ser positivo");
         }
+        if (valor.scale() > 2) {
+            throw new IllegalArgumentException("valor nao pode ter mais de 2 casas decimais");
+        }
         Objects.requireNonNull(idempotencyKey, "idempotencyKey obrigatoria");
         if (idempotencyKey.isBlank()) {
             throw new IllegalArgumentException("idempotencyKey nao pode ser vazia");
         }
         UUID id = Generators.timeBasedReorderedGenerator().generate();
         return new PixTransferencia(
-                id, idempotencyKey, StatusPixTransferencia.CRIADA, valor.setScale(2, RoundingMode.HALF_UP), descricao, correlationId);
+                id, idempotencyKey, StatusPixTransferencia.CRIADA, valor.setScale(2), descricao, correlationId);
     }
 
     /** Registra que o provider aceitou a solicitacao, guardando o id externo retornado. */
