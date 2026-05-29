@@ -70,6 +70,9 @@ public class ProcessarWebhookPixUseCase {
         PixWebhookEvent novo = PixWebhookEvent.receber(PROVIDER, evt.eventId(), evt.tipo(), evt.payloadHash());
         final PixWebhookEvent evento;
         try {
+            // Flush imediato (e nao no commit) protege a corrida de MESMO event_id: dois webhooks
+            // identicos concorrentes — o segundo bate no unique (provider, event_id) e cai no catch
+            // abaixo como duplicado idempotente, sem reprocessar.
             // save() faz merge (id atribuido, sem @Version) — usar a instancia gerenciada retornada
             // para que marcarProcessado/Ignorado/Falhou sejam flushados no commit.
             evento = webhookEventRepository.saveAndFlush(novo);
@@ -106,6 +109,11 @@ public class ProcessarWebhookPixUseCase {
             // recebimento ja registrado para este end-to-end id — idempotente
             return;
         }
+        // Garantia de nao-duplicidade: o unique parcial de end_to_end_id (V45). O pre-check acima
+        // cobre redelivery; numa corrida concorrente rara (mesmo end_to_end_id em eventos de id
+        // distinto) o insert falha por constraint e a transacao reverte (HTTP 5xx) — o reenvio do
+        // provider reconcilia, sem nunca creditar duas vezes. REQUIRES_NEW fica para Sprints 20/21
+        // quando houver desembolso real.
         PixRecebimento recebimento =
                 PixRecebimento.registrar(evt.endToEndId(), evt.valor(), OffsetDateTime.now(), correlationId);
         recebimentoRepository.save(recebimento);

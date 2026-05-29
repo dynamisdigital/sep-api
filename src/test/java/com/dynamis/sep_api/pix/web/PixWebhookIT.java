@@ -153,6 +153,68 @@ class PixWebhookIT {
     }
 
     @Test
+    void aceitaAliasXCelcoinSignature() {
+        String eventId = "evt-" + UUID.randomUUID();
+        String e2e = "E2E-" + UUID.randomUUID();
+        String payload = recebimentoPayload(eventId, e2e);
+
+        RestAssured.given()
+                .header("X-Celcoin-Signature", computeHmac(payload))
+                .contentType(ContentType.JSON)
+                .body(payload)
+                .when()
+                .post(URL)
+                .then()
+                .statusCode(202);
+
+        assertThat(webhookEventRepository.findByProviderAndEventId("celcoin-pix", eventId).orElseThrow().getStatus())
+                .isEqualTo(StatusPixWebhookEvent.PROCESSADO);
+    }
+
+    @Test
+    void recebimentoSemValorMarcaFalhouSemCriarRecebimento() {
+        String eventId = "evt-" + UUID.randomUUID();
+        String e2e = "E2E-" + UUID.randomUUID();
+        // Recebimento sem "amount": dominio rejeita valor nulo -> evento FALHOU, sem recebimento.
+        String payload = "{\"event_id\":\"" + eventId + "\",\"event_type\":\"pix.received\",\"end_to_end_id\":\""
+                + e2e + "\"}";
+
+        RestAssured.given()
+                .header("X-Webhook-Signature", computeHmac(payload))
+                .contentType(ContentType.JSON)
+                .body(payload)
+                .when()
+                .post(URL)
+                .then()
+                .statusCode(202);
+
+        assertThat(webhookEventRepository.findByProviderAndEventId("celcoin-pix", eventId).orElseThrow().getStatus())
+                .isEqualTo(StatusPixWebhookEvent.FALHOU);
+        assertThat(recebimentoRepository.findByEndToEndId(e2e)).isEmpty();
+    }
+
+    @Test
+    void correlationIdDoHeaderEhPersistidoNoRecebimento() {
+        String eventId = "evt-" + UUID.randomUUID();
+        String e2e = "E2E-" + UUID.randomUUID();
+        String correlationId = "corr-" + UUID.randomUUID();
+        String payload = recebimentoPayload(eventId, e2e);
+
+        RestAssured.given()
+                .header("X-Webhook-Signature", computeHmac(payload))
+                .header("X-Correlation-Id", correlationId)
+                .contentType(ContentType.JSON)
+                .body(payload)
+                .when()
+                .post(URL)
+                .then()
+                .statusCode(202);
+
+        assertThat(recebimentoRepository.findByEndToEndId(e2e).orElseThrow().getCorrelationId())
+                .isEqualTo(correlationId);
+    }
+
+    @Test
     void tipoDesconhecidoMarcaIgnorado() {
         String eventId = "evt-" + UUID.randomUUID();
         String payload = "{\"event_id\":\"" + eventId + "\",\"event_type\":\"foo.bar\"}";
