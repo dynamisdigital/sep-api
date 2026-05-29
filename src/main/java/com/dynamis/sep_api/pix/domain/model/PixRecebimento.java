@@ -51,7 +51,12 @@ public class PixRecebimento extends EntidadeAuditavel {
     }
 
     private PixRecebimento(
-            UUID id, String endToEndId, BigDecimal valor, StatusPixRecebimento status, OffsetDateTime recebidoEm, String correlationId) {
+            UUID id,
+            String endToEndId,
+            BigDecimal valor,
+            StatusPixRecebimento status,
+            OffsetDateTime recebidoEm,
+            String correlationId) {
         this.id = id;
         this.endToEndId = endToEndId;
         this.valor = valor;
@@ -61,7 +66,8 @@ public class PixRecebimento extends EntidadeAuditavel {
     }
 
     /** Registra uma entrada Pix recebida via provider em {@link StatusPixRecebimento#RECEBIDO}. */
-    public static PixRecebimento registrar(String endToEndId, BigDecimal valor, OffsetDateTime recebidoEm, String correlationId) {
+    public static PixRecebimento registrar(
+            String endToEndId, BigDecimal valor, OffsetDateTime recebidoEm, String correlationId) {
         Objects.requireNonNull(valor, "valor obrigatorio");
         if (valor.signum() <= 0) {
             throw new IllegalArgumentException("valor deve ser positivo");

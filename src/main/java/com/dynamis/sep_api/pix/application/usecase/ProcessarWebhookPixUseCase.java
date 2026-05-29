@@ -119,7 +119,8 @@ public class ProcessarWebhookPixUseCase {
     }
 
     private void processarRecebimento(EventoWebhookPixNormalizado evt, String correlationId) {
-        if (evt.endToEndId() != null && recebimentoRepository.findByEndToEndId(evt.endToEndId()).isPresent()) {
+        if (evt.endToEndId() != null
+                && recebimentoRepository.findByEndToEndId(evt.endToEndId()).isPresent()) {
             // recebimento ja registrado para este end-to-end id — idempotente
             return;
         }

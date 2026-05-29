@@ -36,7 +36,8 @@ public class FakePixProvider implements PixProvider {
     @Override
     public RespostaTransferenciaPix solicitarTransferencia(
             ComandoTransferenciaPix comando, String idempotencyKey, String correlationId) {
-        String externalId = "fake-pix-" + Generators.timeBasedReorderedGenerator().generate();
+        String externalId =
+                "fake-pix-" + Generators.timeBasedReorderedGenerator().generate();
         log.info("FakePixProvider.solicitarTransferencia valor={} -> {}", comando.valor(), externalId);
         return new RespostaTransferenciaPix(externalId, StatusTransferenciaPixProvider.PENDENTE);
     }

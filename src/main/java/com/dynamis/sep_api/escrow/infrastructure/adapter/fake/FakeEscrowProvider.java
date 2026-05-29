@@ -31,7 +31,8 @@ public class FakeEscrowProvider implements EscrowProvider {
     @Override
     public RespostaContaEscrow criarContaEscrow(
             ComandoCriarContaEscrow comando, String idempotencyKey, String correlationId) {
-        String externalId = "fake-escrow-acc-" + Generators.timeBasedReorderedGenerator().generate();
+        String externalId =
+                "fake-escrow-acc-" + Generators.timeBasedReorderedGenerator().generate();
         log.info("FakeEscrowProvider.criarContaEscrow titular={} -> {}", comando.titular(), externalId);
         return new RespostaContaEscrow(externalId, StatusContaEscrow.ATIVA);
     }
@@ -43,7 +44,8 @@ public class FakeEscrowProvider implements EscrowProvider {
 
     @Override
     public RespostaWallet criarWallet(ComandoCriarWallet comando, String idempotencyKey, String correlationId) {
-        String externalId = "fake-escrow-wallet-" + Generators.timeBasedReorderedGenerator().generate();
+        String externalId =
+                "fake-escrow-wallet-" + Generators.timeBasedReorderedGenerator().generate();
         log.info("FakeEscrowProvider.criarWallet conta={} -> {}", comando.contaEscrowExternalId(), externalId);
         return new RespostaWallet(externalId, BigDecimal.ZERO);
     }

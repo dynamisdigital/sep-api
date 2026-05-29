@@ -68,8 +68,8 @@ class PixWebhookIT {
     }
 
     private static String recebimentoPayload(String eventId, String endToEndId) {
-        return "{\"event_id\":\"" + eventId + "\",\"event_type\":\"pix.received\",\"end_to_end_id\":\""
-                + endToEndId + "\",\"amount\":250.00}";
+        return "{\"event_id\":\"" + eventId + "\",\"event_type\":\"pix.received\",\"end_to_end_id\":\"" + endToEndId
+                + "\",\"amount\":250.00}";
     }
 
     @Test
@@ -87,13 +87,16 @@ class PixWebhookIT {
                 .then()
                 .statusCode(202);
 
-        PixWebhookEvent evento =
-                webhookEventRepository.findByProviderAndEventId("celcoin-pix", eventId).orElseThrow();
+        PixWebhookEvent evento = webhookEventRepository
+                .findByProviderAndEventId("celcoin-pix", eventId)
+                .orElseThrow();
         assertThat(evento.getStatus()).isEqualTo(StatusPixWebhookEvent.PROCESSADO);
         assertThat(recebimentoRepository.findByEndToEndId(e2e)).isPresent();
         // Auditoria: RECEBIDO + PROCESSADO gravados (AFTER_COMMIT, sem usuario — HMAC).
-        assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_RECEBIDO, eventId)).isTrue();
-        assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_PROCESSADO, eventId)).isTrue();
+        assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_RECEBIDO, eventId))
+                .isTrue();
+        assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_PROCESSADO, eventId))
+                .isTrue();
     }
 
     @Test
@@ -111,8 +114,9 @@ class PixWebhookIT {
                 .then()
                 .statusCode(202);
 
-        PixWebhookEvent evento =
-                webhookEventRepository.findByProviderAndEventId("celcoin-pix", eventId).orElseThrow();
+        PixWebhookEvent evento = webhookEventRepository
+                .findByProviderAndEventId("celcoin-pix", eventId)
+                .orElseThrow();
         // Apenas o hash SHA-256 e guardado — nunca o payload bruto.
         assertThat(evento.getPayloadHash()).matches("[a-f0-9]{64}").isNotEqualTo(payload);
     }
@@ -182,7 +186,10 @@ class PixWebhookIT {
                 .then()
                 .statusCode(202);
 
-        assertThat(webhookEventRepository.findByProviderAndEventId("celcoin-pix", eventId).orElseThrow().getStatus())
+        assertThat(webhookEventRepository
+                        .findByProviderAndEventId("celcoin-pix", eventId)
+                        .orElseThrow()
+                        .getStatus())
                 .isEqualTo(StatusPixWebhookEvent.PROCESSADO);
     }
 
@@ -191,8 +198,8 @@ class PixWebhookIT {
         String eventId = "evt-" + UUID.randomUUID();
         String e2e = "E2E-" + UUID.randomUUID();
         // Recebimento sem "amount": dominio rejeita valor nulo -> evento FALHOU, sem recebimento.
-        String payload = "{\"event_id\":\"" + eventId + "\",\"event_type\":\"pix.received\",\"end_to_end_id\":\""
-                + e2e + "\"}";
+        String payload =
+                "{\"event_id\":\"" + eventId + "\",\"event_type\":\"pix.received\",\"end_to_end_id\":\"" + e2e + "\"}";
 
         RestAssured.given()
                 .header("X-Webhook-Signature", computeHmac(payload))
@@ -203,7 +210,10 @@ class PixWebhookIT {
                 .then()
                 .statusCode(202);
 
-        assertThat(webhookEventRepository.findByProviderAndEventId("celcoin-pix", eventId).orElseThrow().getStatus())
+        assertThat(webhookEventRepository
+                        .findByProviderAndEventId("celcoin-pix", eventId)
+                        .orElseThrow()
+                        .getStatus())
                 .isEqualTo(StatusPixWebhookEvent.FALHOU);
         assertThat(recebimentoRepository.findByEndToEndId(e2e)).isEmpty();
         assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_FALHOU, eventId)).isTrue();
@@ -244,12 +254,15 @@ class PixWebhookIT {
                 .then()
                 .statusCode(202);
 
-        PixWebhookEvent evento =
-                webhookEventRepository.findByProviderAndEventId("celcoin-pix", eventId).orElseThrow();
+        PixWebhookEvent evento = webhookEventRepository
+                .findByProviderAndEventId("celcoin-pix", eventId)
+                .orElseThrow();
         assertThat(evento.getStatus()).isEqualTo(StatusPixWebhookEvent.IGNORADO);
         // Auditoria: RECEBIDO gravado, mas PROCESSADO suprimido para evento ignorado.
-        assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_RECEBIDO, eventId)).isTrue();
-        assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_PROCESSADO, eventId)).isFalse();
+        assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_RECEBIDO, eventId))
+                .isTrue();
+        assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_PROCESSADO, eventId))
+                .isFalse();
     }
 
     private static String computeHmac(String payload) {

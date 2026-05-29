@@ -23,7 +23,8 @@ public interface PixProvider {
      * Solicita uma transferencia Pix de saida ao provider. Operacao com efeito externo: recebe
      * {@code idempotencyKey} explicita para deduplicar reenvios. Retorna id externo + status.
      */
-    RespostaTransferenciaPix solicitarTransferencia(ComandoTransferenciaPix comando, String idempotencyKey, String correlationId);
+    RespostaTransferenciaPix solicitarTransferencia(
+            ComandoTransferenciaPix comando, String idempotencyKey, String correlationId);
 
     /** Consulta o status atual de uma transferencia ja solicitada, pelo id externo do provider. */
     RespostaTransferenciaPix consultarTransferencia(String externalId, String correlationId);

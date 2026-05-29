@@ -54,8 +54,7 @@ public class CelcoinPixProvider implements PixProvider {
             CelcoinPixOAuthTokenProvider tokenProvider,
             PixWebhookNormalizer webhookNormalizer) {
         if (properties.baseUrl() == null || properties.baseUrl().isBlank()) {
-            throw new IllegalStateException(
-                    "app.celcoin.pix.base-url obrigatorio quando app.pix.provider=celcoin");
+            throw new IllegalStateException("app.celcoin.pix.base-url obrigatorio quando app.pix.provider=celcoin");
         }
         this.restClient = factory.forProvider(RESILIENCE_INSTANCE, properties.baseUrl());
         this.tokenProvider = tokenProvider;
@@ -78,7 +77,10 @@ public class CelcoinPixProvider implements PixProvider {
                     .retrieve()
                     .body(CelcoinPixTransferResponse.class);
             CelcoinPixTransferResponse validada = exigirResposta(response);
-            log.info("Celcoin Pix solicitarTransferencia transfer_id={} status={}", validada.transferId(), validada.status());
+            log.info(
+                    "Celcoin Pix solicitarTransferencia transfer_id={} status={}",
+                    validada.transferId(),
+                    validada.status());
             return new RespostaTransferenciaPix(validada.transferId(), mapearStatus(validada.status()));
         } catch (RestClientResponseException ex) {
             throw traduzirHttp("solicitarTransferencia", ex, correlationId);
@@ -135,7 +137,8 @@ public class CelcoinPixProvider implements PixProvider {
      * Traduz {@link RestClientResponseException} (4xx/5xx) para {@link PixProviderHttpException},
      * sem vazar o response cru para a camada de application. O log nao inclui body de erro.
      */
-    private PixProviderHttpException traduzirHttp(String operacao, RestClientResponseException ex, String correlationId) {
+    private PixProviderHttpException traduzirHttp(
+            String operacao, RestClientResponseException ex, String correlationId) {
         int status = ex.getStatusCode().value();
         log.warn("Celcoin Pix {} falhou status={} correlationId={}", operacao, status, correlationId);
         return new PixProviderHttpException(status, "Celcoin Pix HTTP " + status, ex);

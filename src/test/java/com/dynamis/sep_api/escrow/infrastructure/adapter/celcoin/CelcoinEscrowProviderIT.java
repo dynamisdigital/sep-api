@@ -73,12 +73,15 @@ class CelcoinEscrowProviderIT {
         wireMock.resetAll();
         circuitBreakerRegistry.circuitBreaker("celcoin-escrow").reset();
         tokenProvider.resetCache();
-        wireMock.stubFor(post(urlEqualTo("/token"))
-                .withRequestBody(containing("grant_type=client_credentials"))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withHeader("Content-Type", "application/json")
-                        .withBody("{\"access_token\":\"escrow-token-xyz\",\"token_type\":\"Bearer\",\"expires_in\":3600}")));
+        wireMock.stubFor(
+                post(urlEqualTo("/token"))
+                        .withRequestBody(containing("grant_type=client_credentials"))
+                        .willReturn(
+                                aResponse()
+                                        .withStatus(200)
+                                        .withHeader("Content-Type", "application/json")
+                                        .withBody(
+                                                "{\"access_token\":\"escrow-token-xyz\",\"token_type\":\"Bearer\",\"expires_in\":3600}")));
     }
 
     @Test
@@ -105,8 +108,7 @@ class CelcoinEscrowProviderIT {
                         .withHeader("Content-Type", "application/json")
                         .withBody("{\"account_id\":\"acc-002\",\"status\":\"BLOCKED\"}")));
 
-        assertThat(provider.consultarContaEscrow("acc-002", "corr-2").status())
-                .isEqualTo(StatusContaEscrow.BLOQUEADA);
+        assertThat(provider.consultarContaEscrow("acc-002", "corr-2").status()).isEqualTo(StatusContaEscrow.BLOQUEADA);
     }
 
     @Test

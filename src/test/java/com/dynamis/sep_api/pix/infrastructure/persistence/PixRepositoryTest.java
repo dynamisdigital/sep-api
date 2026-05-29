@@ -49,7 +49,8 @@ class PixRepositoryTest {
         PixTransferencia t = PixTransferencia.criar(VALOR, "pagamento", "idem-1", "corr-1");
         transferenciaRepository.saveAndFlush(t);
 
-        PixTransferencia achado = transferenciaRepository.findByIdempotencyKey("idem-1").orElseThrow();
+        PixTransferencia achado =
+                transferenciaRepository.findByIdempotencyKey("idem-1").orElseThrow();
         assertThat(achado.getId()).isEqualTo(t.getId());
         assertThat(transferenciaRepository.findByIdempotencyKey("nao-existe")).isEmpty();
     }
@@ -68,7 +69,8 @@ class PixRepositoryTest {
         PixRecebimento r = PixRecebimento.registrar("E2E-1", VALOR, OffsetDateTime.now(), "corr-1");
         recebimentoRepository.saveAndFlush(r);
 
-        assertThat(recebimentoRepository.findByEndToEndId("E2E-1").orElseThrow().getId()).isEqualTo(r.getId());
+        assertThat(recebimentoRepository.findByEndToEndId("E2E-1").orElseThrow().getId())
+                .isEqualTo(r.getId());
     }
 
     @Test
@@ -93,9 +95,14 @@ class PixRepositoryTest {
         PixWebhookEvent e = PixWebhookEvent.receber("celcoin", "evt-1", TipoPixWebhookEvent.RECEBIMENTO_PIX, HASH_1);
         webhookEventRepository.saveAndFlush(e);
 
-        assertThat(webhookEventRepository.existsByProviderAndEventId("celcoin", "evt-1")).isTrue();
-        assertThat(webhookEventRepository.existsByProviderAndEventId("celcoin", "evt-2")).isFalse();
-        assertThat(webhookEventRepository.findByProviderAndEventId("celcoin", "evt-1").orElseThrow().getId())
+        assertThat(webhookEventRepository.existsByProviderAndEventId("celcoin", "evt-1"))
+                .isTrue();
+        assertThat(webhookEventRepository.existsByProviderAndEventId("celcoin", "evt-2"))
+                .isFalse();
+        assertThat(webhookEventRepository
+                        .findByProviderAndEventId("celcoin", "evt-1")
+                        .orElseThrow()
+                        .getId())
                 .isEqualTo(e.getId());
     }
 

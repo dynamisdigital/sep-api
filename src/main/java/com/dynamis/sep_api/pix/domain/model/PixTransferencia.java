@@ -55,7 +55,12 @@ public class PixTransferencia extends EntidadeAuditavel {
     }
 
     private PixTransferencia(
-            UUID id, String idempotencyKey, StatusPixTransferencia status, BigDecimal valor, String descricao, String correlationId) {
+            UUID id,
+            String idempotencyKey,
+            StatusPixTransferencia status,
+            BigDecimal valor,
+            String descricao,
+            String correlationId) {
         this.id = id;
         this.idempotencyKey = idempotencyKey;
         this.status = status;
@@ -65,7 +70,8 @@ public class PixTransferencia extends EntidadeAuditavel {
     }
 
     /** Cria uma transferencia em {@link StatusPixTransferencia#CRIADA}, antes de qualquer chamada ao provider. */
-    public static PixTransferencia criar(BigDecimal valor, String descricao, String idempotencyKey, String correlationId) {
+    public static PixTransferencia criar(
+            BigDecimal valor, String descricao, String idempotencyKey, String correlationId) {
         Objects.requireNonNull(valor, "valor obrigatorio");
         if (valor.signum() <= 0) {
             throw new IllegalArgumentException("valor deve ser positivo");
@@ -107,7 +113,8 @@ public class PixTransferencia extends EntidadeAuditavel {
 
     /** Marca falha; permitida a partir de qualquer estado ativo (antes de conclusao/cancelamento). */
     public void marcarFalhou() {
-        exigirEstado(StatusPixTransferencia.CRIADA, StatusPixTransferencia.SOLICITADA, StatusPixTransferencia.PROCESSANDO);
+        exigirEstado(
+                StatusPixTransferencia.CRIADA, StatusPixTransferencia.SOLICITADA, StatusPixTransferencia.PROCESSANDO);
         this.status = StatusPixTransferencia.FALHOU;
     }
 

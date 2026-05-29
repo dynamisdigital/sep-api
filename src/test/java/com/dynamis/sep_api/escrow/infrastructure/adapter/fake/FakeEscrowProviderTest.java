@@ -28,7 +28,9 @@ class FakeEscrowProviderTest {
     @Test
     void criarWalletNasceComSaldoZero() {
         RespostaWallet resp = provider.criarWallet(
-                new ComandoCriarWallet("fake-escrow-acc-1", UUID.randomUUID(), TipoWallet.PROPOSTA), "idem-1", "corr-1");
+                new ComandoCriarWallet("fake-escrow-acc-1", UUID.randomUUID(), TipoWallet.PROPOSTA),
+                "idem-1",
+                "corr-1");
         assertThat(resp.externalId()).startsWith("fake-escrow-wallet-");
         assertThat(resp.saldo()).isEqualByComparingTo(BigDecimal.ZERO);
     }

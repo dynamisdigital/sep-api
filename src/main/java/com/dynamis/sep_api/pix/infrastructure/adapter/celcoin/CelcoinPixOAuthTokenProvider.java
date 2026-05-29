@@ -93,7 +93,9 @@ public class CelcoinPixOAuthTokenProvider {
             log.info("Celcoin Pix OAuth token renovado expira em {}s", expiresInSec);
             return new CachedToken(response.accessToken(), Instant.now().plusSeconds(expiresInSec));
         } catch (RestClientResponseException ex) {
-            log.warn("Falha ao renovar OAuth Celcoin Pix status={}", ex.getStatusCode().value());
+            log.warn(
+                    "Falha ao renovar OAuth Celcoin Pix status={}",
+                    ex.getStatusCode().value());
             throw ex;
         }
     }

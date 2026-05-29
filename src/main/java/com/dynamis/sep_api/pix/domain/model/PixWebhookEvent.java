@@ -62,7 +62,12 @@ public class PixWebhookEvent extends EntidadeAuditavel {
     }
 
     private PixWebhookEvent(
-            UUID id, String provider, String eventId, TipoPixWebhookEvent eventType, StatusPixWebhookEvent status, String payloadHash) {
+            UUID id,
+            String provider,
+            String eventId,
+            TipoPixWebhookEvent eventType,
+            StatusPixWebhookEvent status,
+            String payloadHash) {
         this.id = id;
         this.provider = provider;
         this.eventId = eventId;
@@ -73,7 +78,8 @@ public class PixWebhookEvent extends EntidadeAuditavel {
     }
 
     /** Registra um evento recebido em {@link StatusPixWebhookEvent#RECEBIDO}, antes do processamento. */
-    public static PixWebhookEvent receber(String provider, String eventId, TipoPixWebhookEvent eventType, String payloadHash) {
+    public static PixWebhookEvent receber(
+            String provider, String eventId, TipoPixWebhookEvent eventType, String payloadHash) {
         exigirTexto(provider, "provider");
         exigirTexto(eventId, "eventId");
         exigirTexto(payloadHash, "payloadHash");

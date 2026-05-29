@@ -91,7 +91,9 @@ public class CelcoinEscrowOAuthTokenProvider {
             log.info("Celcoin escrow OAuth token renovado expira em {}s", expiresInSec);
             return new CachedToken(response.accessToken(), Instant.now().plusSeconds(expiresInSec));
         } catch (RestClientResponseException ex) {
-            log.warn("Falha ao renovar OAuth Celcoin escrow status={}", ex.getStatusCode().value());
+            log.warn(
+                    "Falha ao renovar OAuth Celcoin escrow status={}",
+                    ex.getStatusCode().value());
             throw ex;
         }
     }

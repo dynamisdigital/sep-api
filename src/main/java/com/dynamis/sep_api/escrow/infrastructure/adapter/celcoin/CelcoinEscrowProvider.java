@@ -74,7 +74,8 @@ public class CelcoinEscrowProvider implements EscrowProvider {
                     .retrieve()
                     .body(CelcoinContaEscrowResponse.class);
             CelcoinContaEscrowResponse validada = exigirConta(response);
-            log.info("Celcoin escrow criarContaEscrow account_id={} status={}", validada.accountId(), validada.status());
+            log.info(
+                    "Celcoin escrow criarContaEscrow account_id={} status={}", validada.accountId(), validada.status());
             return new RespostaContaEscrow(validada.accountId(), mapearStatusConta(validada.status()));
         } catch (RestClientResponseException ex) {
             throw traduzirHttp("criarContaEscrow", ex, correlationId);
@@ -162,7 +163,9 @@ public class CelcoinEscrowProvider implements EscrowProvider {
     }
 
     private CelcoinContaEscrowResponse exigirConta(CelcoinContaEscrowResponse response) {
-        if (response == null || response.accountId() == null || response.accountId().isBlank()) {
+        if (response == null
+                || response.accountId() == null
+                || response.accountId().isBlank()) {
             throw new EscrowProviderException("Celcoin escrow sem account_id na resposta");
         }
         if (response.status() == null || response.status().isBlank()) {
@@ -172,7 +175,9 @@ public class CelcoinEscrowProvider implements EscrowProvider {
     }
 
     private CelcoinWalletResponse exigirWallet(CelcoinWalletResponse response) {
-        if (response == null || response.walletId() == null || response.walletId().isBlank()) {
+        if (response == null
+                || response.walletId() == null
+                || response.walletId().isBlank()) {
             throw new EscrowProviderException("Celcoin escrow sem wallet_id na resposta");
         }
         return response;
@@ -192,7 +197,8 @@ public class CelcoinEscrowProvider implements EscrowProvider {
      * Traduz {@link RestClientResponseException} (4xx/5xx) para {@link EscrowProviderHttpException},
      * sem vazar o response cru para a camada de application. O log nao inclui body de erro.
      */
-    private EscrowProviderHttpException traduzirHttp(String operacao, RestClientResponseException ex, String correlationId) {
+    private EscrowProviderHttpException traduzirHttp(
+            String operacao, RestClientResponseException ex, String correlationId) {
         int status = ex.getStatusCode().value();
         log.warn("Celcoin escrow {} falhou status={} correlationId={}", operacao, status, correlationId);
         return new EscrowProviderHttpException(status, "Celcoin escrow HTTP " + status, ex);

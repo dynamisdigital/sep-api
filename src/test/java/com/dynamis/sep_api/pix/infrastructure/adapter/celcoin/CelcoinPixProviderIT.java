@@ -74,7 +74,8 @@ class CelcoinPixProviderIT {
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("{\"access_token\":\"pix-token-xyz\",\"token_type\":\"Bearer\",\"expires_in\":3600}")));
+                        .withBody(
+                                "{\"access_token\":\"pix-token-xyz\",\"token_type\":\"Bearer\",\"expires_in\":3600}")));
     }
 
     private ComandoTransferenciaPix novoComando() {
