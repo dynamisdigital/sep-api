@@ -2,13 +2,18 @@ package com.dynamis.sep_api.pix.application.usecase;
 
 import com.dynamis.sep_api.pix.application.port.out.PixProvider;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
+import com.dynamis.sep_api.pix.domain.event.PixWebhookFalhouEvent;
+import com.dynamis.sep_api.pix.domain.event.PixWebhookProcessadoEvent;
+import com.dynamis.sep_api.pix.domain.event.PixWebhookRecebidoEvent;
 import com.dynamis.sep_api.pix.domain.model.PixRecebimento;
 import com.dynamis.sep_api.pix.domain.model.PixWebhookEvent;
+import com.dynamis.sep_api.pix.domain.vo.TipoPixWebhookEvent;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixRecebimentoRepository;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixWebhookEventRepository;
 import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,14 +48,17 @@ public class ProcessarWebhookPixUseCase {
     private final PixProvider pixProvider;
     private final PixWebhookEventRepository webhookEventRepository;
     private final PixRecebimentoRepository recebimentoRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ProcessarWebhookPixUseCase(
             PixProvider pixProvider,
             PixWebhookEventRepository webhookEventRepository,
-            PixRecebimentoRepository recebimentoRepository) {
+            PixRecebimentoRepository recebimentoRepository,
+            ApplicationEventPublisher eventPublisher) {
         this.pixProvider = pixProvider;
         this.webhookEventRepository = webhookEventRepository;
         this.recebimentoRepository = recebimentoRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     public record Resultado(boolean aceito, boolean duplicado) {}
@@ -81,6 +89,7 @@ public class ProcessarWebhookPixUseCase {
             log.info("Webhook Pix corrida idempotente eventId={}", evt.eventId());
             return new Resultado(true, true);
         }
+        eventPublisher.publishEvent(new PixWebhookRecebidoEvent(evt.eventId(), evt.tipo()));
 
         try {
             switch (evt.tipo()) {
@@ -94,8 +103,13 @@ public class ProcessarWebhookPixUseCase {
                 }
                 case DESCONHECIDO -> evento.marcarIgnorado("tipo de evento Pix nao mapeado");
             }
+            if (evt.tipo() != TipoPixWebhookEvent.DESCONHECIDO) {
+                eventPublisher.publishEvent(new PixWebhookProcessadoEvent(evt.eventId(), evt.tipo()));
+            }
         } catch (RuntimeException ex) {
-            evento.marcarFalhou(sanitizar(ex));
+            String motivo = sanitizar(ex);
+            evento.marcarFalhou(motivo);
+            eventPublisher.publishEvent(new PixWebhookFalhouEvent(evt.eventId(), motivo));
             log.warn(
                     "Webhook Pix processamento falhou eventId={} causa={}",
                     evt.eventId(),

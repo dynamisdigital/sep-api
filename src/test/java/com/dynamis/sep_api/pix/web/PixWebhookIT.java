@@ -4,6 +4,9 @@ import com.dynamis.sep_api.pix.domain.model.PixWebhookEvent;
 import com.dynamis.sep_api.pix.domain.vo.StatusPixWebhookEvent;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixRecebimentoRepository;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixWebhookEventRepository;
+import com.dynamis.sep_api.shared.audit.AuditLogSeguranca;
+import com.dynamis.sep_api.shared.audit.AuditLogSegurancaRepository;
+import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,9 +53,18 @@ class PixWebhookIT {
     @Autowired
     private PixRecebimentoRepository recebimentoRepository;
 
+    @Autowired
+    private AuditLogSegurancaRepository auditLogRepository;
+
     @BeforeEach
     void setup() {
         RestAssured.port = port;
+    }
+
+    private boolean auditExiste(TipoEventoSeguranca tipo, String eventId) {
+        return auditLogRepository.findByTipoOrderByDataEventoDesc(tipo).stream()
+                .map(AuditLogSeguranca::getDetalhes)
+                .anyMatch(d -> d != null && d.contains(eventId));
     }
 
     private static String recebimentoPayload(String eventId, String endToEndId) {
@@ -79,6 +91,9 @@ class PixWebhookIT {
                 webhookEventRepository.findByProviderAndEventId("celcoin-pix", eventId).orElseThrow();
         assertThat(evento.getStatus()).isEqualTo(StatusPixWebhookEvent.PROCESSADO);
         assertThat(recebimentoRepository.findByEndToEndId(e2e)).isPresent();
+        // Auditoria: RECEBIDO + PROCESSADO gravados (AFTER_COMMIT, sem usuario — HMAC).
+        assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_RECEBIDO, eventId)).isTrue();
+        assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_PROCESSADO, eventId)).isTrue();
     }
 
     @Test
@@ -191,6 +206,7 @@ class PixWebhookIT {
         assertThat(webhookEventRepository.findByProviderAndEventId("celcoin-pix", eventId).orElseThrow().getStatus())
                 .isEqualTo(StatusPixWebhookEvent.FALHOU);
         assertThat(recebimentoRepository.findByEndToEndId(e2e)).isEmpty();
+        assertThat(auditExiste(TipoEventoSeguranca.PIX_WEBHOOK_FALHOU, eventId)).isTrue();
     }
 
     @Test
