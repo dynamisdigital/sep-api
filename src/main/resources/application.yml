@@ -101,6 +101,7 @@ app:
       celcoin-kyb: ${APP_WEBHOOK_SECRET_CELCOIN_KYB:dev-kyb-webhook-secret-change-me}
       celcoin-pld: ${APP_WEBHOOK_SECRET_CELCOIN_PLD:dev-pld-webhook-secret-change-me}
       celcoin-open-finance: ${APP_WEBHOOK_SECRET_CELCOIN_OPEN_FINANCE:dev-open-finance-webhook-secret-change-me}
+      celcoin-pix: ${APP_WEBHOOK_SECRET_CELCOIN_PIX:dev-pix-webhook-secret-change-me}
       # clicksign-assinatura reusa APP_WEBHOOK_SECRET_CLICKSIGN (mesma env var de
       # app.assinatura.clicksign.webhook.hmac-secret abaixo); HmacSignatureValidator generico
       # exige entrada propria em app.webhooks.secrets.<provider>, daí a duplicacao no YAML.
@@ -113,6 +114,10 @@ app:
     provider: ${APP_PLD_PROVIDER:fake}
   open-finance:
     provider: ${APP_OPEN_FINANCE_PROVIDER:fake}
+  pix:
+    provider: ${APP_PIX_PROVIDER:fake}
+  escrow:
+    provider: ${APP_ESCROW_PROVIDER:fake}
   assinatura:
     provider: ${APP_ASSINATURA_PROVIDER:fake}
     # Quando true (default), ContratoAceitoListener dispara EnviarParaAssinatura
@@ -207,6 +212,14 @@ app:
       base-url: ${APP_CELCOIN_OPEN_FINANCE_BASE_URL:https://sandbox.openfinance.celcoin.dev/open-finance/v1}
       client-id: ${APP_CELCOIN_OPEN_FINANCE_CLIENT_ID:}
       client-secret: ${APP_CELCOIN_OPEN_FINANCE_CLIENT_SECRET:}
+    pix:
+      base-url: ${APP_CELCOIN_PIX_BASE_URL:https://sandbox.openfinance.celcoin.dev/pix/v1}
+      client-id: ${APP_CELCOIN_PIX_CLIENT_ID:}
+      client-secret: ${APP_CELCOIN_PIX_CLIENT_SECRET:}
+    escrow:
+      base-url: ${APP_CELCOIN_ESCROW_BASE_URL:https://sandbox.openfinance.celcoin.dev/escrow/v1}
+      client-id: ${APP_CELCOIN_ESCROW_CLIENT_ID:}
+      client-secret: ${APP_CELCOIN_ESCROW_CLIENT_SECRET:}
   credito:
     motor:
       score-inicial: ${APP_CREDITO_SCORE_INICIAL:1000}
@@ -252,6 +265,10 @@ resilience4j:
         baseConfig: default
       celcoin-open-finance:
         baseConfig: default
+      celcoin-pix:
+        baseConfig: default
+      celcoin-escrow:
+        baseConfig: default
       clicksign-assinatura:
         baseConfig: default
       zenvia-sms:
@@ -290,6 +307,20 @@ resilience4j:
           - org.springframework.web.client.ResourceAccessException
           - org.springframework.web.client.HttpServerErrorException
           - java.io.IOException
+      celcoin-pix:
+        maxAttempts: 3
+        waitDuration: 500ms
+        retryExceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
+      celcoin-escrow:
+        maxAttempts: 3
+        waitDuration: 500ms
+        retryExceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
       clicksign-assinatura:
         maxAttempts: 3
         waitDuration: 500ms
@@ -320,6 +351,10 @@ resilience4j:
       celcoin-background-check:
         timeoutDuration: 30s
       celcoin-open-finance:
+        timeoutDuration: 30s
+      celcoin-pix:
+        timeoutDuration: 30s
+      celcoin-escrow:
         timeoutDuration: 30s
       clicksign-assinatura:
         timeoutDuration: 30s
