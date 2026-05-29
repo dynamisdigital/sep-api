@@ -118,5 +118,9 @@ public enum TipoEventoSeguranca {
     CREDORA_OPERACAO_ASSOCIADA,
     // Sprint 18 Task 18.6: governanca avancada (RBAC cumulativo + parametros).
     USUARIO_ROLES_ALTERADAS,
-    PARAMETRO_OPERACIONAL_ALTERADO
+    PARAMETRO_OPERACIONAL_ALTERADO,
+    // Sprint 19 Task 19.6: webhook Pix (foundation Epic 15).
+    PIX_WEBHOOK_RECEBIDO,
+    PIX_WEBHOOK_PROCESSADO,
+    PIX_WEBHOOK_FALHOU
 }
