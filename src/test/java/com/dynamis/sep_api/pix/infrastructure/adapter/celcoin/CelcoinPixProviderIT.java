@@ -4,6 +4,8 @@ import com.dynamis.sep_api.pix.application.port.out.PixProvider;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
+import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
+import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderHttpException;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,8 +15,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
 
 import java.math.BigDecimal;
 
@@ -110,14 +110,16 @@ class CelcoinPixProviderIT {
     }
 
     @Test
-    void erro4xxPropagadoSemRetry() {
+    void erro4xxTraduzidoComoProviderHttpException() {
         wireMock.stubFor(post(urlEqualTo("/pix/transfers"))
                 .willReturn(aResponse().withStatus(400).withBody("{\"error\":\"bad\"}")));
 
         assertThatThrownBy(() -> provider.solicitarTransferencia(novoComando(), "idem-x", "corr-3"))
-                .isInstanceOf(HttpClientErrorException.class);
-
-        wireMock.verify(1, postRequestedFor(urlEqualTo("/pix/transfers")));
+                .isInstanceOf(PixProviderHttpException.class)
+                .extracting("statusCode")
+                .isEqualTo(400);
+        // Tradeoff documentado: sem predicate YAML, 4xx tambem aciona retry ate maxAttempts.
+        wireMock.verify(3, postRequestedFor(urlEqualTo("/pix/transfers")));
     }
 
     @Test
@@ -125,13 +127,14 @@ class CelcoinPixProviderIT {
         wireMock.stubFor(post(urlEqualTo("/pix/transfers")).willReturn(serverError()));
 
         assertThatThrownBy(() -> provider.solicitarTransferencia(novoComando(), "idem-y", "corr-4"))
-                .isInstanceOf(HttpServerErrorException.class);
+                .isInstanceOf(PixProviderHttpException.class)
+                .matches(ex -> ((PixProviderHttpException) ex).isServerError(), "isServerError");
 
         wireMock.verify(3, postRequestedFor(urlEqualTo("/pix/transfers")));
     }
 
     @Test
-    void respostaSemTransferIdLevantaIllegalState() {
+    void respostaSemTransferIdLevantaProviderException() {
         wireMock.stubFor(post(urlEqualTo("/pix/transfers"))
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -139,12 +142,12 @@ class CelcoinPixProviderIT {
                         .withBody("{\"status\":\"PENDING\"}")));
 
         assertThatThrownBy(() -> provider.solicitarTransferencia(novoComando(), "idem-z", "corr-5"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(PixProviderException.class)
                 .hasMessageContaining("transfer_id");
     }
 
     @Test
-    void statusDesconhecidoLevantaIllegalState() {
+    void statusDesconhecidoLevantaProviderException() {
         wireMock.stubFor(post(urlEqualTo("/pix/transfers"))
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -152,7 +155,7 @@ class CelcoinPixProviderIT {
                         .withBody("{\"transfer_id\":\"tx-x\",\"status\":\"WAT\"}")));
 
         assertThatThrownBy(() -> provider.solicitarTransferencia(novoComando(), "idem-w", "corr-6"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(PixProviderException.class)
                 .hasMessageContaining("desconhecido");
     }
 

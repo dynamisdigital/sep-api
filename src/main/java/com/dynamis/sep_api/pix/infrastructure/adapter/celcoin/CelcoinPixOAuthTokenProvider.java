@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -33,8 +34,22 @@ public class CelcoinPixOAuthTokenProvider {
     private volatile CachedToken cache;
 
     public CelcoinPixOAuthTokenProvider(CelcoinPixProperties properties) {
+        exigirCredenciais(properties);
         this.properties = properties;
-        this.tokenClient = RestClient.builder().build();
+        // Token client com timeouts explicitos (mesmo padrao do RestClientFactory) — a chamada de
+        // /token nao fica fora do controle de timeout dos providers principais.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(Duration.ofSeconds(30));
+        this.tokenClient = RestClient.builder().requestFactory(factory).build();
+    }
+
+    /** Fail-fast no boot quando {@code app.pix.provider=celcoin} sem credenciais configuradas. */
+    private static void exigirCredenciais(CelcoinPixProperties p) {
+        if (isBlank(p.baseUrl()) || isBlank(p.clientId()) || isBlank(p.clientSecret())) {
+            throw new IllegalStateException(
+                    "Credenciais Celcoin Pix ausentes: configure app.celcoin.pix.base-url, client-id e client-secret quando app.pix.provider=celcoin");
+        }
     }
 
     public void resetCache() {
@@ -42,10 +57,6 @@ public class CelcoinPixOAuthTokenProvider {
     }
 
     public String accessToken() {
-        if (isBlank(properties.clientId()) || isBlank(properties.clientSecret())) {
-            throw new IllegalStateException(
-                    "Credenciais Celcoin Pix ausentes: configure app.celcoin.pix.client-id e client-secret");
-        }
         CachedToken atual = cache;
         if (atual != null && Instant.now().isBefore(atual.expiresAt().minus(CLOCK_SKEW))) {
             return atual.token();

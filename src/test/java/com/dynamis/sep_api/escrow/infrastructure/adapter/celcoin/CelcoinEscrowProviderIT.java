@@ -5,6 +5,8 @@ import com.dynamis.sep_api.escrow.application.port.out.dto.ComandoCriarContaEscr
 import com.dynamis.sep_api.escrow.application.port.out.dto.ComandoCriarWallet;
 import com.dynamis.sep_api.escrow.application.port.out.dto.RespostaContaEscrow;
 import com.dynamis.sep_api.escrow.application.port.out.dto.RespostaWallet;
+import com.dynamis.sep_api.escrow.application.port.out.exception.EscrowProviderException;
+import com.dynamis.sep_api.escrow.application.port.out.exception.EscrowProviderHttpException;
 import com.dynamis.sep_api.escrow.domain.vo.StatusContaEscrow;
 import com.dynamis.sep_api.escrow.domain.vo.TipoWallet;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
@@ -16,7 +18,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.web.client.HttpServerErrorException;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -84,6 +85,7 @@ class CelcoinEscrowProviderIT {
     void criarContaEscrowUsaBearerEMapeiaStatus() {
         wireMock.stubFor(post(urlEqualTo("/escrow/accounts"))
                 .withHeader("Authorization", equalTo("Bearer escrow-token-xyz"))
+                .withHeader("Idempotency-Key", equalTo("idem-1"))
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
@@ -111,6 +113,7 @@ class CelcoinEscrowProviderIT {
     void criarWalletDevolveIdESaldo() {
         wireMock.stubFor(post(urlEqualTo("/escrow/wallets"))
                 .withHeader("Authorization", equalTo("Bearer escrow-token-xyz"))
+                .withHeader("Idempotency-Key", equalTo("idem-1"))
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
@@ -139,7 +142,8 @@ class CelcoinEscrowProviderIT {
         wireMock.stubFor(post(urlEqualTo("/escrow/accounts")).willReturn(serverError()));
 
         assertThatThrownBy(() -> provider.criarContaEscrow(new ComandoCriarContaEscrow("SEP"), "idem-x", "corr-5"))
-                .isInstanceOf(HttpServerErrorException.class);
+                .isInstanceOf(EscrowProviderHttpException.class)
+                .matches(ex -> ((EscrowProviderHttpException) ex).isServerError(), "isServerError");
 
         wireMock.verify(3, postRequestedFor(urlEqualTo("/escrow/accounts")));
     }
@@ -153,7 +157,7 @@ class CelcoinEscrowProviderIT {
                         .withBody("{\"account_id\":\"acc-x\",\"status\":\"WAT\"}")));
 
         assertThatThrownBy(() -> provider.criarContaEscrow(new ComandoCriarContaEscrow("SEP"), "idem-w", "corr-6"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(EscrowProviderException.class)
                 .hasMessageContaining("desconhecido");
     }
 

@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -32,8 +33,21 @@ public class CelcoinEscrowOAuthTokenProvider {
     private volatile CachedToken cache;
 
     public CelcoinEscrowOAuthTokenProvider(CelcoinEscrowProperties properties) {
+        exigirCredenciais(properties);
         this.properties = properties;
-        this.tokenClient = RestClient.builder().build();
+        // Token client com timeouts explicitos (mesmo padrao do RestClientFactory).
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(Duration.ofSeconds(30));
+        this.tokenClient = RestClient.builder().requestFactory(factory).build();
+    }
+
+    /** Fail-fast no boot quando {@code app.escrow.provider=celcoin} sem credenciais configuradas. */
+    private static void exigirCredenciais(CelcoinEscrowProperties p) {
+        if (isBlank(p.baseUrl()) || isBlank(p.clientId()) || isBlank(p.clientSecret())) {
+            throw new IllegalStateException(
+                    "Credenciais Celcoin escrow ausentes: configure app.celcoin.escrow.base-url, client-id e client-secret quando app.escrow.provider=celcoin");
+        }
     }
 
     public void resetCache() {
@@ -41,10 +55,6 @@ public class CelcoinEscrowOAuthTokenProvider {
     }
 
     public String accessToken() {
-        if (isBlank(properties.clientId()) || isBlank(properties.clientSecret())) {
-            throw new IllegalStateException(
-                    "Credenciais Celcoin escrow ausentes: configure app.celcoin.escrow.client-id e client-secret");
-        }
         CachedToken atual = cache;
         if (atual != null && Instant.now().isBefore(atual.expiresAt().minus(CLOCK_SKEW))) {
             return atual.token();

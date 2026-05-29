@@ -5,6 +5,8 @@ import com.dynamis.sep_api.pix.application.port.out.dto.ComandoTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
+import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
+import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderHttpException;
 import com.dynamis.sep_api.pix.infrastructure.adapter.PixWebhookNormalizer;
 import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixTransferRequest;
 import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixTransferResponse;
@@ -51,6 +53,10 @@ public class CelcoinPixProvider implements PixProvider {
             CelcoinPixProperties properties,
             CelcoinPixOAuthTokenProvider tokenProvider,
             PixWebhookNormalizer webhookNormalizer) {
+        if (properties.baseUrl() == null || properties.baseUrl().isBlank()) {
+            throw new IllegalStateException(
+                    "app.celcoin.pix.base-url obrigatorio quando app.pix.provider=celcoin");
+        }
         this.restClient = factory.forProvider(RESILIENCE_INSTANCE, properties.baseUrl());
         this.tokenProvider = tokenProvider;
         this.webhookNormalizer = webhookNormalizer;
@@ -75,11 +81,7 @@ public class CelcoinPixProvider implements PixProvider {
             log.info("Celcoin Pix solicitarTransferencia transfer_id={} status={}", validada.transferId(), validada.status());
             return new RespostaTransferenciaPix(validada.transferId(), mapearStatus(validada.status()));
         } catch (RestClientResponseException ex) {
-            log.warn(
-                    "Celcoin Pix solicitarTransferencia falhou status={} correlationId={}",
-                    ex.getStatusCode().value(),
-                    correlationId);
-            throw ex;
+            throw traduzirHttp("solicitarTransferencia", ex, correlationId);
         }
     }
 
@@ -97,11 +99,7 @@ public class CelcoinPixProvider implements PixProvider {
             CelcoinPixTransferResponse validada = exigirResposta(response);
             return new RespostaTransferenciaPix(validada.transferId(), mapearStatus(validada.status()));
         } catch (RestClientResponseException ex) {
-            log.warn(
-                    "Celcoin Pix consultarTransferencia falhou status={} correlationId={}",
-                    ex.getStatusCode().value(),
-                    correlationId);
-            throw ex;
+            throw traduzirHttp("consultarTransferencia", ex, correlationId);
         }
     }
 
@@ -112,13 +110,13 @@ public class CelcoinPixProvider implements PixProvider {
 
     private CelcoinPixTransferResponse exigirResposta(CelcoinPixTransferResponse response) {
         if (response == null) {
-            throw new IllegalStateException("Resposta nula do Celcoin Pix (esperado transfer_id + status)");
+            throw new PixProviderException("Resposta nula do Celcoin Pix (esperado transfer_id + status)");
         }
         if (response.transferId() == null || response.transferId().isBlank()) {
-            throw new IllegalStateException("Celcoin Pix sem transfer_id na resposta");
+            throw new PixProviderException("Celcoin Pix sem transfer_id na resposta");
         }
         if (response.status() == null || response.status().isBlank()) {
-            throw new IllegalStateException("Celcoin Pix sem status na resposta");
+            throw new PixProviderException("Celcoin Pix sem status na resposta");
         }
         return response;
     }
@@ -129,8 +127,18 @@ public class CelcoinPixProvider implements PixProvider {
             case "PROCESSING", "IN_PROGRESS" -> StatusTransferenciaPixProvider.PROCESSANDO;
             case "COMPLETED", "SETTLED", "CONFIRMED" -> StatusTransferenciaPixProvider.CONCLUIDA;
             case "REJECTED", "FAILED", "CANCELLED" -> StatusTransferenciaPixProvider.REJEITADA;
-            default -> throw new IllegalStateException("Status Celcoin Pix desconhecido: " + statusCru);
+            default -> throw new PixProviderException("Status Celcoin Pix desconhecido: " + statusCru);
         };
+    }
+
+    /**
+     * Traduz {@link RestClientResponseException} (4xx/5xx) para {@link PixProviderHttpException},
+     * sem vazar o response cru para a camada de application. O log nao inclui body de erro.
+     */
+    private PixProviderHttpException traduzirHttp(String operacao, RestClientResponseException ex, String correlationId) {
+        int status = ex.getStatusCode().value();
+        log.warn("Celcoin Pix {} falhou status={} correlationId={}", operacao, status, correlationId);
+        return new PixProviderHttpException(status, "Celcoin Pix HTTP " + status, ex);
     }
 
     private void headersAutenticacao(HttpHeaders headers) {
