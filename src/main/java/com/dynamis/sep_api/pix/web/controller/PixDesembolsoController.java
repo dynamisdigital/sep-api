@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.pix.web.controller;
 
+import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp;
 import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUpEstrito;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.pix.application.dto.ConsultarStatusDesembolsoPixCommand;
@@ -111,10 +112,9 @@ public class PixDesembolsoController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('FINANCEIRO','ADMIN','BACKOFFICE')")
     @Operation(
-            summary = "Consultar status do desembolso",
-            description = "Consulta o status do desembolso. Se ainda em andamento e com id externo, reconsulta o"
-                    + " provider e sincroniza idempotentemente; leitura resiliente (provider indisponivel devolve"
-                    + " o status local).")
+            summary = "Consultar status do desembolso (leitura local)",
+            description = "Le o status persistido do desembolso, sem chamar o provider externo. Para reconciliar"
+                    + " com o provider, use POST /status.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Status atual"),
         @ApiResponse(
@@ -124,19 +124,25 @@ public class PixDesembolsoController {
     })
     public ResponseEntity<StatusDesembolsoResponse> consultar(@PathVariable UUID id) {
         StatusDesembolsoPixResult resultado = consultarStatus.executar(
-                new ConsultarStatusDesembolsoPixCommand(id, MDC.get(CorrelationIdFilter.MDC_KEY)));
+                new ConsultarStatusDesembolsoPixCommand(id, MDC.get(CorrelationIdFilter.MDC_KEY), false));
         return ResponseEntity.ok(StatusDesembolsoResponse.de(resultado));
     }
 
     @PostMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('FINANCEIRO','ADMIN','BACKOFFICE')")
+    @RequireStepUp
     @Operation(
-            summary = "Forcar reconsulta de status no provider",
-            description = "Reconsulta o provider e sincroniza o status. Sem step-up: nao movimenta recursos, apenas"
-                    + " reconcilia o estado a partir do provider (mesma semantica do GET, exposto como acao"
-                    + " operacional explicita).")
+            summary = "Reconciliar status no provider",
+            description = "Reconsulta o provider externo e sincroniza o status local idempotentemente (so avanca;"
+                    + " terminal nao falha). Por chamar o provider e poder mudar o estado para CONCLUIDA/FALHOU,"
+                    + " exige step-up (X-Step-Up-Token). Leitura resiliente: provider indisponivel devolve o"
+                    + " status local com providerIndisponivel=true.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Status reconciliado"),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Sem role autorizada ou sem step-up valido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "404",
                 description = "Transferencia nao encontrada",
@@ -144,7 +150,7 @@ public class PixDesembolsoController {
     })
     public ResponseEntity<StatusDesembolsoResponse> reconsultar(@PathVariable UUID id) {
         StatusDesembolsoPixResult resultado = consultarStatus.executar(
-                new ConsultarStatusDesembolsoPixCommand(id, MDC.get(CorrelationIdFilter.MDC_KEY)));
+                new ConsultarStatusDesembolsoPixCommand(id, MDC.get(CorrelationIdFilter.MDC_KEY), true));
         return ResponseEntity.ok(StatusDesembolsoResponse.de(resultado));
     }
 }

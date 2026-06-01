@@ -39,16 +39,26 @@ public class PixTransferenciaRetentativaStrategy implements ProviderRetentativaS
     public ResultadoReprocesso retentar(UUID entidadeId) {
         try {
             StatusDesembolsoPixResult resultado =
-                    consultarStatus.executar(new ConsultarStatusDesembolsoPixCommand(entidadeId, null));
+                    consultarStatus.executar(new ConsultarStatusDesembolsoPixCommand(entidadeId, null, true));
             if (resultado.providerIndisponivel()) {
-                // Reprocesso eh estrito: se o provider falhou, nao reportar falso sucesso com o
-                // status local antigo (Task 20.4 code review).
+                // Reprocesso estrito: provider tentado mas falhou -> nao reportar falso sucesso com o
+                // status local antigo (code review Task 20.4).
                 LOG.warn("reprocesso PIX_TRANSFERENCIA: provider indisponivel para {}", entidadeId);
                 return ResultadoReprocesso.falha(
                         "Provider Pix indisponivel ao reconsultar o desembolso " + entidadeId + "; tente novamente.");
             }
+            if (!resultado.providerConsultado()) {
+                // Nao houve reconsulta externa (status terminal ou sem external id): no-op honesto, nao
+                // anunciar "reconsultado" (code review Task 20.5).
+                LOG.info(
+                        "reprocesso PIX_TRANSFERENCIA sem reconsulta para {} (status={})",
+                        entidadeId,
+                        resultado.status());
+                return ResultadoReprocesso.sucesso("Sem reconsulta ao provider — status " + resultado.status()
+                        + " terminal ou sem external id; nada a reprocessar (abra nova solicitacao se necessario).");
+            }
             LOG.info("reprocesso PIX_TRANSFERENCIA reconsultou status={} para {}", resultado.status(), entidadeId);
-            return ResultadoReprocesso.sucesso("Status do desembolso reconsultado: " + resultado.status()
+            return ResultadoReprocesso.sucesso("Status do desembolso reconsultado no provider: " + resultado.status()
                     + " (reenvio nao permitido — chave Pix nao persistida; abra nova solicitacao se necessario)");
         } catch (RecursoNaoEncontradoException ex) {
             return ResultadoReprocesso.falha("Transferencia Pix nao encontrada para reprocesso: " + entidadeId);

@@ -10,6 +10,7 @@ import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
 import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
 import com.dynamis.sep_api.pix.application.service.ChavePixSeguranca;
+import com.dynamis.sep_api.pix.application.service.DesembolsoTransacaoService;
 import com.dynamis.sep_api.pix.application.service.ResultadoElegibilidadeDesembolso;
 import com.dynamis.sep_api.pix.application.service.ResultadoElegibilidadeDesembolso.MotivoInelegibilidade;
 import com.dynamis.sep_api.pix.application.service.SincronizadorStatusTransferencia;
@@ -20,6 +21,7 @@ import com.dynamis.sep_api.pix.infrastructure.persistence.PixTransferenciaReposi
 import com.dynamis.sep_api.shared.exception.ConflitoException;
 import com.dynamis.sep_api.shared.exception.OperacaoNaoProcessavelException;
 import com.dynamis.sep_api.shared.exception.RecursoNaoEncontradoException;
+import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -60,7 +62,8 @@ class SolicitarDesembolsoPixUseCaseTest {
         pixProvider = mock(PixProvider.class);
         SincronizadorStatusTransferencia sincronizador =
                 new SincronizadorStatusTransferencia(mock(ApplicationEventPublisher.class));
-        useCase = new SolicitarDesembolsoPixUseCase(repository, validador, pixProvider, sincronizador);
+        DesembolsoTransacaoService transacao = new DesembolsoTransacaoService(repository, sincronizador);
+        useCase = new SolicitarDesembolsoPixUseCase(repository, validador, pixProvider, transacao);
     }
 
     private SolicitarDesembolsoPixCommand comando(BigDecimal valor, String idempotencyKey) {
@@ -79,13 +82,25 @@ class SolicitarDesembolsoPixUseCaseTest {
         when(validador.validar(contratoId)).thenReturn(ResultadoElegibilidadeDesembolso.inelegivel(motivo));
     }
 
+    /** Captura a transferencia inserida (fase 1) para servir as fases seguintes (findById/save). */
+    private final java.util.concurrent.atomic.AtomicReference<PixTransferencia> inserida =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
     /** Stuba o caminho feliz ate a chamada ao provider (sem definir a resposta do provider). */
     private void stubCaminhoAteProvider(String idempotencyKey) {
         when(repository.findByIdempotencyKey(idempotencyKey)).thenReturn(Optional.empty());
         stubElegivel();
         when(repository.findFirstByContratoIdAndStatusInOrderByDataCriacaoDesc(eq(contratoId), anyCollection()))
                 .thenReturn(Optional.empty());
-        when(repository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+        // Fase 1 (inserirCriada): saveAndFlush captura a entidade e devolve com id.
+        when(repository.saveAndFlush(any())).thenAnswer(inv -> {
+            PixTransferencia t = inv.getArgument(0);
+            inserida.set(t);
+            return t;
+        });
+        // Fase 2 (aplicarResposta/marcarFalha): recarrega por id + salva.
+        when(repository.findById(any())).thenAnswer(inv -> Optional.ofNullable(inserida.get()));
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
     private void stubRespostaProvider(StatusTransferenciaPixProvider status) {
@@ -184,6 +199,16 @@ class SolicitarDesembolsoPixUseCaseTest {
                 .isInstanceOf(ConflitoException.class)
                 .extracting("codigo")
                 .isEqualTo("PIX-409-IDEMPOTENCIA");
+    }
+
+    @Test
+    void idempotencyKeyAcimaDe100Chars_validacao400() {
+        String longa = "k".repeat(101);
+
+        assertThatThrownBy(() -> useCase.executar(comando(VALOR, longa)))
+                .isInstanceOf(ValidacaoException.class)
+                .extracting("codigo")
+                .isEqualTo("PIX-400-IDEMPOTENCY-KEY-TAMANHO");
     }
 
     @Test

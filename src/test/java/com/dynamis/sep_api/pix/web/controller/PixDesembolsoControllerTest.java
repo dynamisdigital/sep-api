@@ -233,6 +233,7 @@ class PixDesembolsoControllerTest {
                         StatusPixTransferencia.CONCLUIDA,
                         new BigDecimal("10000.00"),
                         "op****om",
+                        false,
                         false));
 
         mockMvc.perform(get("/api/v1/pix/desembolsos/{id}", transferenciaId))

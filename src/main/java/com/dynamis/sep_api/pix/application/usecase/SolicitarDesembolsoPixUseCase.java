@@ -8,8 +8,8 @@ import com.dynamis.sep_api.pix.application.port.out.dto.ContratoDesembolsoView;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
 import com.dynamis.sep_api.pix.application.service.ChavePixSeguranca;
+import com.dynamis.sep_api.pix.application.service.DesembolsoTransacaoService;
 import com.dynamis.sep_api.pix.application.service.ResultadoElegibilidadeDesembolso;
-import com.dynamis.sep_api.pix.application.service.SincronizadorStatusTransferencia;
 import com.dynamis.sep_api.pix.application.service.ValidadorElegibilidadeDesembolso;
 import com.dynamis.sep_api.pix.domain.model.PixTransferencia;
 import com.dynamis.sep_api.pix.domain.vo.StatusPixTransferencia;
@@ -20,9 +20,7 @@ import com.dynamis.sep_api.shared.exception.RecursoNaoEncontradoException;
 import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -35,7 +33,8 @@ import java.util.UUID;
  * Persiste a {@link PixTransferencia} em {@link StatusPixTransferencia#CRIADA} (anti-orphan: gravada
  * antes da chamada externa), envia ao {@link PixProvider} e atualiza o status conforme a resposta
  * (SOLICITADA/PROCESSANDO/CONCLUIDA) ou marca {@code FALHOU} em rejeicao/falha tecnica, sempre
- * mantendo a trilha. As transicoes e eventos ficam no {@link SincronizadorStatusTransferencia}.
+ * mantendo a trilha. As escritas ocorrem no {@link DesembolsoTransacaoService} ({@code REQUIRES_NEW})
+ * — a transferencia {@code CRIADA} eh comitada antes da chamada externa (anti-orphan real).
  *
  * <p>Step-up estrito ({@code @RequireStepUpEstrito}, sem bypass de MFA) eh aplicado na borda REST
  * (controller de desembolso, Task 20.5) — este use case assume que a autorizacao sensivel ja foi
@@ -51,7 +50,7 @@ import java.util.UUID;
  *       assinado, agenda ativa, escrow operacional).
  *   <li><strong>Sem duplicidade por contrato</strong>: um contrato com transferencia que o "ocupa"
  *       (CRIADA/SOLICITADA/PROCESSANDO/CONCLUIDA) nao aceita novo desembolso -> 409. A UNIQUE parcial
- *       (V47) fecha a corrida concorrente, traduzida aqui de {@link DataIntegrityViolationException}.
+ *       (V47) fecha a corrida concorrente, traduzida no {@code DesembolsoTransacaoService}.
  *   <li><strong>Minimizacao</strong>: a chave Pix destino nunca eh persistida em claro — apenas hash
  *       (consistencia idempotente) e mascara.
  * </ul>
@@ -69,20 +68,25 @@ public class SolicitarDesembolsoPixUseCase {
     private final PixTransferenciaRepository transferenciaRepository;
     private final ValidadorElegibilidadeDesembolso validador;
     private final PixProvider pixProvider;
-    private final SincronizadorStatusTransferencia sincronizador;
+    private final DesembolsoTransacaoService transacao;
 
     public SolicitarDesembolsoPixUseCase(
             PixTransferenciaRepository transferenciaRepository,
             ValidadorElegibilidadeDesembolso validador,
             PixProvider pixProvider,
-            SincronizadorStatusTransferencia sincronizador) {
+            DesembolsoTransacaoService transacao) {
         this.transferenciaRepository = transferenciaRepository;
         this.validador = validador;
         this.pixProvider = pixProvider;
-        this.sincronizador = sincronizador;
+        this.transacao = transacao;
     }
 
-    @Transactional
+    /**
+     * Orquestra o desembolso SEM transacao ambiente: as fases de escrita ocorrem em
+     * {@link DesembolsoTransacaoService} com {@code REQUIRES_NEW}. Assim a transferencia {@code
+     * CRIADA} eh <strong>comitada</strong> antes da chamada ao provider (anti-orphan real): se o
+     * provider ou a atualizacao posterior falharem, o registro local persiste e fica rastreavel.
+     */
     public SolicitarDesembolsoPixResult executar(SolicitarDesembolsoPixCommand cmd) {
         validarComando(cmd);
         String chaveHash = ChavePixSeguranca.hashHex(cmd.chavePixDestino());
@@ -107,44 +111,26 @@ public class SolicitarDesembolsoPixUseCase {
                 cmd.idempotencyKey(),
                 cmd.correlationId());
 
-        PixTransferencia criada = inserirCriada(transferencia, cmd.contratoId());
-        enviarAoProvider(criada, cmd);
-        transferenciaRepository.save(criada);
-        return resultado(criada, true);
+        // Fase 1: comita CRIADA (anti-orphan). Fase 2: provider + status, em nova tx.
+        UUID transferenciaId = transacao.inserirCriada(transferencia, cmd.contratoId());
+        PixTransferencia finalizada = enviarAoProvider(transferencia, transferenciaId, cmd);
+        return resultado(finalizada, true);
     }
 
-    private PixTransferencia inserirCriada(PixTransferencia transferencia, UUID contratoId) {
-        try {
-            // Anti-orphan: grava CRIADA antes da chamada externa, com a UNIQUE ja aplicada.
-            return transferenciaRepository.saveAndFlush(transferencia);
-        } catch (DataIntegrityViolationException corrida) {
-            // Corrida concorrente real (dois pedidos passaram os pre-checks ao mesmo tempo): a UNIQUE
-            // de idempotency_key (V45) ou a UNIQUE parcial por contrato (V47) barra o perdedor. NAO
-            // reconsultamos aqui: a transacao ja foi marcada rollback-only pela violacao e a sessao
-            // esta inconsistente. Devolvemos 409 e deixamos o rollback acontecer; o retry sequencial
-            // do cliente cai no pre-check idempotente (findByIdempotencyKey / bloquearSeContratoOcupado).
-            throw new ConflitoException(
-                    "PIX-409-CONFLITO-CONCORRENTE",
-                    "Desembolso concorrente para o contrato " + contratoId + "; reapresente a solicitacao.");
-        }
-    }
-
-    private void enviarAoProvider(PixTransferencia transferencia, SolicitarDesembolsoPixCommand cmd) {
+    private PixTransferencia enviarAoProvider(
+            PixTransferencia transferencia, UUID transferenciaId, SolicitarDesembolsoPixCommand cmd) {
         try {
             RespostaTransferenciaPix resposta = pixProvider.solicitarTransferencia(
                     new ComandoTransferenciaPix(
                             transferencia.getValor(), cmd.chavePixDestino(), transferencia.getDescricao()),
                     transferencia.getIdempotencyKey(),
                     cmd.correlationId());
-            sincronizador.aplicarRespostaSolicitacao(transferencia, resposta);
+            return transacao.aplicarResposta(transferenciaId, resposta);
         } catch (PixProviderException ex) {
-            // Falha tecnica: a transferencia ja esta gravada (CRIADA). Marca FALHOU para rastreio e
-            // backoffice (Task 20.4); o operador reapresenta com nova Idempotency-Key.
-            log.warn(
-                    "Falha tecnica ao solicitar desembolso transferencia={}: {}",
-                    transferencia.getId(),
-                    ex.getMessage());
-            sincronizador.marcarFalhaTecnica(transferencia, "Falha tecnica no provider Pix ao solicitar desembolso");
+            // Falha tecnica: a transferencia ja esta comitada (CRIADA). Marca FALHOU para rastreio e
+            // backoffice; o operador reapresenta com nova Idempotency-Key.
+            log.warn("Falha tecnica ao solicitar desembolso transferencia={}: {}", transferenciaId, ex.getMessage());
+            return transacao.marcarFalha(transferenciaId, "Falha tecnica no provider Pix ao solicitar desembolso");
         }
     }
 
@@ -169,6 +155,10 @@ public class SolicitarDesembolsoPixUseCase {
     private void validarComando(SolicitarDesembolsoPixCommand cmd) {
         if (cmd.idempotencyKey() == null || cmd.idempotencyKey().isBlank()) {
             throw new ValidacaoException("PIX-400-IDEMPOTENCY-KEY", "Idempotency-Key obrigatoria.");
+        }
+        if (cmd.idempotencyKey().length() > 100) {
+            throw new ValidacaoException(
+                    "PIX-400-IDEMPOTENCY-KEY-TAMANHO", "Idempotency-Key nao pode exceder 100 caracteres.");
         }
         if (cmd.contratoId() == null) {
             throw new ValidacaoException("PIX-400-CONTRATO", "contratoId obrigatorio.");

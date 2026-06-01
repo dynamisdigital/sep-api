@@ -48,11 +48,13 @@ public class ConsultarStatusDesembolsoPixUseCase {
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
                         "PIX-404-TRANSFERENCIA", "Transferencia Pix nao encontrada: " + cmd.transferenciaId()));
 
+        boolean providerConsultado = false;
         boolean providerIndisponivel = false;
-        if (deveConsultarProvider(transferencia)) {
-            providerIndisponivel = sincronizarComProvider(transferencia, cmd.correlationId());
+        if (cmd.reconsultarProvider() && deveConsultarProvider(transferencia)) {
+            providerConsultado = sincronizarComProvider(transferencia, cmd.correlationId());
+            providerIndisponivel = !providerConsultado;
         }
-        return resultado(transferencia, providerIndisponivel);
+        return resultado(transferencia, providerConsultado, providerIndisponivel);
     }
 
     private boolean deveConsultarProvider(PixTransferencia transferencia) {
@@ -65,30 +67,32 @@ public class ConsultarStatusDesembolsoPixUseCase {
         return !terminal && temExternalId;
     }
 
-    /** Retorna {@code true} se o provider foi tentado mas falhou (status devolvido eh o local). */
+    /** Retorna {@code true} se o provider foi consultado com sucesso (status devolvido eh o do provider). */
     private boolean sincronizarComProvider(PixTransferencia transferencia, String correlationId) {
         try {
             RespostaTransferenciaPix resposta =
                     pixProvider.consultarTransferencia(transferencia.getExternalId(), correlationId);
             sincronizador.sincronizar(transferencia, resposta.status());
             transferenciaRepository.save(transferencia);
-            return false;
+            return true;
         } catch (PixProviderException ex) {
             log.warn(
                     "Consulta de status falhou no provider para transferencia={}; devolvendo status local. {}",
                     transferencia.getId(),
                     ex.getMessage());
-            return true;
+            return false;
         }
     }
 
-    private StatusDesembolsoPixResult resultado(PixTransferencia t, boolean providerIndisponivel) {
+    private StatusDesembolsoPixResult resultado(
+            PixTransferencia t, boolean providerConsultado, boolean providerIndisponivel) {
         return new StatusDesembolsoPixResult(
                 t.getId(),
                 t.getContratoId(),
                 t.getStatus(),
                 t.getValor(),
                 t.getChaveDestinoMascara(),
+                providerConsultado,
                 providerIndisponivel);
     }
 }

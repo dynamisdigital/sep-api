@@ -55,7 +55,11 @@ class ConsultarStatusDesembolsoPixUseCaseTest {
     }
 
     private ConsultarStatusDesembolsoPixCommand comando(UUID id) {
-        return new ConsultarStatusDesembolsoPixCommand(id, "corr-1");
+        return new ConsultarStatusDesembolsoPixCommand(id, "corr-1", true);
+    }
+
+    private ConsultarStatusDesembolsoPixCommand comandoLocal(UUID id) {
+        return new ConsultarStatusDesembolsoPixCommand(id, "corr-1", false);
     }
 
     @Test
@@ -128,10 +132,11 @@ class ConsultarStatusDesembolsoPixUseCaseTest {
 
         assertThat(res.status()).isEqualTo(StatusPixTransferencia.SOLICITADA);
         assertThat(res.providerIndisponivel()).isTrue();
+        assertThat(res.providerConsultado()).isFalse();
     }
 
     @Test
-    void consultaComSucesso_providerIndisponivelFalse() {
+    void consultaComSucesso_providerConsultadoTrue() {
         PixTransferencia t = desembolso();
         t.marcarSolicitada("ext-1");
         when(repository.findById(t.getId())).thenReturn(Optional.of(t));
@@ -140,6 +145,20 @@ class ConsultarStatusDesembolsoPixUseCaseTest {
 
         StatusDesembolsoPixResult res = useCase.executar(comando(t.getId()));
 
+        assertThat(res.providerConsultado()).isTrue();
         assertThat(res.providerIndisponivel()).isFalse();
+    }
+
+    @Test
+    void leituraLocal_naoConsultaProvider() {
+        PixTransferencia t = desembolso();
+        t.marcarSolicitada("ext-1");
+        when(repository.findById(t.getId())).thenReturn(Optional.of(t));
+
+        StatusDesembolsoPixResult res = useCase.executar(comandoLocal(t.getId()));
+
+        assertThat(res.providerConsultado()).isFalse();
+        assertThat(res.providerIndisponivel()).isFalse();
+        verify(pixProvider, never()).consultarTransferencia(any(), any());
     }
 }

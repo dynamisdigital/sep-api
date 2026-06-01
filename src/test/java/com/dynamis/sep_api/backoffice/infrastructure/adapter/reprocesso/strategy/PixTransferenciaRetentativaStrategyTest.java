@@ -29,41 +29,53 @@ class PixTransferenciaRetentativaStrategyTest {
         assertThat(strategy.tipoSuportado()).isEqualTo(TipoChamadaProvider.PIX_TRANSFERENCIA);
     }
 
+    private StatusDesembolsoPixResult resultado(
+            StatusPixTransferencia status, boolean providerConsultado, boolean providerIndisponivel) {
+        return new StatusDesembolsoPixResult(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                status,
+                new BigDecimal("10000.00"),
+                "us****om",
+                providerConsultado,
+                providerIndisponivel);
+    }
+
     @Test
-    void retentar_reconsultaStatusESinaliza_semReenviar() {
+    void retentar_reconsultouNoProvider_sucesso() {
         UUID id = UUID.randomUUID();
-        when(consultarStatus.executar(any()))
-                .thenReturn(new StatusDesembolsoPixResult(
-                        id,
-                        UUID.randomUUID(),
-                        StatusPixTransferencia.SOLICITADA,
-                        new BigDecimal("10000.00"),
-                        "us****om",
-                        false));
+        when(consultarStatus.executar(any())).thenReturn(resultado(StatusPixTransferencia.PROCESSANDO, true, false));
 
         ResultadoReprocesso res = strategy.retentar(id);
 
         assertThat(res.status()).isEqualTo(StatusReprocesso.SUCESSO);
-        assertThat(res.mensagemTecnica()).contains("SOLICITADA").contains("reenvio nao permitido");
+        assertThat(res.mensagemTecnica()).contains("reconsultado no provider").contains("reenvio nao permitido");
         verify(consultarStatus).executar(any());
     }
 
     @Test
     void retentar_providerIndisponivel_falhaSemFalsoSucesso() {
         UUID id = UUID.randomUUID();
-        when(consultarStatus.executar(any()))
-                .thenReturn(new StatusDesembolsoPixResult(
-                        id,
-                        UUID.randomUUID(),
-                        StatusPixTransferencia.SOLICITADA,
-                        new BigDecimal("10000.00"),
-                        "us****om",
-                        true));
+        when(consultarStatus.executar(any())).thenReturn(resultado(StatusPixTransferencia.SOLICITADA, false, true));
 
         ResultadoReprocesso res = strategy.retentar(id);
 
         assertThat(res.status()).isEqualTo(StatusReprocesso.FALHA);
         assertThat(res.mensagemTecnica()).contains("indisponivel");
+    }
+
+    @Test
+    void retentar_semReconsulta_naoAnunciaReconsultado() {
+        UUID id = UUID.randomUUID();
+        // FALHOU sem external id: ConsultarStatus nao chama o provider -> providerConsultado=false.
+        when(consultarStatus.executar(any())).thenReturn(resultado(StatusPixTransferencia.FALHOU, false, false));
+
+        ResultadoReprocesso res = strategy.retentar(id);
+
+        assertThat(res.status()).isEqualTo(StatusReprocesso.SUCESSO);
+        assertThat(res.mensagemTecnica())
+                .contains("Sem reconsulta ao provider")
+                .doesNotContain("reconsultado no provider");
     }
 
     @Test
