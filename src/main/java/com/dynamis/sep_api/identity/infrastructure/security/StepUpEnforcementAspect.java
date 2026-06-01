@@ -57,9 +57,17 @@ public class StepUpEnforcementAspect {
 
     @Before("@annotation(com.dynamis.sep_api.identity.infrastructure.security.RequireStepUpEstrito)")
     public void aplicarEstrito() {
-        // Estrito (Sprint 20): nenhum bypass — operador sem MFA nao consegue produzir step-up e
-        // recebe 403.
-        exigirStepUpValido(exigirAutenticado());
+        UUID autenticadoId = exigirAutenticado();
+        // Estrito (Sprint 20): nenhum bypass. Exige MFA ATIVO no momento da operacao — nao basta o
+        // token: um operador pode emitir step-up, desabilitar MFA dentro do TTL e reusar o token. A
+        // verificacao do estado atual fecha essa janela antes de aceitar o token.
+        Usuario usuario = usuarioRepository
+                .findById(autenticadoId)
+                .orElseThrow(() -> new AccessDeniedException("Usuario autenticado nao encontrado."));
+        if (!usuario.isMfaHabilitado()) {
+            throw new AccessDeniedException("Operacao sensivel exige MFA habilitado.");
+        }
+        exigirStepUpValido(autenticadoId);
     }
 
     private UUID exigirAutenticado() {

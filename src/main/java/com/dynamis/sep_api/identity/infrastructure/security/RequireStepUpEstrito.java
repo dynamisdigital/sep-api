@@ -14,6 +14,6 @@ import java.lang.annotation.Target;
  * operador sem MFA seria inaceitavel. Na pratica, exige que o operador (FINANCEIRO/ADMIN) tenha MFA
  * ativo para conseguir produzir o step-up token; do contrario recebe 403.
  */
-@Target({ElementType.METHOD, ElementType.TYPE})
+@Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface RequireStepUpEstrito {}

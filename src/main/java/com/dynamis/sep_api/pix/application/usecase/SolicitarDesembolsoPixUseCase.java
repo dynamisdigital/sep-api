@@ -1,6 +1,5 @@
 package com.dynamis.sep_api.pix.application.usecase;
 
-import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUpEstrito;
 import com.dynamis.sep_api.pix.application.dto.SolicitarDesembolsoPixCommand;
 import com.dynamis.sep_api.pix.application.dto.SolicitarDesembolsoPixResult;
 import com.dynamis.sep_api.pix.application.port.out.dto.ContratoDesembolsoView;
@@ -29,10 +28,14 @@ import java.util.UUID;
  * apenas persiste a {@link PixTransferencia} em {@link StatusPixTransferencia#CRIADA}; a chamada ao
  * {@code PixProvider} entra na Task 20.3.
  *
+ * <p>Step-up estrito ({@code @RequireStepUpEstrito}, sem bypass de MFA) eh aplicado na borda REST
+ * (controller de desembolso, Task 20.5) — este use case assume que a autorizacao sensivel ja foi
+ * validada, seguindo o padrao do projeto de manter a anotacao de seguranca fora da camada
+ * application.
+ *
  * <p>Garantias:
  *
  * <ul>
- *   <li><strong>Step-up estrito</strong> ({@link RequireStepUpEstrito}) — sem bypass de MFA.
  *   <li><strong>Idempotencia</strong> por {@code Idempotency-Key}: reapresentacao com o mesmo
  *       contrato/valor/chave retorna a transferencia existente; payload divergente -> 409.
  *   <li><strong>Elegibilidade</strong> via {@link ValidadorElegibilidadeDesembolso} (contrato
@@ -62,7 +65,6 @@ public class SolicitarDesembolsoPixUseCase {
     }
 
     @Transactional
-    @RequireStepUpEstrito
     public SolicitarDesembolsoPixResult executar(SolicitarDesembolsoPixCommand cmd) {
         validarComando(cmd);
         String chaveHash = ChavePixSeguranca.hashHex(cmd.chavePixDestino());
