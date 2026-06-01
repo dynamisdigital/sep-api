@@ -7,6 +7,7 @@ import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRe
 import com.dynamis.sep_api.pix.application.port.out.CobrancaRecebimentoPixQueryPort;
 import com.dynamis.sep_api.pix.application.port.out.dto.ParcelaRecebimentoPixView;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -36,7 +37,12 @@ public class CobrancaRecebimentoPixQueryAdapter implements CobrancaRecebimentoPi
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<ParcelaRecebimentoPixView> buscarParcelaParaReferenciaPix(UUID parcelaId) {
+        // readOnly=true torna explicito o contrato: a montagem da view traversa associacoes LAZY
+        // (agenda; recebimentos via CalcularValorAtualizadoParcelaUseCase) e exige persistence
+        // context aberto. O caller (GerarReferenciaRecebimentoPixUseCase) ja eh @Transactional, mas
+        // a anotacao garante robustez tambem fora desse fluxo.
         return parcelaRepository.findById(parcelaId).map(this::montarView);
     }
 
