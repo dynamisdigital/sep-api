@@ -1,9 +1,12 @@
 package com.dynamis.sep_api.pix.infrastructure.adapter.fake;
 
+import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCriarCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
+import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
+import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
 import com.dynamis.sep_api.pix.domain.vo.TipoPixWebhookEvent;
 import com.dynamis.sep_api.pix.infrastructure.adapter.PixWebhookNormalizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,6 +44,26 @@ class FakePixProviderTest {
     void consultarTransferenciaDevolveConcluida() {
         RespostaTransferenciaPix resp = provider.consultarTransferencia("fake-pix-x", "corr-1");
         assertThat(resp.status()).isEqualTo(StatusTransferenciaPixProvider.CONCLUIDA);
+    }
+
+    @Test
+    void criarCobrancaRecebimentoEcoaTxidEDevolveProviderRef() {
+        RespostaCobrancaPix resp = provider.criarCobrancaRecebimento(
+                new ComandoCriarCobrancaPix("txid-abc", new BigDecimal("250.00"), "Recebimento de parcela SEP"),
+                "corr-1");
+
+        assertThat(resp.txid()).isEqualTo("txid-abc");
+        assertThat(resp.providerReferenciaId()).isEqualTo("fake-cob-txid-abc");
+        assertThat(resp.codigoCopiaCola()).contains("txid-abc");
+    }
+
+    @Test
+    void criarCobrancaArmadaParaFalhar_lancaProviderException() {
+        provider.armarFalhaCobranca();
+
+        assertThatThrownBy(() -> provider.criarCobrancaRecebimento(
+                        new ComandoCriarCobrancaPix("txid-x", new BigDecimal("10.00"), "desc"), "corr-1"))
+                .isInstanceOf(PixProviderException.class);
     }
 
     @Test

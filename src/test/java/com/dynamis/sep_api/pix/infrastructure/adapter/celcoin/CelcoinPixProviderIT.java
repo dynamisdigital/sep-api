@@ -1,7 +1,9 @@
 package com.dynamis.sep_api.pix.infrastructure.adapter.celcoin;
 
 import com.dynamis.sep_api.pix.application.port.out.PixProvider;
+import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCriarCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoTransferenciaPix;
+import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
 import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
@@ -158,6 +160,51 @@ class CelcoinPixProviderIT {
         assertThatThrownBy(() -> provider.solicitarTransferencia(novoComando(), "idem-w", "corr-6"))
                 .isInstanceOf(PixProviderException.class)
                 .hasMessageContaining("desconhecido");
+    }
+
+    @Test
+    void criarCobrancaRecebimentoEcoaTxidEParseiaResposta() {
+        wireMock.stubFor(post(urlEqualTo("/pix/charges"))
+                .withHeader("Authorization", equalTo("Bearer pix-token-xyz"))
+                .withRequestBody(containing("\"txid\":\"txid-001\""))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"txid\":\"txid-001\",\"charge_id\":\"chg-1\",\"emv\":\"000201abc\"}")));
+
+        RespostaCobrancaPix resp = provider.criarCobrancaRecebimento(
+                new ComandoCriarCobrancaPix("txid-001", new BigDecimal("250.00"), "Recebimento de parcela SEP"),
+                "corr-cob-1");
+
+        assertThat(resp.txid()).isEqualTo("txid-001");
+        assertThat(resp.providerReferenciaId()).isEqualTo("chg-1");
+        assertThat(resp.codigoCopiaCola()).isEqualTo("000201abc");
+    }
+
+    @Test
+    void criarCobrancaSemChargeIdLevantaProviderException() {
+        wireMock.stubFor(post(urlEqualTo("/pix/charges"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"txid\":\"txid-002\"}")));
+
+        assertThatThrownBy(() -> provider.criarCobrancaRecebimento(
+                        new ComandoCriarCobrancaPix("txid-002", new BigDecimal("10.00"), "desc"), "corr-cob-2"))
+                .isInstanceOf(PixProviderException.class)
+                .hasMessageContaining("charge_id");
+    }
+
+    @Test
+    void criarCobrancaErro5xxTraduzidoComoProviderHttpException() {
+        wireMock.stubFor(post(urlEqualTo("/pix/charges")).willReturn(serverError()));
+
+        assertThatThrownBy(() -> provider.criarCobrancaRecebimento(
+                        new ComandoCriarCobrancaPix("txid-003", new BigDecimal("10.00"), "desc"), "corr-cob-3"))
+                .isInstanceOf(PixProviderHttpException.class)
+                .matches(ex -> ((PixProviderHttpException) ex).isServerError(), "isServerError");
+
+        wireMock.verify(3, postRequestedFor(urlEqualTo("/pix/charges")));
     }
 
     @Test
