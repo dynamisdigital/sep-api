@@ -87,23 +87,22 @@ public class SolicitarDesembolsoPixUseCase {
                 cmd.idempotencyKey(),
                 cmd.correlationId());
 
-        return persistir(cmd, chaveHash, transferencia);
+        return persistir(transferencia, cmd.contratoId());
     }
 
-    private SolicitarDesembolsoPixResult persistir(
-            SolicitarDesembolsoPixCommand cmd, String chaveHash, PixTransferencia transferencia) {
+    private SolicitarDesembolsoPixResult persistir(PixTransferencia transferencia, UUID contratoId) {
         try {
             PixTransferencia salva = transferenciaRepository.saveAndFlush(transferencia);
             return resultado(salva, true);
         } catch (DataIntegrityViolationException corrida) {
-            // Corrida concorrente: outra thread persistiu a mesma key (retorno idempotente) ou um
-            // desembolso que passou a ocupar o contrato (409). As UNIQUE de V45/V47 sao a fonte da
-            // verdade.
-            Optional<PixTransferencia> mesmaKey = transferenciaRepository.findByIdempotencyKey(cmd.idempotencyKey());
-            if (mesmaKey.isPresent()) {
-                return resultadoIdempotente(cmd, chaveHash, mesmaKey.get());
-            }
-            throw desembolsoDuplicado(cmd.contratoId());
+            // Corrida concorrente real (dois pedidos passaram os pre-checks ao mesmo tempo): a UNIQUE
+            // de idempotency_key (V45) ou a UNIQUE parcial por contrato (V47) barra o perdedor. NAO
+            // reconsultamos aqui: a transacao ja foi marcada rollback-only pela violacao e a sessao
+            // esta inconsistente. Devolvemos 409 e deixamos o rollback acontecer; o retry sequencial
+            // do cliente cai no pre-check idempotente (findByIdempotencyKey / bloquearSeContratoOcupado).
+            throw new ConflitoException(
+                    "PIX-409-CONFLITO-CONCORRENTE",
+                    "Desembolso concorrente para o contrato " + contratoId + "; reapresente a solicitacao.");
         }
     }
 

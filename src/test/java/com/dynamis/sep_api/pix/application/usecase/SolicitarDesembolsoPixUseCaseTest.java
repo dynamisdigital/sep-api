@@ -194,28 +194,19 @@ class SolicitarDesembolsoPixUseCaseTest {
     }
 
     @Test
-    void corridaConcorrenteMesmaKey_resolveIdempotente() {
+    void corridaConcorrente_devolveConflitoSemReconsultarNaTxEnvenenada() {
         when(repository.findByIdempotencyKey("idem-1")).thenReturn(Optional.empty());
         stubElegivel();
         when(repository.findFirstByContratoIdAndStatusInOrderByDataCriacaoDesc(eq(contratoId), anyCollection()))
                 .thenReturn(Optional.empty());
         when(repository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("unique"));
-        PixTransferencia vencedora = PixTransferencia.criarDesembolso(
-                contratoId,
-                propostaId,
-                tomadorId,
-                VALOR,
-                ChavePixSeguranca.hashHex(CHAVE),
-                ChavePixSeguranca.mascarar(CHAVE),
-                "idem-1",
-                "corr-1");
-        when(repository.findByIdempotencyKey("idem-1"))
-                .thenReturn(Optional.empty())
-                .thenReturn(Optional.of(vencedora));
 
-        SolicitarDesembolsoPixResult res = useCase.executar(comando(VALOR, "idem-1"));
+        assertThatThrownBy(() -> useCase.executar(comando(VALOR, "idem-1")))
+                .isInstanceOf(ConflitoException.class)
+                .extracting("codigo")
+                .isEqualTo("PIX-409-CONFLITO-CONCORRENTE");
 
-        assertThat(res.novo()).isFalse();
-        assertThat(res.transferenciaId()).isEqualTo(vencedora.getId());
+        // Nao reconsulta na transacao ja marcada rollback-only: apenas o pre-check inicial.
+        verify(repository).findByIdempotencyKey("idem-1");
     }
 }
