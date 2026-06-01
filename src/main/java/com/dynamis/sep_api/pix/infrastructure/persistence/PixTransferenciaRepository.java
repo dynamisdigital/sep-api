@@ -12,6 +12,9 @@ public interface PixTransferenciaRepository extends JpaRepository<PixTransferenc
 
     Optional<PixTransferencia> findByIdempotencyKey(String idempotencyKey);
 
+    /** Transferencia pelo id externo do provider (Sprint 20 Task 20.4 — webhook STATUS_TRANSFERENCIA). */
+    Optional<PixTransferencia> findByExternalId(String externalId);
+
     /**
      * Transferencia mais recente do contrato em algum dos estados informados. Usado na Sprint 20
      * para bloquear novo desembolso enquanto houver um que "ocupa" o contrato
