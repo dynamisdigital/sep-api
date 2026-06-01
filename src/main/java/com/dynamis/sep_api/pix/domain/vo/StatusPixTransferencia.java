@@ -12,5 +12,14 @@ public enum StatusPixTransferencia {
     PROCESSANDO,
     CONCLUIDA,
     FALHOU,
-    CANCELADA
+    CANCELADA;
+
+    /**
+     * Estados que "ocupam" o contrato para fins de desembolso (Sprint 20): enquanto houver uma
+     * transferencia nestes estados, o contrato nao aceita um novo desembolso. {@code FALHOU} e
+     * {@code CANCELADA} liberam o contrato para nova tentativa.
+     */
+    public boolean ocupaContrato() {
+        return this == CRIADA || this == SOLICITADA || this == PROCESSANDO || this == CONCLUIDA;
+    }
 }
