@@ -38,13 +38,32 @@ class PixTransferenciaRetentativaStrategyTest {
                         UUID.randomUUID(),
                         StatusPixTransferencia.SOLICITADA,
                         new BigDecimal("10000.00"),
-                        "us****om"));
+                        "us****om",
+                        false));
 
         ResultadoReprocesso res = strategy.retentar(id);
 
         assertThat(res.status()).isEqualTo(StatusReprocesso.SUCESSO);
         assertThat(res.mensagemTecnica()).contains("SOLICITADA").contains("reenvio nao permitido");
         verify(consultarStatus).executar(any());
+    }
+
+    @Test
+    void retentar_providerIndisponivel_falhaSemFalsoSucesso() {
+        UUID id = UUID.randomUUID();
+        when(consultarStatus.executar(any()))
+                .thenReturn(new StatusDesembolsoPixResult(
+                        id,
+                        UUID.randomUUID(),
+                        StatusPixTransferencia.SOLICITADA,
+                        new BigDecimal("10000.00"),
+                        "us****om",
+                        true));
+
+        ResultadoReprocesso res = strategy.retentar(id);
+
+        assertThat(res.status()).isEqualTo(StatusReprocesso.FALHA);
+        assertThat(res.mensagemTecnica()).contains("indisponivel");
     }
 
     @Test

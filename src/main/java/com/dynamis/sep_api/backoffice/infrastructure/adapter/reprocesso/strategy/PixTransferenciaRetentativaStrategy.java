@@ -40,6 +40,13 @@ public class PixTransferenciaRetentativaStrategy implements ProviderRetentativaS
         try {
             StatusDesembolsoPixResult resultado =
                     consultarStatus.executar(new ConsultarStatusDesembolsoPixCommand(entidadeId, null));
+            if (resultado.providerIndisponivel()) {
+                // Reprocesso eh estrito: se o provider falhou, nao reportar falso sucesso com o
+                // status local antigo (Task 20.4 code review).
+                LOG.warn("reprocesso PIX_TRANSFERENCIA: provider indisponivel para {}", entidadeId);
+                return ResultadoReprocesso.falha(
+                        "Provider Pix indisponivel ao reconsultar o desembolso " + entidadeId + "; tente novamente.");
+            }
             LOG.info("reprocesso PIX_TRANSFERENCIA reconsultou status={} para {}", resultado.status(), entidadeId);
             return ResultadoReprocesso.sucesso("Status do desembolso reconsultado: " + resultado.status()
                     + " (reenvio nao permitido — chave Pix nao persistida; abra nova solicitacao se necessario)");

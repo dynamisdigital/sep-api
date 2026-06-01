@@ -48,10 +48,11 @@ public class ConsultarStatusDesembolsoPixUseCase {
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
                         "PIX-404-TRANSFERENCIA", "Transferencia Pix nao encontrada: " + cmd.transferenciaId()));
 
+        boolean providerIndisponivel = false;
         if (deveConsultarProvider(transferencia)) {
-            sincronizarComProvider(transferencia, cmd.correlationId());
+            providerIndisponivel = sincronizarComProvider(transferencia, cmd.correlationId());
         }
-        return resultado(transferencia);
+        return resultado(transferencia, providerIndisponivel);
     }
 
     private boolean deveConsultarProvider(PixTransferencia transferencia) {
@@ -64,22 +65,30 @@ public class ConsultarStatusDesembolsoPixUseCase {
         return !terminal && temExternalId;
     }
 
-    private void sincronizarComProvider(PixTransferencia transferencia, String correlationId) {
+    /** Retorna {@code true} se o provider foi tentado mas falhou (status devolvido eh o local). */
+    private boolean sincronizarComProvider(PixTransferencia transferencia, String correlationId) {
         try {
             RespostaTransferenciaPix resposta =
                     pixProvider.consultarTransferencia(transferencia.getExternalId(), correlationId);
             sincronizador.sincronizar(transferencia, resposta.status());
             transferenciaRepository.save(transferencia);
+            return false;
         } catch (PixProviderException ex) {
             log.warn(
                     "Consulta de status falhou no provider para transferencia={}; devolvendo status local. {}",
                     transferencia.getId(),
                     ex.getMessage());
+            return true;
         }
     }
 
-    private StatusDesembolsoPixResult resultado(PixTransferencia t) {
+    private StatusDesembolsoPixResult resultado(PixTransferencia t, boolean providerIndisponivel) {
         return new StatusDesembolsoPixResult(
-                t.getId(), t.getContratoId(), t.getStatus(), t.getValor(), t.getChaveDestinoMascara());
+                t.getId(),
+                t.getContratoId(),
+                t.getStatus(),
+                t.getValor(),
+                t.getChaveDestinoMascara(),
+                providerIndisponivel);
     }
 }

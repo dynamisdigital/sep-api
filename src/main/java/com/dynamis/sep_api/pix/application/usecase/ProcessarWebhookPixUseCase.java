@@ -10,7 +10,7 @@ import com.dynamis.sep_api.pix.domain.event.PixWebhookRecebidoEvent;
 import com.dynamis.sep_api.pix.domain.model.PixRecebimento;
 import com.dynamis.sep_api.pix.domain.model.PixTransferencia;
 import com.dynamis.sep_api.pix.domain.model.PixWebhookEvent;
-import com.dynamis.sep_api.pix.domain.vo.TipoPixWebhookEvent;
+import com.dynamis.sep_api.pix.domain.vo.StatusPixWebhookEvent;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixRecebimentoRepository;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixTransferenciaRepository;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixWebhookEventRepository;
@@ -117,7 +117,9 @@ public class ProcessarWebhookPixUseCase {
                 }
                 case DESCONHECIDO -> evento.marcarIgnorado("tipo de evento Pix nao mapeado");
             }
-            if (evt.tipo() != TipoPixWebhookEvent.DESCONHECIDO) {
+            if (evento.getStatus() == StatusPixWebhookEvent.PROCESSADO) {
+                // Coerencia com a persistencia: so anuncia "processado" o que de fato foi processado
+                // (evento IGNORADO — ex.: STATUS_TRANSFERENCIA de external id desconhecido — nao publica).
                 eventPublisher.publishEvent(new PixWebhookProcessadoEvent(evt.eventId(), evt.tipo()));
             }
         } catch (RuntimeException ex) {

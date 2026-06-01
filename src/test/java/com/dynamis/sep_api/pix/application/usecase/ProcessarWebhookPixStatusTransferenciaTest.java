@@ -6,6 +6,7 @@ import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
 import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
 import com.dynamis.sep_api.pix.application.service.SincronizadorStatusTransferencia;
+import com.dynamis.sep_api.pix.domain.event.PixWebhookProcessadoEvent;
 import com.dynamis.sep_api.pix.domain.model.PixTransferencia;
 import com.dynamis.sep_api.pix.domain.model.PixWebhookEvent;
 import com.dynamis.sep_api.pix.domain.vo.StatusPixWebhookEvent;
@@ -34,6 +35,7 @@ class ProcessarWebhookPixStatusTransferenciaTest {
     private PixWebhookEventRepository webhookEventRepository;
     private PixTransferenciaRepository transferenciaRepository;
     private SincronizadorStatusTransferencia sincronizador;
+    private ApplicationEventPublisher eventPublisher;
     private ProcessarWebhookPixUseCase useCase;
 
     private PixWebhookEvent eventoPersistido;
@@ -45,13 +47,14 @@ class ProcessarWebhookPixStatusTransferenciaTest {
         PixRecebimentoRepository recebimentoRepository = mock(PixRecebimentoRepository.class);
         transferenciaRepository = mock(PixTransferenciaRepository.class);
         sincronizador = mock(SincronizadorStatusTransferencia.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
         useCase = new ProcessarWebhookPixUseCase(
                 pixProvider,
                 webhookEventRepository,
                 recebimentoRepository,
                 transferenciaRepository,
                 sincronizador,
-                mock(ApplicationEventPublisher.class));
+                eventPublisher);
 
         when(webhookEventRepository.existsByProviderAndEventId(any(), any())).thenReturn(false);
         when(webhookEventRepository.saveAndFlush(any())).thenAnswer(inv -> {
@@ -119,5 +122,7 @@ class ProcessarWebhookPixStatusTransferenciaTest {
         verify(pixProvider, never()).consultarTransferencia(any(), any());
         verify(sincronizador, never()).sincronizar(any(), any());
         assertThat(eventoPersistido.getStatus()).isEqualTo(StatusPixWebhookEvent.IGNORADO);
+        // Coerencia: evento IGNORADO nao anuncia "processado".
+        verify(eventPublisher, never()).publishEvent(any(PixWebhookProcessadoEvent.class));
     }
 }

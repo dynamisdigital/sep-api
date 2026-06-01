@@ -127,5 +127,19 @@ class ConsultarStatusDesembolsoPixUseCaseTest {
         StatusDesembolsoPixResult res = useCase.executar(comando(t.getId()));
 
         assertThat(res.status()).isEqualTo(StatusPixTransferencia.SOLICITADA);
+        assertThat(res.providerIndisponivel()).isTrue();
+    }
+
+    @Test
+    void consultaComSucesso_providerIndisponivelFalse() {
+        PixTransferencia t = desembolso();
+        t.marcarSolicitada("ext-1");
+        when(repository.findById(t.getId())).thenReturn(Optional.of(t));
+        when(pixProvider.consultarTransferencia("ext-1", "corr-1"))
+                .thenReturn(new RespostaTransferenciaPix("ext-1", StatusTransferenciaPixProvider.PROCESSANDO));
+
+        StatusDesembolsoPixResult res = useCase.executar(comando(t.getId()));
+
+        assertThat(res.providerIndisponivel()).isFalse();
     }
 }
