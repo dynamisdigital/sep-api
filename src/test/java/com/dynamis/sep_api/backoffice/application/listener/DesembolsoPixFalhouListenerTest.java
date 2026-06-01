@@ -25,7 +25,8 @@ class DesembolsoPixFalhouListenerTest {
         UUID transferenciaId = UUID.randomUUID();
         UUID contratoId = UUID.randomUUID();
 
-        listener.aoFalhar(new PixTransferenciaFalhouEvent(transferenciaId, contratoId, "Falha tecnica no provider"));
+        listener.aoFalhar(new PixTransferenciaFalhouEvent(
+                transferenciaId, contratoId, UUID.randomUUID(), "Falha tecnica no provider"));
 
         ArgumentCaptor<CriarItemCommand> captor = ArgumentCaptor.forClass(CriarItemCommand.class);
         verify(criarItem).criarSeAusente(captor.capture());
@@ -38,7 +39,8 @@ class DesembolsoPixFalhouListenerTest {
 
     @Test
     void aoFalhar_motivoNulo_usaFallback() {
-        listener.aoFalhar(new PixTransferenciaFalhouEvent(UUID.randomUUID(), UUID.randomUUID(), null));
+        listener.aoFalhar(
+                new PixTransferenciaFalhouEvent(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), null));
 
         ArgumentCaptor<CriarItemCommand> captor = ArgumentCaptor.forClass(CriarItemCommand.class);
         verify(criarItem).criarSeAusente(captor.capture());

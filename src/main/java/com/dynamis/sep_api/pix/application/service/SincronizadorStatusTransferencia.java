@@ -39,7 +39,11 @@ public class SincronizadorStatusTransferencia {
         }
         transferencia.marcarSolicitada(externalId);
         eventPublisher.publishEvent(new PixTransferenciaSolicitadaEvent(
-                transferencia.getId(), transferencia.getContratoId(), externalId, transferencia.getValor()));
+                transferencia.getId(),
+                transferencia.getContratoId(),
+                transferencia.getTomadorId(),
+                externalId,
+                transferencia.getValor()));
         if (resposta.status() == StatusTransferenciaPixProvider.PROCESSANDO) {
             transferencia.marcarProcessando();
         } else if (resposta.status() == StatusTransferenciaPixProvider.CONCLUIDA) {
@@ -51,8 +55,8 @@ public class SincronizadorStatusTransferencia {
     /** Marca falha tecnica (ex.: excecao do provider) e publica o evento de falha. */
     public void marcarFalhaTecnica(PixTransferencia transferencia, String motivo) {
         transferencia.marcarFalhou();
-        eventPublisher.publishEvent(
-                new PixTransferenciaFalhouEvent(transferencia.getId(), transferencia.getContratoId(), motivo));
+        eventPublisher.publishEvent(new PixTransferenciaFalhouEvent(
+                transferencia.getId(), transferencia.getContratoId(), transferencia.getTomadorId(), motivo));
     }
 
     /**
@@ -85,6 +89,9 @@ public class SincronizadorStatusTransferencia {
 
     private void publicarConcluida(PixTransferencia transferencia) {
         eventPublisher.publishEvent(new PixTransferenciaConcluidaEvent(
-                transferencia.getId(), transferencia.getContratoId(), transferencia.getExternalId()));
+                transferencia.getId(),
+                transferencia.getContratoId(),
+                transferencia.getTomadorId(),
+                transferencia.getExternalId()));
     }
 }
