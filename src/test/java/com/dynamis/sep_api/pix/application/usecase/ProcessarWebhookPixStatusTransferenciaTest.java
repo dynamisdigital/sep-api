@@ -4,6 +4,7 @@ import com.dynamis.sep_api.pix.application.port.out.PixProvider;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
+import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
 import com.dynamis.sep_api.pix.application.service.SincronizadorStatusTransferencia;
 import com.dynamis.sep_api.pix.domain.model.PixTransferencia;
 import com.dynamis.sep_api.pix.domain.model.PixWebhookEvent;
@@ -93,6 +94,18 @@ class ProcessarWebhookPixStatusTransferenciaTest {
         verify(sincronizador).sincronizar(t, StatusTransferenciaPixProvider.CONCLUIDA);
         verify(transferenciaRepository).save(t);
         assertThat(eventoPersistido.getStatus()).isEqualTo(StatusPixWebhookEvent.PROCESSADO);
+    }
+
+    @Test
+    void providerFalhaAoReconsultar_marcaWebhookFalhouSem500() {
+        stubWebhookStatus("ext-1");
+        when(transferenciaRepository.findByExternalId("ext-1")).thenReturn(Optional.of(desembolso()));
+        when(pixProvider.consultarTransferencia(any(), any())).thenThrow(new PixProviderException("timeout"));
+
+        ProcessarWebhookPixUseCase.Resultado res = useCase.executar("{}", "corr-1");
+
+        assertThat(res.aceito()).isTrue();
+        assertThat(eventoPersistido.getStatus()).isEqualTo(StatusPixWebhookEvent.FALHOU);
     }
 
     @Test
