@@ -2,9 +2,14 @@ package com.dynamis.sep_api.pix.application.usecase;
 
 import com.dynamis.sep_api.pix.application.dto.SolicitarDesembolsoPixCommand;
 import com.dynamis.sep_api.pix.application.dto.SolicitarDesembolsoPixResult;
+import com.dynamis.sep_api.pix.application.port.out.PixProvider;
+import com.dynamis.sep_api.pix.application.port.out.dto.ComandoTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ContratoDesembolsoView;
+import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
+import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
 import com.dynamis.sep_api.pix.application.service.ChavePixSeguranca;
 import com.dynamis.sep_api.pix.application.service.ResultadoElegibilidadeDesembolso;
+import com.dynamis.sep_api.pix.application.service.SincronizadorStatusTransferencia;
 import com.dynamis.sep_api.pix.application.service.ValidadorElegibilidadeDesembolso;
 import com.dynamis.sep_api.pix.domain.model.PixTransferencia;
 import com.dynamis.sep_api.pix.domain.vo.StatusPixTransferencia;
@@ -13,6 +18,8 @@ import com.dynamis.sep_api.shared.exception.ConflitoException;
 import com.dynamis.sep_api.shared.exception.OperacaoNaoProcessavelException;
 import com.dynamis.sep_api.shared.exception.RecursoNaoEncontradoException;
 import com.dynamis.sep_api.shared.exception.ValidacaoException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,9 +31,11 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Solicita um desembolso Pix assistido para um contrato elegivel (Sprint 20 Task 20.2). Nesta task
- * apenas persiste a {@link PixTransferencia} em {@link StatusPixTransferencia#CRIADA}; a chamada ao
- * {@code PixProvider} entra na Task 20.3.
+ * Solicita um desembolso Pix assistido para um contrato elegivel (Sprint 20 Tasks 20.2/20.3).
+ * Persiste a {@link PixTransferencia} em {@link StatusPixTransferencia#CRIADA} (anti-orphan: gravada
+ * antes da chamada externa), envia ao {@link PixProvider} e atualiza o status conforme a resposta
+ * (SOLICITADA/PROCESSANDO/CONCLUIDA) ou marca {@code FALHOU} em rejeicao/falha tecnica, sempre
+ * mantendo a trilha. As transicoes e eventos ficam no {@link SincronizadorStatusTransferencia}.
  *
  * <p>Step-up estrito ({@code @RequireStepUpEstrito}, sem bypass de MFA) eh aplicado na borda REST
  * (controller de desembolso, Task 20.5) — este use case assume que a autorizacao sensivel ja foi
@@ -50,6 +59,8 @@ import java.util.UUID;
 @Service
 public class SolicitarDesembolsoPixUseCase {
 
+    private static final Logger log = LoggerFactory.getLogger(SolicitarDesembolsoPixUseCase.class);
+
     private static final Collection<StatusPixTransferencia> STATUS_OCUPADOS = Arrays.stream(
                     StatusPixTransferencia.values())
             .filter(StatusPixTransferencia::ocupaContrato)
@@ -57,11 +68,18 @@ public class SolicitarDesembolsoPixUseCase {
 
     private final PixTransferenciaRepository transferenciaRepository;
     private final ValidadorElegibilidadeDesembolso validador;
+    private final PixProvider pixProvider;
+    private final SincronizadorStatusTransferencia sincronizador;
 
     public SolicitarDesembolsoPixUseCase(
-            PixTransferenciaRepository transferenciaRepository, ValidadorElegibilidadeDesembolso validador) {
+            PixTransferenciaRepository transferenciaRepository,
+            ValidadorElegibilidadeDesembolso validador,
+            PixProvider pixProvider,
+            SincronizadorStatusTransferencia sincronizador) {
         this.transferenciaRepository = transferenciaRepository;
         this.validador = validador;
+        this.pixProvider = pixProvider;
+        this.sincronizador = sincronizador;
     }
 
     @Transactional
@@ -89,13 +107,16 @@ public class SolicitarDesembolsoPixUseCase {
                 cmd.idempotencyKey(),
                 cmd.correlationId());
 
-        return persistir(transferencia, cmd.contratoId());
+        PixTransferencia criada = inserirCriada(transferencia, cmd.contratoId());
+        enviarAoProvider(criada, cmd);
+        transferenciaRepository.save(criada);
+        return resultado(criada, true);
     }
 
-    private SolicitarDesembolsoPixResult persistir(PixTransferencia transferencia, UUID contratoId) {
+    private PixTransferencia inserirCriada(PixTransferencia transferencia, UUID contratoId) {
         try {
-            PixTransferencia salva = transferenciaRepository.saveAndFlush(transferencia);
-            return resultado(salva, true);
+            // Anti-orphan: grava CRIADA antes da chamada externa, com a UNIQUE ja aplicada.
+            return transferenciaRepository.saveAndFlush(transferencia);
         } catch (DataIntegrityViolationException corrida) {
             // Corrida concorrente real (dois pedidos passaram os pre-checks ao mesmo tempo): a UNIQUE
             // de idempotency_key (V45) ou a UNIQUE parcial por contrato (V47) barra o perdedor. NAO
@@ -105,6 +126,25 @@ public class SolicitarDesembolsoPixUseCase {
             throw new ConflitoException(
                     "PIX-409-CONFLITO-CONCORRENTE",
                     "Desembolso concorrente para o contrato " + contratoId + "; reapresente a solicitacao.");
+        }
+    }
+
+    private void enviarAoProvider(PixTransferencia transferencia, SolicitarDesembolsoPixCommand cmd) {
+        try {
+            RespostaTransferenciaPix resposta = pixProvider.solicitarTransferencia(
+                    new ComandoTransferenciaPix(
+                            transferencia.getValor(), cmd.chavePixDestino(), transferencia.getDescricao()),
+                    transferencia.getIdempotencyKey(),
+                    cmd.correlationId());
+            sincronizador.aplicarRespostaSolicitacao(transferencia, resposta);
+        } catch (PixProviderException ex) {
+            // Falha tecnica: a transferencia ja esta gravada (CRIADA). Marca FALHOU para rastreio e
+            // backoffice (Task 20.4); o operador reapresenta com nova Idempotency-Key.
+            log.warn(
+                    "Falha tecnica ao solicitar desembolso transferencia={}: {}",
+                    transferencia.getId(),
+                    ex.getMessage());
+            sincronizador.marcarFalhaTecnica(transferencia, "Falha tecnica no provider Pix ao solicitar desembolso");
         }
     }
 

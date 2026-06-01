@@ -2,12 +2,17 @@ package com.dynamis.sep_api.pix.application.usecase;
 
 import com.dynamis.sep_api.pix.application.dto.SolicitarDesembolsoPixCommand;
 import com.dynamis.sep_api.pix.application.dto.SolicitarDesembolsoPixResult;
+import com.dynamis.sep_api.pix.application.port.out.PixProvider;
 import com.dynamis.sep_api.pix.application.port.out.dto.AgendaDesembolsoView;
 import com.dynamis.sep_api.pix.application.port.out.dto.ContratoDesembolsoView;
 import com.dynamis.sep_api.pix.application.port.out.dto.EscrowDesembolsoView;
+import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
+import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
+import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
 import com.dynamis.sep_api.pix.application.service.ChavePixSeguranca;
 import com.dynamis.sep_api.pix.application.service.ResultadoElegibilidadeDesembolso;
 import com.dynamis.sep_api.pix.application.service.ResultadoElegibilidadeDesembolso.MotivoInelegibilidade;
+import com.dynamis.sep_api.pix.application.service.SincronizadorStatusTransferencia;
 import com.dynamis.sep_api.pix.application.service.ValidadorElegibilidadeDesembolso;
 import com.dynamis.sep_api.pix.domain.model.PixTransferencia;
 import com.dynamis.sep_api.pix.domain.vo.StatusPixTransferencia;
@@ -17,6 +22,7 @@ import com.dynamis.sep_api.shared.exception.OperacaoNaoProcessavelException;
 import com.dynamis.sep_api.shared.exception.RecursoNaoEncontradoException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
@@ -37,6 +43,7 @@ class SolicitarDesembolsoPixUseCaseTest {
 
     private PixTransferenciaRepository repository;
     private ValidadorElegibilidadeDesembolso validador;
+    private PixProvider pixProvider;
     private SolicitarDesembolsoPixUseCase useCase;
 
     private final UUID contratoId = UUID.randomUUID();
@@ -50,7 +57,10 @@ class SolicitarDesembolsoPixUseCaseTest {
     void setUp() {
         repository = mock(PixTransferenciaRepository.class);
         validador = mock(ValidadorElegibilidadeDesembolso.class);
-        useCase = new SolicitarDesembolsoPixUseCase(repository, validador);
+        pixProvider = mock(PixProvider.class);
+        SincronizadorStatusTransferencia sincronizador =
+                new SincronizadorStatusTransferencia(mock(ApplicationEventPublisher.class));
+        useCase = new SolicitarDesembolsoPixUseCase(repository, validador, pixProvider, sincronizador);
     }
 
     private SolicitarDesembolsoPixCommand comando(BigDecimal valor, String idempotencyKey) {
@@ -69,20 +79,72 @@ class SolicitarDesembolsoPixUseCaseTest {
         when(validador.validar(contratoId)).thenReturn(ResultadoElegibilidadeDesembolso.inelegivel(motivo));
     }
 
-    @Test
-    void contratoElegivel_criaTransferenciaCriada() {
-        when(repository.findByIdempotencyKey("idem-1")).thenReturn(Optional.empty());
+    /** Stuba o caminho feliz ate a chamada ao provider (sem definir a resposta do provider). */
+    private void stubCaminhoAteProvider(String idempotencyKey) {
+        when(repository.findByIdempotencyKey(idempotencyKey)).thenReturn(Optional.empty());
         stubElegivel();
         when(repository.findFirstByContratoIdAndStatusInOrderByDataCriacaoDesc(eq(contratoId), anyCollection()))
                 .thenReturn(Optional.empty());
         when(repository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    private void stubRespostaProvider(StatusTransferenciaPixProvider status) {
+        when(pixProvider.solicitarTransferencia(any(), any(), any()))
+                .thenReturn(new RespostaTransferenciaPix("ext-pix-1", status));
+    }
+
+    @Test
+    void providerPendente_transferenciaFicaSolicitada() {
+        stubCaminhoAteProvider("idem-1");
+        stubRespostaProvider(StatusTransferenciaPixProvider.PENDENTE);
 
         SolicitarDesembolsoPixResult res = useCase.executar(comando(VALOR, "idem-1"));
 
         assertThat(res.novo()).isTrue();
-        assertThat(res.status()).isEqualTo(StatusPixTransferencia.CRIADA);
+        assertThat(res.status()).isEqualTo(StatusPixTransferencia.SOLICITADA);
         assertThat(res.contratoId()).isEqualTo(contratoId);
         assertThat(res.chaveDestinoMascara()).contains("*").doesNotContain("empresa");
+    }
+
+    @Test
+    void providerProcessando_transferenciaFicaProcessando() {
+        stubCaminhoAteProvider("idem-1");
+        stubRespostaProvider(StatusTransferenciaPixProvider.PROCESSANDO);
+
+        SolicitarDesembolsoPixResult res = useCase.executar(comando(VALOR, "idem-1"));
+
+        assertThat(res.status()).isEqualTo(StatusPixTransferencia.PROCESSANDO);
+    }
+
+    @Test
+    void providerConcluida_transferenciaFicaConcluida() {
+        stubCaminhoAteProvider("idem-1");
+        stubRespostaProvider(StatusTransferenciaPixProvider.CONCLUIDA);
+
+        SolicitarDesembolsoPixResult res = useCase.executar(comando(VALOR, "idem-1"));
+
+        assertThat(res.status()).isEqualTo(StatusPixTransferencia.CONCLUIDA);
+    }
+
+    @Test
+    void providerRejeitada_transferenciaFicaFalhou() {
+        stubCaminhoAteProvider("idem-1");
+        stubRespostaProvider(StatusTransferenciaPixProvider.REJEITADA);
+
+        SolicitarDesembolsoPixResult res = useCase.executar(comando(VALOR, "idem-1"));
+
+        assertThat(res.status()).isEqualTo(StatusPixTransferencia.FALHOU);
+    }
+
+    @Test
+    void providerLancaExcecao_transferenciaFicaFalhouRastreavel() {
+        stubCaminhoAteProvider("idem-1");
+        when(pixProvider.solicitarTransferencia(any(), any(), any())).thenThrow(new PixProviderException("timeout"));
+
+        SolicitarDesembolsoPixResult res = useCase.executar(comando(VALOR, "idem-1"));
+
+        assertThat(res.status()).isEqualTo(StatusPixTransferencia.FALHOU);
+        assertThat(res.novo()).isTrue();
     }
 
     @Test
