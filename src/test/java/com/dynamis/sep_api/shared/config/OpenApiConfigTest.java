@@ -110,6 +110,15 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.components.schemas.OpenFinanceStatusResponse")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.MovimentacaoConsolidadaResponse")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/pix/desembolsos']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/pix/desembolsos/{id}']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/pix/desembolsos/{id}/status']")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.SolicitarDesembolsoRequest")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.DesembolsoResponse").exists())
+                .andExpect(jsonPath("$.components.schemas.StatusDesembolsoResponse")
                         .exists());
     }
 }

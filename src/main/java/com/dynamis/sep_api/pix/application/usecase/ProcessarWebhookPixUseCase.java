@@ -2,13 +2,17 @@ package com.dynamis.sep_api.pix.application.usecase;
 
 import com.dynamis.sep_api.pix.application.port.out.PixProvider;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
+import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
+import com.dynamis.sep_api.pix.application.service.SincronizadorStatusTransferencia;
 import com.dynamis.sep_api.pix.domain.event.PixWebhookFalhouEvent;
 import com.dynamis.sep_api.pix.domain.event.PixWebhookProcessadoEvent;
 import com.dynamis.sep_api.pix.domain.event.PixWebhookRecebidoEvent;
 import com.dynamis.sep_api.pix.domain.model.PixRecebimento;
+import com.dynamis.sep_api.pix.domain.model.PixTransferencia;
 import com.dynamis.sep_api.pix.domain.model.PixWebhookEvent;
-import com.dynamis.sep_api.pix.domain.vo.TipoPixWebhookEvent;
+import com.dynamis.sep_api.pix.domain.vo.StatusPixWebhookEvent;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixRecebimentoRepository;
+import com.dynamis.sep_api.pix.infrastructure.persistence.PixTransferenciaRepository;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixWebhookEventRepository;
 import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import org.slf4j.Logger;
@@ -19,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Optional;
 
 /**
  * Processamento inicial do webhook Pix/Celcoin (Sprint 19 Task 19.5). Foundation: registra o evento
@@ -48,16 +53,22 @@ public class ProcessarWebhookPixUseCase {
     private final PixProvider pixProvider;
     private final PixWebhookEventRepository webhookEventRepository;
     private final PixRecebimentoRepository recebimentoRepository;
+    private final PixTransferenciaRepository transferenciaRepository;
+    private final SincronizadorStatusTransferencia sincronizador;
     private final ApplicationEventPublisher eventPublisher;
 
     public ProcessarWebhookPixUseCase(
             PixProvider pixProvider,
             PixWebhookEventRepository webhookEventRepository,
             PixRecebimentoRepository recebimentoRepository,
+            PixTransferenciaRepository transferenciaRepository,
+            SincronizadorStatusTransferencia sincronizador,
             ApplicationEventPublisher eventPublisher) {
         this.pixProvider = pixProvider;
         this.webhookEventRepository = webhookEventRepository;
         this.recebimentoRepository = recebimentoRepository;
+        this.transferenciaRepository = transferenciaRepository;
+        this.sincronizador = sincronizador;
         this.eventPublisher = eventPublisher;
     }
 
@@ -98,12 +109,17 @@ public class ProcessarWebhookPixUseCase {
                     evento.marcarProcessado();
                 }
                 case STATUS_TRANSFERENCIA -> {
-                    // Foundation: reconhece o evento; reconciliacao de transferencia fica para Sprints 20/21.
-                    evento.marcarProcessado();
+                    if (reconciliarTransferencia(evt, correlationId)) {
+                        evento.marcarProcessado();
+                    } else {
+                        evento.marcarIgnorado("transferencia desconhecida para o external id do webhook");
+                    }
                 }
                 case DESCONHECIDO -> evento.marcarIgnorado("tipo de evento Pix nao mapeado");
             }
-            if (evt.tipo() != TipoPixWebhookEvent.DESCONHECIDO) {
+            if (evento.getStatus() == StatusPixWebhookEvent.PROCESSADO) {
+                // Coerencia com a persistencia: so anuncia "processado" o que de fato foi processado
+                // (evento IGNORADO — ex.: STATUS_TRANSFERENCIA de external id desconhecido — nao publica).
                 eventPublisher.publishEvent(new PixWebhookProcessadoEvent(evt.eventId(), evt.tipo()));
             }
         } catch (RuntimeException ex) {
@@ -132,6 +148,27 @@ public class ProcessarWebhookPixUseCase {
         PixRecebimento recebimento =
                 PixRecebimento.registrar(evt.endToEndId(), evt.valor(), OffsetDateTime.now(), correlationId);
         recebimentoRepository.save(recebimento);
+    }
+
+    /**
+     * Reconcilia uma transferencia de desembolso a partir do webhook {@code STATUS_TRANSFERENCIA}
+     * (Sprint 20 Task 20.4). O webhook eh apenas o gatilho: reconsultamos o status autoritativo no
+     * provider e sincronizamos idempotentemente. Retorna {@code false} quando o external id eh
+     * desconhecido (evento vira {@code IGNORADO}).
+     */
+    private boolean reconciliarTransferencia(EventoWebhookPixNormalizado evt, String correlationId) {
+        String externalId = evt.externalId();
+        if (externalId == null || externalId.isBlank()) {
+            return false;
+        }
+        Optional<PixTransferencia> transferencia = transferenciaRepository.findByExternalId(externalId);
+        if (transferencia.isEmpty()) {
+            return false;
+        }
+        RespostaTransferenciaPix resposta = pixProvider.consultarTransferencia(externalId, correlationId);
+        sincronizador.sincronizar(transferencia.get(), resposta.status());
+        transferenciaRepository.save(transferencia.get());
+        return true;
     }
 
     private String sanitizar(RuntimeException ex) {
