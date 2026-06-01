@@ -17,12 +17,18 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Aplica {@link RequireStepUp} (Sprint 5 Task 5.6): exige header {@code X-Step-Up-Token} valido e
- * pertencente ao usuario autenticado. Em falha, lanca {@link AccessDeniedException} (403).
+ * Aplica os marcadores de step-up em operacoes sensiveis: exige header {@code X-Step-Up-Token}
+ * valido e pertencente ao usuario autenticado. Em falha, lanca {@link AccessDeniedException} (403).
  *
- * <p>Bypass: se o usuario ainda nao habilitou MFA, step-up nao pode ser produzido (depende de TOTP
- * ativo); para nao bloquear migracao de usuarios pre-MFA, o aspect permite a chamada quando
- * {@code mfaHabilitado=false}. Apos Task 5.10 (migracao) todos os usuarios terao MFA.
+ * <ul>
+ *   <li>{@link RequireStepUp} (Sprint 5 Task 5.6) — com <strong>bypass</strong>: se o usuario ainda
+ *       nao habilitou MFA, step-up nao pode ser produzido (depende de TOTP ativo); para nao
+ *       bloquear migracao de usuarios pre-MFA, a chamada eh permitida quando
+ *       {@code mfaHabilitado=false}.
+ *   <li>{@link RequireStepUpEstrito} (Sprint 20) — <strong>sem bypass</strong>: exige token valido
+ *       independentemente de MFA. Usado em operacoes financeiras de alto risco (desembolso Pix), onde
+ *       liberar operador sem MFA seria inaceitavel.
+ * </ul>
  */
 @Aspect
 @Component
@@ -40,14 +46,39 @@ public class StepUpEnforcementAspect {
 
     @Before("@annotation(com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp)")
     public void aplicar() {
+        UUID autenticadoId = exigirAutenticado();
+        Optional<Usuario> usuario = usuarioRepository.findById(autenticadoId);
+        if (usuario.isPresent() && !usuario.get().isMfaHabilitado()) {
+            // Bypass de migracao pre-MFA (Sprint 5).
+            return;
+        }
+        exigirStepUpValido(autenticadoId);
+    }
+
+    @Before("@annotation(com.dynamis.sep_api.identity.infrastructure.security.RequireStepUpEstrito)")
+    public void aplicarEstrito() {
+        UUID autenticadoId = exigirAutenticado();
+        // Estrito (Sprint 20): nenhum bypass. Exige MFA ATIVO no momento da operacao — nao basta o
+        // token: um operador pode emitir step-up, desabilitar MFA dentro do TTL e reusar o token. A
+        // verificacao do estado atual fecha essa janela antes de aceitar o token.
+        Usuario usuario = usuarioRepository
+                .findById(autenticadoId)
+                .orElseThrow(() -> new AccessDeniedException("Usuario autenticado nao encontrado."));
+        if (!usuario.isMfaHabilitado()) {
+            throw new AccessDeniedException("Operacao sensivel exige MFA habilitado.");
+        }
+        exigirStepUpValido(autenticadoId);
+    }
+
+    private UUID exigirAutenticado() {
         UUID autenticadoId = principalId();
         if (autenticadoId == null) {
             throw new AccessDeniedException("Autenticacao requerida para operacao sensivel.");
         }
-        Optional<Usuario> usuario = usuarioRepository.findById(autenticadoId);
-        if (usuario.isPresent() && !usuario.get().isMfaHabilitado()) {
-            return;
-        }
+        return autenticadoId;
+    }
+
+    private void exigirStepUpValido(UUID autenticadoId) {
         HttpServletRequest request = requestAtual();
         String tokenCru = request.getHeader(HEADER);
         Optional<UUID> tokenUsuarioId = tokenService.validarEConsumir(tokenCru);

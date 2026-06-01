@@ -9,5 +9,6 @@ public enum TipoChamadaProvider {
     KYB,
     PLD,
     OPEN_FINANCE,
-    ASSINATURA_DIGITAL
+    ASSINATURA_DIGITAL,
+    PIX_TRANSFERENCIA
 }

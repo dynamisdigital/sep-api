@@ -11,5 +11,6 @@ public enum TipoEntidadeReferenciada {
     CONTRATO,
     PARCELA_COBRANCA,
     WEBHOOK_EVENT_LOG,
+    PIX_TRANSFERENCIA,
     OUTRO
 }
