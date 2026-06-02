@@ -241,27 +241,6 @@ public class ProcessarWebhookPixUseCase {
         return true;
     }
 
-    /**
-     * Reconcilia uma transferencia de desembolso a partir do webhook {@code STATUS_TRANSFERENCIA}
-     * (Sprint 20 Task 20.4). O webhook eh apenas o gatilho: reconsultamos o status autoritativo no
-     * provider e sincronizamos idempotentemente. Retorna {@code false} quando o external id eh
-     * desconhecido (evento vira {@code IGNORADO}).
-     */
-    private boolean reconciliarTransferencia(EventoWebhookPixNormalizado evt, String correlationId) {
-        String externalId = evt.externalId();
-        if (externalId == null || externalId.isBlank()) {
-            return false;
-        }
-        Optional<PixTransferencia> transferencia = transferenciaRepository.findByExternalId(externalId);
-        if (transferencia.isEmpty()) {
-            return false;
-        }
-        RespostaTransferenciaPix resposta = pixProvider.consultarTransferencia(externalId, correlationId);
-        sincronizador.sincronizar(transferencia.get(), resposta.status());
-        transferenciaRepository.save(transferencia.get());
-        return true;
-    }
-
     private String sanitizar(RuntimeException ex) {
         String msg = ex.getMessage();
         String base = ex.getClass().getSimpleName() + (msg != null ? ": " + msg : "");
