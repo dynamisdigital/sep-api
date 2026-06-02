@@ -26,8 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -72,13 +72,12 @@ class GerarReferenciaRecebimentoPixUseCaseTest {
         stubSemReferenciaAtiva();
         when(referenciaRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(referenciaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(pixProvider.criarCobrancaRecebimento(any(), eq("corr-1")))
-                .thenAnswer(inv -> {
-                    String txid = ((com.dynamis.sep_api.pix.application.port.out.dto.ComandoCriarCobrancaPix)
-                                    inv.getArgument(0))
-                            .txid();
-                    return new RespostaCobrancaPix(txid, "prov-ref-1", "copia-cola-" + txid);
-                });
+        when(pixProvider.criarCobrancaRecebimento(any(), eq("corr-1"))).thenAnswer(inv -> {
+            String txid = ((com.dynamis.sep_api.pix.application.port.out.dto.ComandoCriarCobrancaPix)
+                            inv.getArgument(0))
+                    .txid();
+            return new RespostaCobrancaPix(txid, "prov-ref-1", "copia-cola-" + txid);
+        });
 
         GerarReferenciaRecebimentoPixResult res = useCase.executar(comando());
 
@@ -158,8 +157,7 @@ class GerarReferenciaRecebimentoPixUseCaseTest {
         stubParcela(true, VALOR);
         stubSemReferenciaAtiva();
         when(referenciaRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(pixProvider.criarCobrancaRecebimento(any(), any()))
-                .thenThrow(new PixProviderException("timeout"));
+        when(pixProvider.criarCobrancaRecebimento(any(), any())).thenThrow(new PixProviderException("timeout"));
 
         assertThatThrownBy(() -> useCase.executar(comando())).isInstanceOf(PixProviderException.class);
         verify(referenciaRepository, never()).save(any());

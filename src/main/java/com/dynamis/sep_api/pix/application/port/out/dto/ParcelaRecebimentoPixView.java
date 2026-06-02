@@ -13,8 +13,4 @@ import java.util.UUID;
  * @param permiteRecebimento status da parcela permite recebimento (PENDENTE/PARCIALMENTE_PAGA/ATRASADA).
  */
 public record ParcelaRecebimentoPixView(
-        UUID parcelaId,
-        UUID contratoId,
-        UUID tomadorId,
-        BigDecimal valorEmAberto,
-        boolean permiteRecebimento) {}
+        UUID parcelaId, UUID contratoId, UUID tomadorId, BigDecimal valorEmAberto, boolean permiteRecebimento) {}

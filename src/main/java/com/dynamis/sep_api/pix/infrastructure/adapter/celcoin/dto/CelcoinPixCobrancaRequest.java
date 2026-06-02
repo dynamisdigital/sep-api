@@ -9,5 +9,4 @@ import java.math.BigDecimal;
  * 21.2). Formato externo — nao trafega no dominio. O {@code txid} eh controlado pelo SEP. Campos
  * sao suposicao validada por WireMock (contrato Celcoin real e follow-up, ver {@code PIX.md}).
  */
-public record CelcoinPixCobrancaRequest(
-        @JsonProperty("txid") String txid, @JsonProperty("amount") BigDecimal valor) {}
+public record CelcoinPixCobrancaRequest(@JsonProperty("txid") String txid, @JsonProperty("amount") BigDecimal valor) {}

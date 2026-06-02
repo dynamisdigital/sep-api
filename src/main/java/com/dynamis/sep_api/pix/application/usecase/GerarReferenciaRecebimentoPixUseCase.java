@@ -83,8 +83,8 @@ public class GerarReferenciaRecebimentoPixUseCase {
                     "PIX-422-PARCELA-SEM-SALDO", "Parcela sem valor em aberto para gerar cobranca Pix.");
         }
 
-        Optional<PixReferenciaRecebimento> ativa = referenciaRepository.findByParcelaIdAndStatus(
-                cmd.parcelaId(), StatusPixReferenciaRecebimento.ATIVA);
+        Optional<PixReferenciaRecebimento> ativa =
+                referenciaRepository.findByParcelaIdAndStatus(cmd.parcelaId(), StatusPixReferenciaRecebimento.ATIVA);
         if (ativa.isPresent()) {
             return resultado(ativa.get(), false);
         }
@@ -131,8 +131,11 @@ public class GerarReferenciaRecebimentoPixUseCase {
 
     private GerarReferenciaRecebimentoPixResult resultado(PixReferenciaRecebimento referencia, boolean novo) {
         if (log.isDebugEnabled()) {
-            log.debug("Referencia Pix recebimento id={} parcela={} novo={}", referencia.getId(),
-                    referencia.getParcelaId(), novo);
+            log.debug(
+                    "Referencia Pix recebimento id={} parcela={} novo={}",
+                    referencia.getId(),
+                    referencia.getParcelaId(),
+                    novo);
         }
         return new GerarReferenciaRecebimentoPixResult(
                 referencia.getId(),
