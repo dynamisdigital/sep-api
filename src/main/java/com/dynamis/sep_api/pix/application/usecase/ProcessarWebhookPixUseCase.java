@@ -3,6 +3,7 @@ package com.dynamis.sep_api.pix.application.usecase;
 import com.dynamis.sep_api.pix.application.port.out.PixProvider;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
+import com.dynamis.sep_api.pix.application.service.PixRecebimentoTransacaoService;
 import com.dynamis.sep_api.pix.application.service.SincronizadorStatusTransferencia;
 import com.dynamis.sep_api.pix.domain.event.PixWebhookFalhouEvent;
 import com.dynamis.sep_api.pix.domain.event.PixWebhookProcessadoEvent;
@@ -58,6 +59,7 @@ public class ProcessarWebhookPixUseCase {
     private final PixWebhookEventRepository webhookEventRepository;
     private final PixRecebimentoRepository recebimentoRepository;
     private final PixReferenciaRecebimentoRepository referenciaRepository;
+    private final PixRecebimentoTransacaoService recebimentoTransacaoService;
     private final PixTransferenciaRepository transferenciaRepository;
     private final SincronizadorStatusTransferencia sincronizador;
     private final ApplicationEventPublisher eventPublisher;
@@ -67,6 +69,7 @@ public class ProcessarWebhookPixUseCase {
             PixWebhookEventRepository webhookEventRepository,
             PixRecebimentoRepository recebimentoRepository,
             PixReferenciaRecebimentoRepository referenciaRepository,
+            PixRecebimentoTransacaoService recebimentoTransacaoService,
             PixTransferenciaRepository transferenciaRepository,
             SincronizadorStatusTransferencia sincronizador,
             ApplicationEventPublisher eventPublisher) {
@@ -74,6 +77,7 @@ public class ProcessarWebhookPixUseCase {
         this.webhookEventRepository = webhookEventRepository;
         this.recebimentoRepository = recebimentoRepository;
         this.referenciaRepository = referenciaRepository;
+        this.recebimentoTransacaoService = recebimentoTransacaoService;
         this.transferenciaRepository = transferenciaRepository;
         this.sincronizador = sincronizador;
         this.eventPublisher = eventPublisher;
@@ -147,24 +151,31 @@ public class ProcessarWebhookPixUseCase {
             // recebimento ja registrado para este end-to-end id — idempotente
             return;
         }
-        // Garantia de nao-duplicidade: o unique parcial de end_to_end_id (V45). O pre-check acima
-        // cobre redelivery; numa corrida concorrente rara (mesmo end_to_end_id em eventos de id
-        // distinto) o insert falha por constraint e a transacao reverte (HTTP 5xx) — o reenvio do
-        // provider reconcilia, sem nunca creditar duas vezes.
         PixRecebimento recebimento =
                 PixRecebimento.registrar(evt.endToEndId(), evt.valor(), OffsetDateTime.now(), correlationId);
 
         // Correlacao deterministica (Sprint 21 Task 21.3): localiza a referencia Pix pelo txid (ou,
         // em fallback, pelo id de cobranca do provider). Sem referencia, o recebimento nao baixa
         // parcela automaticamente — fica NAO_IDENTIFICADO para a operacao assistida (backoffice na
-        // Task 21.5). Com referencia, marca EM_PROCESSAMENTO; a baixa da parcela e o vinculo de
-        // conciliacao em cobranca/escrow ficam para a Task 21.4.
-        if (localizarReferencia(evt).isPresent()) {
-            recebimento.marcarEmProcessamento();
+        // Task 21.5). Com referencia, vincula referencia/parcela e marca EM_PROCESSAMENTO; a baixa da
+        // parcela e o vinculo do recebimento de cobranca/escrow ficam para a Task 21.4.
+        Optional<PixReferenciaRecebimento> referencia = localizarReferencia(evt);
+        if (referencia.isPresent()) {
+            recebimento.vincularReferencia(
+                    referencia.get().getId(), referencia.get().getParcelaId());
         } else {
             recebimento.marcarNaoIdentificado();
         }
-        recebimentoRepository.save(recebimento);
+
+        try {
+            // Insert em tx propria (REQUIRES_NEW): o pre-check acima cobre redelivery sequencial; numa
+            // corrida concorrente rara (mesmo end_to_end_id em eventos distintos) a unique parcial de
+            // end_to_end_id (V45) falha isolada e reverte so a tx do insert, sem deixar a tx do webhook
+            // rollback-only. Tratamos como duplicidade idempotente — nunca credita/baixa duas vezes.
+            recebimentoTransacaoService.persistir(recebimento);
+        } catch (DataIntegrityViolationException corrida) {
+            log.info("Webhook Pix recebimento corrida idempotente endToEndId={}", evt.endToEndId());
+        }
     }
 
     private Optional<PixReferenciaRecebimento> localizarReferencia(EventoWebhookPixNormalizado evt) {

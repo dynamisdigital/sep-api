@@ -101,6 +101,18 @@ public class PixRecebimento extends EntidadeAuditavel {
         this.status = StatusPixRecebimento.EM_PROCESSAMENTO;
     }
 
+    /**
+     * Correlaciona o recebimento a referencia Pix e a parcela e marca {@code EM_PROCESSAMENTO}
+     * (Sprint 21 Task 21.3). Persiste o vinculo para a baixa da Task 21.4 — sem ele, o reprocesso
+     * dependeria de reparsear o webhook bruto, que nao e persistido por design.
+     */
+    public void vincularReferencia(UUID referenciaId, UUID parcelaId) {
+        exigirEstado(StatusPixRecebimento.RECEBIDO);
+        this.referenciaId = Objects.requireNonNull(referenciaId, "referenciaId obrigatorio");
+        this.parcelaId = Objects.requireNonNull(parcelaId, "parcelaId obrigatorio");
+        this.status = StatusPixRecebimento.EM_PROCESSAMENTO;
+    }
+
     /** Marca o recebimento como conciliado (vinculo a parcela ocorre em sprint futura). */
     public void marcarConciliado() {
         exigirEstado(StatusPixRecebimento.RECEBIDO, StatusPixRecebimento.EM_PROCESSAMENTO);

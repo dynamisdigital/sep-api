@@ -2,6 +2,7 @@ package com.dynamis.sep_api.pix.application.usecase;
 
 import com.dynamis.sep_api.pix.application.port.out.PixProvider;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
+import com.dynamis.sep_api.pix.application.service.PixRecebimentoTransacaoService;
 import com.dynamis.sep_api.pix.application.service.SincronizadorStatusTransferencia;
 import com.dynamis.sep_api.pix.domain.model.PixRecebimento;
 import com.dynamis.sep_api.pix.domain.model.PixReferenciaRecebimento;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -24,6 +26,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -32,7 +35,9 @@ import static org.mockito.Mockito.when;
 /**
  * Correlacao deterministica do webhook {@code RECEBIMENTO_PIX} com a referencia/parcela (Sprint 21
  * Task 21.3). Sem referencia, o recebimento nao baixa parcela automaticamente — vira {@code
- * NAO_IDENTIFICADO}; com referencia, vira {@code EM_PROCESSAMENTO} (baixa fica para a Task 21.4).
+ * NAO_IDENTIFICADO}; com referencia, vincula referencia/parcela e vira {@code EM_PROCESSAMENTO}
+ * (baixa fica para a Task 21.4). O insert e isolado em tx propria via
+ * {@link PixRecebimentoTransacaoService}.
  */
 class ProcessarWebhookPixRecebimentoTest {
 
@@ -40,6 +45,7 @@ class ProcessarWebhookPixRecebimentoTest {
     private PixWebhookEventRepository webhookEventRepository;
     private PixRecebimentoRepository recebimentoRepository;
     private PixReferenciaRecebimentoRepository referenciaRepository;
+    private PixRecebimentoTransacaoService recebimentoTransacaoService;
     private ProcessarWebhookPixUseCase useCase;
 
     private PixWebhookEvent eventoPersistido;
@@ -50,6 +56,7 @@ class ProcessarWebhookPixRecebimentoTest {
         webhookEventRepository = mock(PixWebhookEventRepository.class);
         recebimentoRepository = mock(PixRecebimentoRepository.class);
         referenciaRepository = mock(PixReferenciaRecebimentoRepository.class);
+        recebimentoTransacaoService = mock(PixRecebimentoTransacaoService.class);
         PixTransferenciaRepository transferenciaRepository = mock(PixTransferenciaRepository.class);
         SincronizadorStatusTransferencia sincronizador = mock(SincronizadorStatusTransferencia.class);
         ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
@@ -58,6 +65,7 @@ class ProcessarWebhookPixRecebimentoTest {
                 webhookEventRepository,
                 recebimentoRepository,
                 referenciaRepository,
+                recebimentoTransacaoService,
                 transferenciaRepository,
                 sincronizador,
                 eventPublisher);
@@ -88,33 +96,39 @@ class ProcessarWebhookPixRecebimentoTest {
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("250.00"), txid, "corr-1");
     }
 
-    private PixRecebimento capturarRecebimentoSalvo() {
+    private PixRecebimento capturarRecebimentoPersistido() {
         ArgumentCaptor<PixRecebimento> captor = ArgumentCaptor.forClass(PixRecebimento.class);
-        verify(recebimentoRepository).save(captor.capture());
+        verify(recebimentoTransacaoService).persistir(captor.capture());
         return captor.getValue();
     }
 
     @Test
-    void referenciaConhecidaPorTxid_recebimentoEmProcessamento() {
+    void referenciaConhecidaPorTxid_vinculaEmProcessamento() {
         stubRecebimento("E2E-1", "txid-1", null);
-        when(referenciaRepository.findByTxid("txid-1")).thenReturn(Optional.of(referencia("txid-1")));
+        PixReferenciaRecebimento ref = referencia("txid-1");
+        when(referenciaRepository.findByTxid("txid-1")).thenReturn(Optional.of(ref));
 
         ProcessarWebhookPixUseCase.Resultado res = useCase.executar("{}", "corr-1");
 
         assertThat(res.aceito()).isTrue();
-        assertThat(capturarRecebimentoSalvo().getStatus()).isEqualTo(StatusPixRecebimento.EM_PROCESSAMENTO);
+        PixRecebimento persistido = capturarRecebimentoPersistido();
+        assertThat(persistido.getStatus()).isEqualTo(StatusPixRecebimento.EM_PROCESSAMENTO);
+        assertThat(persistido.getReferenciaId()).isEqualTo(ref.getId());
+        assertThat(persistido.getParcelaId()).isEqualTo(ref.getParcelaId());
         assertThat(eventoPersistido.getStatus()).isEqualTo(StatusPixWebhookEvent.PROCESSADO);
     }
 
     @Test
     void referenciaConhecidaPorProviderRef_quandoTxidAusente() {
         stubRecebimento("E2E-1", null, "prov-ref-9");
-        when(referenciaRepository.findByProviderReferenciaId("prov-ref-9"))
-                .thenReturn(Optional.of(referencia("txid-9")));
+        PixReferenciaRecebimento ref = referencia("txid-9");
+        when(referenciaRepository.findByProviderReferenciaId("prov-ref-9")).thenReturn(Optional.of(ref));
 
         useCase.executar("{}", "corr-1");
 
-        assertThat(capturarRecebimentoSalvo().getStatus()).isEqualTo(StatusPixRecebimento.EM_PROCESSAMENTO);
+        PixRecebimento persistido = capturarRecebimentoPersistido();
+        assertThat(persistido.getStatus()).isEqualTo(StatusPixRecebimento.EM_PROCESSAMENTO);
+        assertThat(persistido.getParcelaId()).isEqualTo(ref.getParcelaId());
     }
 
     @Test
@@ -126,7 +140,7 @@ class ProcessarWebhookPixRecebimentoTest {
 
         useCase.executar("{}", "corr-1");
 
-        assertThat(capturarRecebimentoSalvo().getStatus()).isEqualTo(StatusPixRecebimento.EM_PROCESSAMENTO);
+        assertThat(capturarRecebimentoPersistido().getStatus()).isEqualTo(StatusPixRecebimento.EM_PROCESSAMENTO);
     }
 
     @Test
@@ -137,7 +151,7 @@ class ProcessarWebhookPixRecebimentoTest {
 
         useCase.executar("{}", "corr-1");
 
-        assertThat(capturarRecebimentoSalvo().getStatus()).isEqualTo(StatusPixRecebimento.EM_PROCESSAMENTO);
+        assertThat(capturarRecebimentoPersistido().getStatus()).isEqualTo(StatusPixRecebimento.EM_PROCESSAMENTO);
         verify(referenciaRepository, never()).findByTxid(any());
     }
 
@@ -148,7 +162,9 @@ class ProcessarWebhookPixRecebimentoTest {
 
         useCase.executar("{}", "corr-1");
 
-        assertThat(capturarRecebimentoSalvo().getStatus()).isEqualTo(StatusPixRecebimento.NAO_IDENTIFICADO);
+        PixRecebimento persistido = capturarRecebimentoPersistido();
+        assertThat(persistido.getStatus()).isEqualTo(StatusPixRecebimento.NAO_IDENTIFICADO);
+        assertThat(persistido.getReferenciaId()).isNull();
     }
 
     @Test
@@ -157,13 +173,13 @@ class ProcessarWebhookPixRecebimentoTest {
 
         useCase.executar("{}", "corr-1");
 
-        assertThat(capturarRecebimentoSalvo().getStatus()).isEqualTo(StatusPixRecebimento.NAO_IDENTIFICADO);
+        assertThat(capturarRecebimentoPersistido().getStatus()).isEqualTo(StatusPixRecebimento.NAO_IDENTIFICADO);
         verify(referenciaRepository, never()).findByTxid(any());
         verify(referenciaRepository, never()).findByProviderReferenciaId(any());
     }
 
     @Test
-    void endToEndIdJaRegistrado_idempotenteNaoSalvaNovoRecebimento() {
+    void endToEndIdJaRegistrado_idempotenteNaoPersisteNovoRecebimento() {
         stubRecebimento("E2E-1", "txid-1", null);
         when(recebimentoRepository.findByEndToEndId("E2E-1"))
                 .thenReturn(Optional.of(PixRecebimento.registrar(
@@ -171,8 +187,23 @@ class ProcessarWebhookPixRecebimentoTest {
 
         useCase.executar("{}", "corr-1");
 
-        verify(recebimentoRepository, never()).save(any());
+        verify(recebimentoTransacaoService, never()).persistir(any());
         verify(referenciaRepository, never()).findByTxid(any());
+        assertThat(eventoPersistido.getStatus()).isEqualTo(StatusPixWebhookEvent.PROCESSADO);
+    }
+
+    @Test
+    void corridaPorEndToEndId_tratadaComoIdempotenteWebhookProcessado() {
+        stubRecebimento("E2E-1", "txid-1", null);
+        when(referenciaRepository.findByTxid("txid-1")).thenReturn(Optional.of(referencia("txid-1")));
+        doThrow(new DataIntegrityViolationException("unique end_to_end_id"))
+                .when(recebimentoTransacaoService)
+                .persistir(any());
+
+        ProcessarWebhookPixUseCase.Resultado res = useCase.executar("{}", "corr-1");
+
+        // Corrida na unique nao vira FALHOU nem 5xx: o evento conclui PROCESSADO (idempotente).
+        assertThat(res.aceito()).isTrue();
         assertThat(eventoPersistido.getStatus()).isEqualTo(StatusPixWebhookEvent.PROCESSADO);
     }
 }

@@ -5,6 +5,7 @@ import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormaliz
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
 import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
+import com.dynamis.sep_api.pix.application.service.PixRecebimentoTransacaoService;
 import com.dynamis.sep_api.pix.application.service.SincronizadorStatusTransferencia;
 import com.dynamis.sep_api.pix.domain.event.PixWebhookProcessadoEvent;
 import com.dynamis.sep_api.pix.domain.model.PixTransferencia;
@@ -47,6 +48,7 @@ class ProcessarWebhookPixStatusTransferenciaTest {
         webhookEventRepository = mock(PixWebhookEventRepository.class);
         PixRecebimentoRepository recebimentoRepository = mock(PixRecebimentoRepository.class);
         PixReferenciaRecebimentoRepository referenciaRepository = mock(PixReferenciaRecebimentoRepository.class);
+        PixRecebimentoTransacaoService recebimentoTransacaoService = mock(PixRecebimentoTransacaoService.class);
         transferenciaRepository = mock(PixTransferenciaRepository.class);
         sincronizador = mock(SincronizadorStatusTransferencia.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
@@ -55,6 +57,7 @@ class ProcessarWebhookPixStatusTransferenciaTest {
                 webhookEventRepository,
                 recebimentoRepository,
                 referenciaRepository,
+                recebimentoTransacaoService,
                 transferenciaRepository,
                 sincronizador,
                 eventPublisher);
