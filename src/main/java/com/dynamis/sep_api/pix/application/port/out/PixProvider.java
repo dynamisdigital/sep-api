@@ -1,7 +1,9 @@
 package com.dynamis.sep_api.pix.application.port.out;
 
+import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCriarCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
+import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 
 /**
@@ -28,6 +30,14 @@ public interface PixProvider {
 
     /** Consulta o status atual de uma transferencia ja solicitada, pelo id externo do provider. */
     RespostaTransferenciaPix consultarTransferencia(String externalId, String correlationId);
+
+    /**
+     * Cria uma cobranca Pix de recebimento para uma parcela (Sprint 21 Task 21.2). O {@code txid}
+     * eh controlado pelo SEP e enviado ao provider para correlacao deterministica do webhook de
+     * recebimento. Retorna o id de cobranca do provider + o codigo copia-cola (EMV/QR) quando houver.
+     * Falha tecnica sobe como {@code PixProviderException}.
+     */
+    RespostaCobrancaPix criarCobrancaRecebimento(ComandoCriarCobrancaPix comando, String correlationId);
 
     /**
      * Normaliza um payload bruto de webhook Pix para a linguagem de dominio SEP, calculando o hash

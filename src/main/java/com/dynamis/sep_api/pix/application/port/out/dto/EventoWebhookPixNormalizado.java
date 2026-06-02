@@ -9,8 +9,11 @@ import java.math.BigDecimal;
  * de dominio SEP. O {@code payloadHash} (SHA-256 hex) e calculado pelo adapter a partir do corpo
  * bruto — o use case de processamento nunca ve o JSON original (minimizacao de dados sensiveis).
  *
- * <p>Campos opcionais ({@code endToEndId}, {@code valor}, {@code externalId}) podem ser nulos
- * conforme o {@code tipo} do evento.
+ * <p>Campos opcionais ({@code endToEndId}, {@code valor}, {@code externalId}, {@code txid},
+ * {@code providerReferenciaId}) podem ser nulos conforme o {@code tipo} do evento. Para
+ * {@code RECEBIMENTO_PIX}, {@code txid}/{@code providerReferenciaId} sao a correlacao deterministica
+ * de volta a {@code PixReferenciaRecebimento} (Sprint 21); para {@code STATUS_TRANSFERENCIA},
+ * {@code externalId} identifica a transferencia de desembolso.
  */
 public record EventoWebhookPixNormalizado(
         TipoPixWebhookEvent tipo,
@@ -18,4 +21,6 @@ public record EventoWebhookPixNormalizado(
         String endToEndId,
         BigDecimal valor,
         String externalId,
+        String txid,
+        String providerReferenciaId,
         String payloadHash) {}

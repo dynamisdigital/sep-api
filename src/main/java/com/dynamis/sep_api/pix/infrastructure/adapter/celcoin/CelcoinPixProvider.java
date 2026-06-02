@@ -1,13 +1,17 @@
 package com.dynamis.sep_api.pix.infrastructure.adapter.celcoin;
 
 import com.dynamis.sep_api.pix.application.port.out.PixProvider;
+import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCriarCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
+import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
 import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
 import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderHttpException;
 import com.dynamis.sep_api.pix.infrastructure.adapter.PixWebhookNormalizer;
+import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixCobrancaRequest;
+import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixCobrancaResponse;
 import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixTransferRequest;
 import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixTransferResponse;
 import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
@@ -106,8 +110,42 @@ public class CelcoinPixProvider implements PixProvider {
     }
 
     @Override
+    @CircuitBreaker(name = RESILIENCE_INSTANCE)
+    @Retry(name = RESILIENCE_INSTANCE)
+    public RespostaCobrancaPix criarCobrancaRecebimento(ComandoCriarCobrancaPix comando, String correlationId) {
+        CelcoinPixCobrancaRequest payload = new CelcoinPixCobrancaRequest(comando.txid(), comando.valor());
+        try (MDCBridge ignored = MDCBridge.set(correlationId, comando.txid())) {
+            CelcoinPixCobrancaResponse response = restClient
+                    .post()
+                    .uri("/pix/charges")
+                    .headers(this::headersAutenticacao)
+                    .body(payload)
+                    .retrieve()
+                    .body(CelcoinPixCobrancaResponse.class);
+            CelcoinPixCobrancaResponse validada = exigirCobranca(response);
+            log.info("Celcoin Pix criarCobrancaRecebimento txid={} charge_id={}", validada.txid(), validada.chargeId());
+            return new RespostaCobrancaPix(validada.txid(), validada.chargeId(), validada.copiaCola());
+        } catch (RestClientResponseException ex) {
+            throw traduzirHttp("criarCobrancaRecebimento", ex, correlationId);
+        }
+    }
+
+    @Override
     public EventoWebhookPixNormalizado normalizarWebhook(String payloadBruto) {
         return webhookNormalizer.normalizar(payloadBruto);
+    }
+
+    private CelcoinPixCobrancaResponse exigirCobranca(CelcoinPixCobrancaResponse response) {
+        if (response == null) {
+            throw new PixProviderException("Resposta nula do Celcoin Pix (esperado txid + charge_id)");
+        }
+        if (response.txid() == null || response.txid().isBlank()) {
+            throw new PixProviderException("Celcoin Pix sem txid na resposta de cobranca");
+        }
+        if (response.chargeId() == null || response.chargeId().isBlank()) {
+            throw new PixProviderException("Celcoin Pix sem charge_id na resposta de cobranca");
+        }
+        return response;
     }
 
     private CelcoinPixTransferResponse exigirResposta(CelcoinPixTransferResponse response) {

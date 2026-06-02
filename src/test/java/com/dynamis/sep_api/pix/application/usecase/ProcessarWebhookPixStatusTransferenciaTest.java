@@ -5,6 +5,7 @@ import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormaliz
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
 import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
+import com.dynamis.sep_api.pix.application.service.PixRecebimentoTransacaoService;
 import com.dynamis.sep_api.pix.application.service.SincronizadorStatusTransferencia;
 import com.dynamis.sep_api.pix.domain.event.PixWebhookProcessadoEvent;
 import com.dynamis.sep_api.pix.domain.model.PixTransferencia;
@@ -12,6 +13,7 @@ import com.dynamis.sep_api.pix.domain.model.PixWebhookEvent;
 import com.dynamis.sep_api.pix.domain.vo.StatusPixWebhookEvent;
 import com.dynamis.sep_api.pix.domain.vo.TipoPixWebhookEvent;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixRecebimentoRepository;
+import com.dynamis.sep_api.pix.infrastructure.persistence.PixReferenciaRecebimentoRepository;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixTransferenciaRepository;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixWebhookEventRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +47,9 @@ class ProcessarWebhookPixStatusTransferenciaTest {
         pixProvider = mock(PixProvider.class);
         webhookEventRepository = mock(PixWebhookEventRepository.class);
         PixRecebimentoRepository recebimentoRepository = mock(PixRecebimentoRepository.class);
+        PixReferenciaRecebimentoRepository referenciaRepository = mock(PixReferenciaRecebimentoRepository.class);
+        PixRecebimentoTransacaoService recebimentoTransacaoService = mock(PixRecebimentoTransacaoService.class);
+        ConciliarRecebimentoPixUseCase conciliarRecebimentoPixUseCase = mock(ConciliarRecebimentoPixUseCase.class);
         transferenciaRepository = mock(PixTransferenciaRepository.class);
         sincronizador = mock(SincronizadorStatusTransferencia.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
@@ -52,6 +57,9 @@ class ProcessarWebhookPixStatusTransferenciaTest {
                 pixProvider,
                 webhookEventRepository,
                 recebimentoRepository,
+                referenciaRepository,
+                recebimentoTransacaoService,
+                conciliarRecebimentoPixUseCase,
                 transferenciaRepository,
                 sincronizador,
                 eventPublisher);
@@ -65,7 +73,7 @@ class ProcessarWebhookPixStatusTransferenciaTest {
 
     private void stubWebhookStatus(String externalId) {
         EventoWebhookPixNormalizado evt = new EventoWebhookPixNormalizado(
-                TipoPixWebhookEvent.STATUS_TRANSFERENCIA, "evt-1", null, null, externalId, "a".repeat(64));
+                TipoPixWebhookEvent.STATUS_TRANSFERENCIA, "evt-1", null, null, externalId, null, null, "a".repeat(64));
         when(pixProvider.normalizarWebhook(any())).thenReturn(evt);
     }
 

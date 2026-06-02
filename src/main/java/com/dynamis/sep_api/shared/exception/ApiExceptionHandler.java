@@ -4,6 +4,8 @@ import com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaPr
 import com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderHttpException;
 import com.dynamis.sep_api.contratos.application.port.out.exception.EnvelopeNaoEncontradoException;
 import com.dynamis.sep_api.identity.application.exception.ContaBloqueadaException;
+import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
+import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderHttpException;
 import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -152,6 +154,30 @@ public class ApiExceptionHandler {
             error = "Bad Gateway";
         }
         log.warn("Falha do provider de assinatura ({}): {}", status, ex.getMessage());
+        return build(status, error, ex.getMessage(), request);
+    }
+
+    /**
+     * Traduz falhas do provider Pix (Sprint 21) para HTTP coerente quando elas propagam ate a borda
+     * REST — ex.: criacao de cobranca Pix de recebimento. Provider 5xx → 503 (operador pode
+     * retentar); 4xx → 422 (problema de contrato/dados, nao recuperavel sem mudar a requisicao);
+     * demais (IO, parse, status desconhecido) → 502. O log nao inclui payload nem dado bancario.
+     */
+    @ExceptionHandler(PixProviderException.class)
+    public ResponseEntity<ErrorResponseDto> handlePixProvider(PixProviderException ex, HttpServletRequest request) {
+        HttpStatus status;
+        String error;
+        if (ex instanceof PixProviderHttpException http && http.isServerError()) {
+            status = HttpStatus.SERVICE_UNAVAILABLE;
+            error = "Service Unavailable";
+        } else if (ex instanceof PixProviderHttpException http && http.isClientError()) {
+            status = HttpStatus.UNPROCESSABLE_ENTITY;
+            error = "Unprocessable Entity";
+        } else {
+            status = HttpStatus.BAD_GATEWAY;
+            error = "Bad Gateway";
+        }
+        log.warn("Falha do provider Pix ({}): {}", status, ex.getMessage());
         return build(status, error, ex.getMessage(), request);
     }
 

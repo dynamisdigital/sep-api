@@ -1,8 +1,10 @@
 package com.dynamis.sep_api.pix.infrastructure.adapter.fake;
 
 import com.dynamis.sep_api.pix.application.port.out.PixProvider;
+import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCriarCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
+import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
 import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
@@ -33,6 +35,7 @@ public class FakePixProvider implements PixProvider {
     private volatile StatusTransferenciaPixProvider statusSolicitacao = StatusTransferenciaPixProvider.PENDENTE;
     private volatile StatusTransferenciaPixProvider statusConsulta = StatusTransferenciaPixProvider.CONCLUIDA;
     private volatile boolean falharSolicitacao = false;
+    private volatile boolean falharCobranca = false;
 
     public FakePixProvider(PixWebhookNormalizer webhookNormalizer) {
         this.webhookNormalizer = webhookNormalizer;
@@ -49,6 +52,11 @@ public class FakePixProvider implements PixProvider {
         this.falharSolicitacao = true;
     }
 
+    /** Arma uma falha tecnica na proxima criacao de cobranca de recebimento. */
+    public void armarFalhaCobranca() {
+        this.falharCobranca = true;
+    }
+
     /** Configura o status devolvido pela consulta de status. */
     public void configurarStatusConsulta(StatusTransferenciaPixProvider status) {
         this.statusConsulta = status;
@@ -59,6 +67,7 @@ public class FakePixProvider implements PixProvider {
         this.statusSolicitacao = StatusTransferenciaPixProvider.PENDENTE;
         this.statusConsulta = StatusTransferenciaPixProvider.CONCLUIDA;
         this.falharSolicitacao = false;
+        this.falharCobranca = false;
     }
 
     @Override
@@ -80,6 +89,22 @@ public class FakePixProvider implements PixProvider {
     @Override
     public RespostaTransferenciaPix consultarTransferencia(String externalId, String correlationId) {
         return new RespostaTransferenciaPix(externalId, statusConsulta);
+    }
+
+    @Override
+    public RespostaCobrancaPix criarCobrancaRecebimento(ComandoCriarCobrancaPix comando, String correlationId) {
+        if (falharCobranca) {
+            throw new PixProviderException("FakePixProvider: falha tecnica simulada na criacao de cobranca");
+        }
+        String providerReferenciaId = "fake-cob-" + comando.txid();
+        // Copia-cola fake deterministico (correlaciona pelo txid); nao eh um payload EMV valido.
+        String codigoCopiaCola = "00020101021126" + comando.txid() + "5204000053039865802BR";
+        log.info(
+                "FakePixProvider.criarCobrancaRecebimento txid={} valor={} -> {}",
+                comando.txid(),
+                comando.valor(),
+                providerReferenciaId);
+        return new RespostaCobrancaPix(comando.txid(), providerReferenciaId, codigoCopiaCola);
     }
 
     @Override

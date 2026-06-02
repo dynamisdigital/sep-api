@@ -1,9 +1,12 @@
 package com.dynamis.sep_api.pix.infrastructure.adapter.fake;
 
+import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCriarCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
+import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
+import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
 import com.dynamis.sep_api.pix.domain.vo.TipoPixWebhookEvent;
 import com.dynamis.sep_api.pix.infrastructure.adapter.PixWebhookNormalizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,9 +47,30 @@ class FakePixProviderTest {
     }
 
     @Test
+    void criarCobrancaRecebimentoEcoaTxidEDevolveProviderRef() {
+        RespostaCobrancaPix resp = provider.criarCobrancaRecebimento(
+                new ComandoCriarCobrancaPix("txid-abc", new BigDecimal("250.00"), "Recebimento de parcela SEP"),
+                "corr-1");
+
+        assertThat(resp.txid()).isEqualTo("txid-abc");
+        assertThat(resp.providerReferenciaId()).isEqualTo("fake-cob-txid-abc");
+        assertThat(resp.codigoCopiaCola()).contains("txid-abc");
+    }
+
+    @Test
+    void criarCobrancaArmadaParaFalhar_lancaProviderException() {
+        provider.armarFalhaCobranca();
+
+        assertThatThrownBy(() -> provider.criarCobrancaRecebimento(
+                        new ComandoCriarCobrancaPix("txid-x", new BigDecimal("10.00"), "desc"), "corr-1"))
+                .isInstanceOf(PixProviderException.class);
+    }
+
+    @Test
     void normalizarWebhookRecebimentoTraduzTipoEHash() {
-        String payload =
-                "{\"event_id\":\"evt-1\",\"event_type\":\"pix.received\",\"end_to_end_id\":\"E2E-1\",\"amount\":250.00}";
+        String payload = "{\"event_id\":\"evt-1\",\"event_type\":\"pix.received\","
+                + "\"end_to_end_id\":\"E2E-1\",\"amount\":250.00,"
+                + "\"txid\":\"txid-1\",\"reference_id\":\"cob-9\"}";
 
         EventoWebhookPixNormalizado evento = provider.normalizarWebhook(payload);
 
@@ -54,6 +78,8 @@ class FakePixProviderTest {
         assertThat(evento.eventId()).isEqualTo("evt-1");
         assertThat(evento.endToEndId()).isEqualTo("E2E-1");
         assertThat(evento.valor()).isEqualByComparingTo("250.00");
+        assertThat(evento.txid()).isEqualTo("txid-1");
+        assertThat(evento.providerReferenciaId()).isEqualTo("cob-9");
         assertThat(evento.payloadHash()).matches("[a-f0-9]{64}");
     }
 

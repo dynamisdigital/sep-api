@@ -46,6 +46,18 @@ public class PixRecebimento extends EntidadeAuditavel {
     @Column(name = "correlation_id", length = 100)
     private String correlationId;
 
+    @Column(name = "referencia_id")
+    private UUID referenciaId;
+
+    @Column(name = "parcela_id")
+    private UUID parcelaId;
+
+    @Column(name = "recebimento_cobranca_id")
+    private UUID recebimentoCobrancaId;
+
+    @Column(name = "motivo_divergencia", length = 240)
+    private String motivoDivergencia;
+
     protected PixRecebimento() {
         // JPA
     }
@@ -89,9 +101,33 @@ public class PixRecebimento extends EntidadeAuditavel {
         this.status = StatusPixRecebimento.EM_PROCESSAMENTO;
     }
 
+    /**
+     * Correlaciona o recebimento a referencia Pix e a parcela e marca {@code EM_PROCESSAMENTO}
+     * (Sprint 21 Task 21.3). Persiste o vinculo para a baixa da Task 21.4 — sem ele, o reprocesso
+     * dependeria de reparsear o webhook bruto, que nao e persistido por design.
+     */
+    public void vincularReferencia(UUID referenciaId, UUID parcelaId) {
+        exigirEstado(StatusPixRecebimento.RECEBIDO);
+        this.referenciaId = Objects.requireNonNull(referenciaId, "referenciaId obrigatorio");
+        this.parcelaId = Objects.requireNonNull(parcelaId, "parcelaId obrigatorio");
+        this.status = StatusPixRecebimento.EM_PROCESSAMENTO;
+    }
+
     /** Marca o recebimento como conciliado (vinculo a parcela ocorre em sprint futura). */
     public void marcarConciliado() {
         exigirEstado(StatusPixRecebimento.RECEBIDO, StatusPixRecebimento.EM_PROCESSAMENTO);
+        this.status = StatusPixRecebimento.CONCILIADO;
+    }
+
+    /**
+     * Concilia o recebimento com a parcela baixada em cobranca (Sprint 21): vincula referencia,
+     * parcela e o {@code Recebimento} de cobranca, e marca {@code CONCILIADO}.
+     */
+    public void conciliar(UUID referenciaId, UUID parcelaId, UUID recebimentoCobrancaId) {
+        exigirEstado(StatusPixRecebimento.RECEBIDO, StatusPixRecebimento.EM_PROCESSAMENTO);
+        this.referenciaId = referenciaId;
+        this.parcelaId = parcelaId;
+        this.recebimentoCobrancaId = recebimentoCobrancaId;
         this.status = StatusPixRecebimento.CONCILIADO;
     }
 
@@ -101,10 +137,37 @@ public class PixRecebimento extends EntidadeAuditavel {
         this.status = StatusPixRecebimento.NAO_IDENTIFICADO;
     }
 
+    /**
+     * Registra divergencia (Sprint 21): vincula referencia/parcela quando conhecidas, guarda o
+     * motivo truncado e marca {@code NAO_IDENTIFICADO} para tratamento em backoffice.
+     */
+    public void registrarDivergencia(UUID referenciaId, UUID parcelaId, String motivo) {
+        exigirEstado(StatusPixRecebimento.RECEBIDO, StatusPixRecebimento.EM_PROCESSAMENTO);
+        this.referenciaId = referenciaId;
+        this.parcelaId = parcelaId;
+        this.motivoDivergencia = truncar(motivo);
+        this.status = StatusPixRecebimento.NAO_IDENTIFICADO;
+    }
+
     /** Marca falha de processamento; o recebimento fica disponivel para reprocesso. */
     public void marcarFalhou() {
+        marcarFalhou(null);
+    }
+
+    /** Marca falha de processamento com motivo (Sprint 21); fica disponivel para reprocesso. */
+    public void marcarFalhou(String motivo) {
         exigirEstado(StatusPixRecebimento.RECEBIDO, StatusPixRecebimento.EM_PROCESSAMENTO);
+        if (motivo != null) {
+            this.motivoDivergencia = truncar(motivo);
+        }
         this.status = StatusPixRecebimento.FALHOU;
+    }
+
+    private static String truncar(String motivo) {
+        if (motivo == null) {
+            return null;
+        }
+        return motivo.length() > 240 ? motivo.substring(0, 240) : motivo;
     }
 
     private void exigirEstado(StatusPixRecebimento... permitidos) {
@@ -138,5 +201,21 @@ public class PixRecebimento extends EntidadeAuditavel {
 
     public String getCorrelationId() {
         return correlationId;
+    }
+
+    public UUID getReferenciaId() {
+        return referenciaId;
+    }
+
+    public UUID getParcelaId() {
+        return parcelaId;
+    }
+
+    public UUID getRecebimentoCobrancaId() {
+        return recebimentoCobrancaId;
+    }
+
+    public String getMotivoDivergencia() {
+        return motivoDivergencia;
     }
 }
