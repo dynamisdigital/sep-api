@@ -202,6 +202,22 @@ class ProcessarWebhookPixRecebimentoTest {
     }
 
     @Test
+    void conciliacaoFalha_marcaFalhaEWebhookConcluiProcessado() {
+        stubRecebimento("E2E-1", "txid-1", null);
+        when(referenciaRepository.findByTxid("txid-1")).thenReturn(Optional.of(referencia("txid-1")));
+        doThrow(new IllegalStateException("parcela nao recebivel"))
+                .when(conciliarRecebimentoPixUseCase)
+                .conciliar(any());
+
+        ProcessarWebhookPixUseCase.Resultado res = useCase.executar("{}", "corr-1");
+
+        // Falha de baixa nao derruba o webhook: marca o recebimento FALHOU e conclui PROCESSADO.
+        assertThat(res.aceito()).isTrue();
+        verify(conciliarRecebimentoPixUseCase).marcarFalha(any(), any());
+        assertThat(eventoPersistido.getStatus()).isEqualTo(StatusPixWebhookEvent.PROCESSADO);
+    }
+
+    @Test
     void corridaPorEndToEndId_tratadaComoIdempotenteWebhookProcessado() {
         stubRecebimento("E2E-1", "txid-1", null);
         when(referenciaRepository.findByTxid("txid-1")).thenReturn(Optional.of(referencia("txid-1")));

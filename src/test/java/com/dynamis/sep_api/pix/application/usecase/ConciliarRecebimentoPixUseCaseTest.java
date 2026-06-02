@@ -130,6 +130,36 @@ class ConciliarRecebimentoPixUseCaseTest {
     }
 
     @Test
+    void replayComNovoFalse_aindaConciliaEMarcaPaga() {
+        PixReferenciaRecebimento ref = referenciaAtiva();
+        PixRecebimento receb = recebimentoEmProcessamento("E2E-1", VALOR_ESPERADO, ref);
+        stub(receb, ref);
+        UUID recebimentoCobrancaId = UUID.randomUUID();
+        when(cobrancaPort.registrarRecebimento(any()))
+                .thenReturn(new RecebimentoPixCobrancaResult(recebimentoCobrancaId, true, false));
+
+        useCase.conciliar(receb.getId());
+
+        assertThat(receb.getStatus()).isEqualTo(StatusPixRecebimento.CONCILIADO);
+        assertThat(receb.getRecebimentoCobrancaId()).isEqualTo(recebimentoCobrancaId);
+        assertThat(ref.getStatus()).isEqualTo(StatusPixReferenciaRecebimento.PAGA);
+    }
+
+    @Test
+    void referenciaNaoAtiva_naoBaixaEVaiParaDivergencia() {
+        PixReferenciaRecebimento ref = referenciaAtiva();
+        ref.marcarPaga(); // ja resolvida por um Pix anterior
+        PixRecebimento receb = recebimentoEmProcessamento("E2E-2", VALOR_ESPERADO, ref);
+        stub(receb, ref);
+
+        useCase.conciliar(receb.getId());
+
+        assertThat(receb.getStatus()).isEqualTo(StatusPixRecebimento.NAO_IDENTIFICADO);
+        assertThat(ref.getStatus()).isEqualTo(StatusPixReferenciaRecebimento.PAGA);
+        verify(cobrancaPort, never()).registrarRecebimento(any());
+    }
+
+    @Test
     void recebimentoForaDeEmProcessamento_idempotenteNaoBaixa() {
         PixReferenciaRecebimento ref = referenciaAtiva();
         PixRecebimento receb = PixRecebimento.registrar("E2E-1", VALOR_ESPERADO, OffsetDateTime.now(), "corr-1");

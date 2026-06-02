@@ -68,11 +68,24 @@ public class ConciliarRecebimentoPixUseCase {
         }
         PixReferenciaRecebimento referencia = carregarReferencia(recebimento.getReferenciaId());
 
+        // A referencia precisa estar ATIVA para auto-baixa. Nao-ATIVA (PAGA/DIVERGENTE/EXPIRADA/
+        // CANCELADA) significa txid ja resolvido ou invalido — ex.: o mesmo txid pago por um segundo
+        // Pix (endToEndId distinto). Nao baixa de novo: vira divergencia para a operacao assistida
+        // (Task 21.5), sem creditar em cima de uma referencia ja encerrada.
+        if (referencia.getStatus() != StatusPixReferenciaRecebimento.ATIVA) {
+            recebimento.registrarDivergencia(
+                    referencia.getId(),
+                    referencia.getParcelaId(),
+                    "referencia Pix nao esta ATIVA (" + referencia.getStatus() + "): baixa bloqueada");
+            recebimentoRepository.save(recebimento);
+            return;
+        }
+
         if (recebimento.getEndToEndId() == null || recebimento.getEndToEndId().isBlank()) {
             // Sem endToEndId nao ha chave idempotente segura para a baixa — nao baixa automaticamente.
             recebimento.registrarDivergencia(
                     referencia.getId(), referencia.getParcelaId(), "endToEndId ausente: baixa automatica bloqueada");
-            marcarReferenciaDivergente(referencia);
+            referencia.marcarDivergente();
             persistir(recebimento, referencia);
             return;
         }
@@ -88,13 +101,14 @@ public class ConciliarRecebimentoPixUseCase {
 
         recebimento.conciliar(referencia.getId(), referencia.getParcelaId(), resultado.recebimentoCobrancaId());
 
+        // Referencia garantidamente ATIVA aqui (guard acima); transicao terminal direta.
         boolean valorExato = recebimento.getValor().compareTo(referencia.getValorEsperado()) == 0;
         if (valorExato && resultado.parcelaQuitada()) {
-            marcarReferenciaPaga(referencia);
+            referencia.marcarPaga();
         } else {
             // Parcial (parcela nao quitada) ou valor diferente do esperado: baixa aplicada, mas a
             // referencia fica DIVERGENTE para a operacao assistida tratar (item de backoffice na Task 21.5).
-            marcarReferenciaDivergente(referencia);
+            referencia.marcarDivergente();
         }
         persistir(recebimento, referencia);
     }
@@ -113,18 +127,6 @@ public class ConciliarRecebimentoPixUseCase {
     private void persistir(PixRecebimento recebimento, PixReferenciaRecebimento referencia) {
         recebimentoRepository.save(recebimento);
         referenciaRepository.save(referencia);
-    }
-
-    private void marcarReferenciaPaga(PixReferenciaRecebimento referencia) {
-        if (referencia.getStatus() == StatusPixReferenciaRecebimento.ATIVA) {
-            referencia.marcarPaga();
-        }
-    }
-
-    private void marcarReferenciaDivergente(PixReferenciaRecebimento referencia) {
-        if (referencia.getStatus() == StatusPixReferenciaRecebimento.ATIVA) {
-            referencia.marcarDivergente();
-        }
     }
 
     private PixRecebimento carregarRecebimento(UUID id) {
