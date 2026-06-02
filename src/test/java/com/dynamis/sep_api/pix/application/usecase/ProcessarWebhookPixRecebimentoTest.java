@@ -118,6 +118,30 @@ class ProcessarWebhookPixRecebimentoTest {
     }
 
     @Test
+    void txidDesconhecidoComProviderRefConhecido_fallbackEmProcessamento() {
+        stubRecebimento("E2E-1", "txid-desconhecido", "prov-ref-9");
+        when(referenciaRepository.findByTxid("txid-desconhecido")).thenReturn(Optional.empty());
+        when(referenciaRepository.findByProviderReferenciaId("prov-ref-9"))
+                .thenReturn(Optional.of(referencia("txid-9")));
+
+        useCase.executar("{}", "corr-1");
+
+        assertThat(capturarRecebimentoSalvo().getStatus()).isEqualTo(StatusPixRecebimento.EM_PROCESSAMENTO);
+    }
+
+    @Test
+    void txidEmBranco_ignoradoUsaFallbackProviderRef() {
+        stubRecebimento("E2E-1", "  ", "prov-ref-9");
+        when(referenciaRepository.findByProviderReferenciaId("prov-ref-9"))
+                .thenReturn(Optional.of(referencia("txid-9")));
+
+        useCase.executar("{}", "corr-1");
+
+        assertThat(capturarRecebimentoSalvo().getStatus()).isEqualTo(StatusPixRecebimento.EM_PROCESSAMENTO);
+        verify(referenciaRepository, never()).findByTxid(any());
+    }
+
+    @Test
     void txidDesconhecido_recebimentoNaoIdentificadoSemBaixa() {
         stubRecebimento("E2E-1", "txid-desconhecido", null);
         when(referenciaRepository.findByTxid("txid-desconhecido")).thenReturn(Optional.empty());
