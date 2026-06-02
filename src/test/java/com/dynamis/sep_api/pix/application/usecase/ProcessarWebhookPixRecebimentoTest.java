@@ -4,6 +4,7 @@ import com.dynamis.sep_api.pix.application.port.out.PixProvider;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
 import com.dynamis.sep_api.pix.application.service.PixRecebimentoTransacaoService;
 import com.dynamis.sep_api.pix.application.service.SincronizadorStatusTransferencia;
+import com.dynamis.sep_api.pix.domain.event.PixRecebimentoDivergenteEvent;
 import com.dynamis.sep_api.pix.domain.model.PixRecebimento;
 import com.dynamis.sep_api.pix.domain.model.PixReferenciaRecebimento;
 import com.dynamis.sep_api.pix.domain.model.PixWebhookEvent;
@@ -47,6 +48,7 @@ class ProcessarWebhookPixRecebimentoTest {
     private PixReferenciaRecebimentoRepository referenciaRepository;
     private PixRecebimentoTransacaoService recebimentoTransacaoService;
     private ConciliarRecebimentoPixUseCase conciliarRecebimentoPixUseCase;
+    private ApplicationEventPublisher eventPublisher;
     private ProcessarWebhookPixUseCase useCase;
 
     private PixWebhookEvent eventoPersistido;
@@ -61,7 +63,7 @@ class ProcessarWebhookPixRecebimentoTest {
         conciliarRecebimentoPixUseCase = mock(ConciliarRecebimentoPixUseCase.class);
         PixTransferenciaRepository transferenciaRepository = mock(PixTransferenciaRepository.class);
         SincronizadorStatusTransferencia sincronizador = mock(SincronizadorStatusTransferencia.class);
-        ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
         useCase = new ProcessarWebhookPixUseCase(
                 pixProvider,
                 webhookEventRepository,
@@ -170,8 +172,9 @@ class ProcessarWebhookPixRecebimentoTest {
         PixRecebimento persistido = capturarRecebimentoPersistido();
         assertThat(persistido.getStatus()).isEqualTo(StatusPixRecebimento.NAO_IDENTIFICADO);
         assertThat(persistido.getReferenciaId()).isNull();
-        // Nao identificado nao dispara baixa.
+        // Nao identificado nao dispara baixa, mas gera divergencia para o backoffice (Task 21.5).
         verify(conciliarRecebimentoPixUseCase, never()).conciliar(any());
+        verify(eventPublisher).publishEvent(any(PixRecebimentoDivergenteEvent.class));
     }
 
     @Test

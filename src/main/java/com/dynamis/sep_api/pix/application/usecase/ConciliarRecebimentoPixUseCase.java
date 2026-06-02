@@ -3,6 +3,7 @@ package com.dynamis.sep_api.pix.application.usecase;
 import com.dynamis.sep_api.pix.application.port.out.CobrancaRecebimentoPixPort;
 import com.dynamis.sep_api.pix.application.port.out.dto.RecebimentoPixCobrancaResult;
 import com.dynamis.sep_api.pix.application.port.out.dto.RegistrarRecebimentoPixCobrancaCommand;
+import com.dynamis.sep_api.pix.domain.event.PixRecebimentoDivergenteEvent;
 import com.dynamis.sep_api.pix.domain.model.PixRecebimento;
 import com.dynamis.sep_api.pix.domain.model.PixReferenciaRecebimento;
 import com.dynamis.sep_api.pix.domain.vo.StatusPixRecebimento;
@@ -11,6 +12,7 @@ import com.dynamis.sep_api.pix.infrastructure.persistence.PixRecebimentoReposito
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixReferenciaRecebimentoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,14 +43,17 @@ public class ConciliarRecebimentoPixUseCase {
     private final PixRecebimentoRepository recebimentoRepository;
     private final PixReferenciaRecebimentoRepository referenciaRepository;
     private final CobrancaRecebimentoPixPort cobrancaPort;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ConciliarRecebimentoPixUseCase(
             PixRecebimentoRepository recebimentoRepository,
             PixReferenciaRecebimentoRepository referenciaRepository,
-            CobrancaRecebimentoPixPort cobrancaPort) {
+            CobrancaRecebimentoPixPort cobrancaPort,
+            ApplicationEventPublisher eventPublisher) {
         this.recebimentoRepository = recebimentoRepository;
         this.referenciaRepository = referenciaRepository;
         this.cobrancaPort = cobrancaPort;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -73,20 +78,20 @@ public class ConciliarRecebimentoPixUseCase {
         // Pix (endToEndId distinto). Nao baixa de novo: vira divergencia para a operacao assistida
         // (Task 21.5), sem creditar em cima de uma referencia ja encerrada.
         if (referencia.getStatus() != StatusPixReferenciaRecebimento.ATIVA) {
-            recebimento.registrarDivergencia(
-                    referencia.getId(),
-                    referencia.getParcelaId(),
-                    "referencia Pix nao esta ATIVA (" + referencia.getStatus() + "): baixa bloqueada");
+            String motivo = "referencia Pix nao esta ATIVA (" + referencia.getStatus() + "): baixa bloqueada";
+            recebimento.registrarDivergencia(referencia.getId(), referencia.getParcelaId(), motivo);
             recebimentoRepository.save(recebimento);
+            publicarDivergente(recebimento.getId(), motivo);
             return;
         }
 
         if (recebimento.getEndToEndId() == null || recebimento.getEndToEndId().isBlank()) {
             // Sem endToEndId nao ha chave idempotente segura para a baixa — nao baixa automaticamente.
-            recebimento.registrarDivergencia(
-                    referencia.getId(), referencia.getParcelaId(), "endToEndId ausente: baixa automatica bloqueada");
+            String motivo = "endToEndId ausente: baixa automatica bloqueada";
+            recebimento.registrarDivergencia(referencia.getId(), referencia.getParcelaId(), motivo);
             referencia.marcarDivergente();
             persistir(recebimento, referencia);
+            publicarDivergente(recebimento.getId(), motivo);
             return;
         }
 
@@ -105,12 +110,18 @@ public class ConciliarRecebimentoPixUseCase {
         boolean valorExato = recebimento.getValor().compareTo(referencia.getValorEsperado()) == 0;
         if (valorExato && resultado.parcelaQuitada()) {
             referencia.marcarPaga();
+            persistir(recebimento, referencia);
         } else {
             // Parcial (parcela nao quitada) ou valor diferente do esperado: baixa aplicada, mas a
             // referencia fica DIVERGENTE para a operacao assistida tratar (item de backoffice na Task 21.5).
             referencia.marcarDivergente();
+            persistir(recebimento, referencia);
+            publicarDivergente(
+                    recebimento.getId(),
+                    "Recebimento Pix divergente: valor recebido " + recebimento.getValor() + " vs esperado "
+                            + referencia.getValorEsperado()
+                            + (resultado.parcelaQuitada() ? "" : "; parcela nao quitada"));
         }
-        persistir(recebimento, referencia);
     }
 
     /** Marca o recebimento {@code FALHOU} em tx propria, apos falha de baixa no caller. */
@@ -122,11 +133,16 @@ public class ConciliarRecebimentoPixUseCase {
         }
         recebimento.marcarFalhou(motivo);
         recebimentoRepository.save(recebimento);
+        publicarDivergente(recebimentoId, "Falha ao baixar parcela via Pix: " + motivo);
     }
 
     private void persistir(PixRecebimento recebimento, PixReferenciaRecebimento referencia) {
         recebimentoRepository.save(recebimento);
         referenciaRepository.save(referencia);
+    }
+
+    private void publicarDivergente(UUID recebimentoId, String motivo) {
+        eventPublisher.publishEvent(new PixRecebimentoDivergenteEvent(recebimentoId, motivo));
     }
 
     private PixRecebimento carregarRecebimento(UUID id) {

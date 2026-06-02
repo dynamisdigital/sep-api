@@ -5,6 +5,7 @@ import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormaliz
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.service.PixRecebimentoTransacaoService;
 import com.dynamis.sep_api.pix.application.service.SincronizadorStatusTransferencia;
+import com.dynamis.sep_api.pix.domain.event.PixRecebimentoDivergenteEvent;
 import com.dynamis.sep_api.pix.domain.event.PixWebhookFalhouEvent;
 import com.dynamis.sep_api.pix.domain.event.PixWebhookProcessadoEvent;
 import com.dynamis.sep_api.pix.domain.event.PixWebhookRecebidoEvent;
@@ -187,6 +188,10 @@ public class ProcessarWebhookPixUseCase {
         // FALHOU (rastreavel/reprocessavel) sem derrubar o webhook, que conclui PROCESSADO.
         if (identificado) {
             conciliarRecebimento(recebimento.getId());
+        } else {
+            // Sem referencia: a divergencia gera item de backoffice (Task 21.5) — nao some em log.
+            eventPublisher.publishEvent(new PixRecebimentoDivergenteEvent(
+                    recebimento.getId(), "Recebimento Pix sem referencia: txid/providerRef desconhecido"));
         }
     }
 

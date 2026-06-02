@@ -3,6 +3,7 @@ package com.dynamis.sep_api.pix.application.usecase;
 import com.dynamis.sep_api.pix.application.port.out.CobrancaRecebimentoPixPort;
 import com.dynamis.sep_api.pix.application.port.out.dto.RecebimentoPixCobrancaResult;
 import com.dynamis.sep_api.pix.application.port.out.dto.RegistrarRecebimentoPixCobrancaCommand;
+import com.dynamis.sep_api.pix.domain.event.PixRecebimentoDivergenteEvent;
 import com.dynamis.sep_api.pix.domain.model.PixRecebimento;
 import com.dynamis.sep_api.pix.domain.model.PixReferenciaRecebimento;
 import com.dynamis.sep_api.pix.domain.vo.StatusPixRecebimento;
@@ -12,6 +13,7 @@ import com.dynamis.sep_api.pix.infrastructure.persistence.PixReferenciaRecebimen
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -37,6 +39,7 @@ class ConciliarRecebimentoPixUseCaseTest {
     private PixRecebimentoRepository recebimentoRepository;
     private PixReferenciaRecebimentoRepository referenciaRepository;
     private CobrancaRecebimentoPixPort cobrancaPort;
+    private ApplicationEventPublisher eventPublisher;
     private ConciliarRecebimentoPixUseCase useCase;
 
     @BeforeEach
@@ -44,7 +47,9 @@ class ConciliarRecebimentoPixUseCaseTest {
         recebimentoRepository = mock(PixRecebimentoRepository.class);
         referenciaRepository = mock(PixReferenciaRecebimentoRepository.class);
         cobrancaPort = mock(CobrancaRecebimentoPixPort.class);
-        useCase = new ConciliarRecebimentoPixUseCase(recebimentoRepository, referenciaRepository, cobrancaPort);
+        eventPublisher = mock(ApplicationEventPublisher.class);
+        useCase = new ConciliarRecebimentoPixUseCase(
+                recebimentoRepository, referenciaRepository, cobrancaPort, eventPublisher);
     }
 
     private PixReferenciaRecebimento referenciaAtiva() {
@@ -86,6 +91,8 @@ class ConciliarRecebimentoPixUseCaseTest {
         assertThat(cmd.getValue().identificadorExterno()).isEqualTo("E2E-1");
         assertThat(cmd.getValue().parcelaId()).isEqualTo(ref.getParcelaId());
         assertThat(cmd.getValue().registradoPor()).isEqualTo(ref.getTomadorId());
+        // Baixa exata e quitada nao gera divergencia.
+        verify(eventPublisher, never()).publishEvent(any(PixRecebimentoDivergenteEvent.class));
     }
 
     @Test
@@ -100,6 +107,7 @@ class ConciliarRecebimentoPixUseCaseTest {
 
         assertThat(receb.getStatus()).isEqualTo(StatusPixRecebimento.CONCILIADO);
         assertThat(ref.getStatus()).isEqualTo(StatusPixReferenciaRecebimento.DIVERGENTE);
+        verify(eventPublisher).publishEvent(any(PixRecebimentoDivergenteEvent.class));
     }
 
     @Test
@@ -127,6 +135,7 @@ class ConciliarRecebimentoPixUseCaseTest {
         assertThat(receb.getStatus()).isEqualTo(StatusPixRecebimento.NAO_IDENTIFICADO);
         assertThat(ref.getStatus()).isEqualTo(StatusPixReferenciaRecebimento.DIVERGENTE);
         verify(cobrancaPort, never()).registrarRecebimento(any());
+        verify(eventPublisher).publishEvent(any(PixRecebimentoDivergenteEvent.class));
     }
 
     @Test
@@ -191,5 +200,6 @@ class ConciliarRecebimentoPixUseCaseTest {
 
         assertThat(receb.getStatus()).isEqualTo(StatusPixRecebimento.FALHOU);
         assertThat(receb.getMotivoDivergencia()).isEqualTo("erro tecnico");
+        verify(eventPublisher).publishEvent(any(PixRecebimentoDivergenteEvent.class));
     }
 }
