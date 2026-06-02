@@ -49,6 +49,7 @@ class ProcessarWebhookPixStatusTransferenciaTest {
         PixRecebimentoRepository recebimentoRepository = mock(PixRecebimentoRepository.class);
         PixReferenciaRecebimentoRepository referenciaRepository = mock(PixReferenciaRecebimentoRepository.class);
         PixRecebimentoTransacaoService recebimentoTransacaoService = mock(PixRecebimentoTransacaoService.class);
+        ConciliarRecebimentoPixUseCase conciliarRecebimentoPixUseCase = mock(ConciliarRecebimentoPixUseCase.class);
         transferenciaRepository = mock(PixTransferenciaRepository.class);
         sincronizador = mock(SincronizadorStatusTransferencia.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
@@ -58,6 +59,7 @@ class ProcessarWebhookPixStatusTransferenciaTest {
                 recebimentoRepository,
                 referenciaRepository,
                 recebimentoTransacaoService,
+                conciliarRecebimentoPixUseCase,
                 transferenciaRepository,
                 sincronizador,
                 eventPublisher);

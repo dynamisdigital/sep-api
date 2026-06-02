@@ -46,6 +46,7 @@ class ProcessarWebhookPixRecebimentoTest {
     private PixRecebimentoRepository recebimentoRepository;
     private PixReferenciaRecebimentoRepository referenciaRepository;
     private PixRecebimentoTransacaoService recebimentoTransacaoService;
+    private ConciliarRecebimentoPixUseCase conciliarRecebimentoPixUseCase;
     private ProcessarWebhookPixUseCase useCase;
 
     private PixWebhookEvent eventoPersistido;
@@ -57,6 +58,7 @@ class ProcessarWebhookPixRecebimentoTest {
         recebimentoRepository = mock(PixRecebimentoRepository.class);
         referenciaRepository = mock(PixReferenciaRecebimentoRepository.class);
         recebimentoTransacaoService = mock(PixRecebimentoTransacaoService.class);
+        conciliarRecebimentoPixUseCase = mock(ConciliarRecebimentoPixUseCase.class);
         PixTransferenciaRepository transferenciaRepository = mock(PixTransferenciaRepository.class);
         SincronizadorStatusTransferencia sincronizador = mock(SincronizadorStatusTransferencia.class);
         ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
@@ -66,6 +68,7 @@ class ProcessarWebhookPixRecebimentoTest {
                 recebimentoRepository,
                 referenciaRepository,
                 recebimentoTransacaoService,
+                conciliarRecebimentoPixUseCase,
                 transferenciaRepository,
                 sincronizador,
                 eventPublisher);
@@ -116,6 +119,8 @@ class ProcessarWebhookPixRecebimentoTest {
         assertThat(persistido.getReferenciaId()).isEqualTo(ref.getId());
         assertThat(persistido.getParcelaId()).isEqualTo(ref.getParcelaId());
         assertThat(eventoPersistido.getStatus()).isEqualTo(StatusPixWebhookEvent.PROCESSADO);
+        // Identificado dispara a baixa (Task 21.4).
+        verify(conciliarRecebimentoPixUseCase).conciliar(persistido.getId());
     }
 
     @Test
@@ -165,6 +170,8 @@ class ProcessarWebhookPixRecebimentoTest {
         PixRecebimento persistido = capturarRecebimentoPersistido();
         assertThat(persistido.getStatus()).isEqualTo(StatusPixRecebimento.NAO_IDENTIFICADO);
         assertThat(persistido.getReferenciaId()).isNull();
+        // Nao identificado nao dispara baixa.
+        verify(conciliarRecebimentoPixUseCase, never()).conciliar(any());
     }
 
     @Test
@@ -176,6 +183,7 @@ class ProcessarWebhookPixRecebimentoTest {
         assertThat(capturarRecebimentoPersistido().getStatus()).isEqualTo(StatusPixRecebimento.NAO_IDENTIFICADO);
         verify(referenciaRepository, never()).findByTxid(any());
         verify(referenciaRepository, never()).findByProviderReferenciaId(any());
+        verify(conciliarRecebimentoPixUseCase, never()).conciliar(any());
     }
 
     @Test
@@ -189,6 +197,7 @@ class ProcessarWebhookPixRecebimentoTest {
 
         verify(recebimentoTransacaoService, never()).persistir(any());
         verify(referenciaRepository, never()).findByTxid(any());
+        verify(conciliarRecebimentoPixUseCase, never()).conciliar(any());
         assertThat(eventoPersistido.getStatus()).isEqualTo(StatusPixWebhookEvent.PROCESSADO);
     }
 
@@ -202,8 +211,10 @@ class ProcessarWebhookPixRecebimentoTest {
 
         ProcessarWebhookPixUseCase.Resultado res = useCase.executar("{}", "corr-1");
 
-        // Corrida na unique nao vira FALHOU nem 5xx: o evento conclui PROCESSADO (idempotente).
+        // Corrida na unique nao vira FALHOU nem 5xx: o evento conclui PROCESSADO (idempotente) e a
+        // baixa nao dispara (o recebimento e de outra thread).
         assertThat(res.aceito()).isTrue();
         assertThat(eventoPersistido.getStatus()).isEqualTo(StatusPixWebhookEvent.PROCESSADO);
+        verify(conciliarRecebimentoPixUseCase, never()).conciliar(any());
     }
 }

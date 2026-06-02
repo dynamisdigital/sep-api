@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Processamento inicial do webhook Pix/Celcoin (Sprint 19 Task 19.5). Foundation: registra o evento
@@ -60,6 +61,7 @@ public class ProcessarWebhookPixUseCase {
     private final PixRecebimentoRepository recebimentoRepository;
     private final PixReferenciaRecebimentoRepository referenciaRepository;
     private final PixRecebimentoTransacaoService recebimentoTransacaoService;
+    private final ConciliarRecebimentoPixUseCase conciliarRecebimentoPixUseCase;
     private final PixTransferenciaRepository transferenciaRepository;
     private final SincronizadorStatusTransferencia sincronizador;
     private final ApplicationEventPublisher eventPublisher;
@@ -70,6 +72,7 @@ public class ProcessarWebhookPixUseCase {
             PixRecebimentoRepository recebimentoRepository,
             PixReferenciaRecebimentoRepository referenciaRepository,
             PixRecebimentoTransacaoService recebimentoTransacaoService,
+            ConciliarRecebimentoPixUseCase conciliarRecebimentoPixUseCase,
             PixTransferenciaRepository transferenciaRepository,
             SincronizadorStatusTransferencia sincronizador,
             ApplicationEventPublisher eventPublisher) {
@@ -78,6 +81,7 @@ public class ProcessarWebhookPixUseCase {
         this.recebimentoRepository = recebimentoRepository;
         this.referenciaRepository = referenciaRepository;
         this.recebimentoTransacaoService = recebimentoTransacaoService;
+        this.conciliarRecebimentoPixUseCase = conciliarRecebimentoPixUseCase;
         this.transferenciaRepository = transferenciaRepository;
         this.sincronizador = sincronizador;
         this.eventPublisher = eventPublisher;
@@ -157,10 +161,10 @@ public class ProcessarWebhookPixUseCase {
         // Correlacao deterministica (Sprint 21 Task 21.3): localiza a referencia Pix pelo txid (ou,
         // em fallback, pelo id de cobranca do provider). Sem referencia, o recebimento nao baixa
         // parcela automaticamente — fica NAO_IDENTIFICADO para a operacao assistida (backoffice na
-        // Task 21.5). Com referencia, vincula referencia/parcela e marca EM_PROCESSAMENTO; a baixa da
-        // parcela e o vinculo do recebimento de cobranca/escrow ficam para a Task 21.4.
+        // Task 21.5). Com referencia, vincula referencia/parcela e marca EM_PROCESSAMENTO.
         Optional<PixReferenciaRecebimento> referencia = localizarReferencia(evt);
-        if (referencia.isPresent()) {
+        boolean identificado = referencia.isPresent();
+        if (identificado) {
             recebimento.vincularReferencia(
                     referencia.get().getId(), referencia.get().getParcelaId());
         } else {
@@ -175,6 +179,26 @@ public class ProcessarWebhookPixUseCase {
             recebimentoTransacaoService.persistir(recebimento);
         } catch (DataIntegrityViolationException corrida) {
             log.info("Webhook Pix recebimento corrida idempotente endToEndId={}", evt.endToEndId());
+            return;
+        }
+
+        // Baixa de parcela + escrow (Sprint 21 Task 21.4): o recebimento ja esta commitado
+        // EM_PROCESSAMENTO; a conciliacao roda em tx propria. Falha de baixa marca o recebimento
+        // FALHOU (rastreavel/reprocessavel) sem derrubar o webhook, que conclui PROCESSADO.
+        if (identificado) {
+            conciliarRecebimento(recebimento.getId());
+        }
+    }
+
+    private void conciliarRecebimento(UUID recebimentoId) {
+        try {
+            conciliarRecebimentoPixUseCase.conciliar(recebimentoId);
+        } catch (RuntimeException ex) {
+            conciliarRecebimentoPixUseCase.marcarFalha(recebimentoId, sanitizar(ex));
+            log.warn(
+                    "Conciliacao Pix recebimento {} falhou causa={}",
+                    recebimentoId,
+                    ex.getClass().getSimpleName());
         }
     }
 
