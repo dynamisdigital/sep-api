@@ -119,6 +119,17 @@ class OpenApiConfigTest {
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.DesembolsoResponse").exists())
                 .andExpect(jsonPath("$.components.schemas.StatusDesembolsoResponse")
-                        .exists());
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/pix/recebimentos/referencias']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/pix/recebimentos/referencias/{id}']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/pix/recebimentos/{id}']").exists())
+                .andExpect(jsonPath("$.components.schemas.GerarReferenciaRecebimentoRequest")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.ReferenciaRecebimentoResponse")
+                        .exists())
+                .andExpect(
+                        jsonPath("$.components.schemas.RecebimentoPixResponse").exists());
     }
 }

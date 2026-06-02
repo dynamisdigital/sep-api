@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -157,6 +158,27 @@ class PixDomainTest {
             PixRecebimento r = PixRecebimento.registrar("E2E-1", VALOR, OffsetDateTime.now(), "corr-1");
             r.marcarConciliado();
             assertThatThrownBy(r::marcarEmProcessamento).isInstanceOf(IllegalStateException.class);
+        }
+
+        @Test
+        void vincularReferenciaGravaIdsEVaiParaEmProcessamento() {
+            PixRecebimento r = PixRecebimento.registrar("E2E-1", VALOR, OffsetDateTime.now(), "corr-1");
+            UUID referenciaId = UUID.randomUUID();
+            UUID parcelaId = UUID.randomUUID();
+
+            r.vincularReferencia(referenciaId, parcelaId);
+
+            assertThat(r.getStatus()).isEqualTo(StatusPixRecebimento.EM_PROCESSAMENTO);
+            assertThat(r.getReferenciaId()).isEqualTo(referenciaId);
+            assertThat(r.getParcelaId()).isEqualTo(parcelaId);
+        }
+
+        @Test
+        void vincularReferenciaExigeEstadoRecebido() {
+            PixRecebimento r = PixRecebimento.registrar("E2E-1", VALOR, OffsetDateTime.now(), "corr-1");
+            r.marcarConciliado();
+            assertThatThrownBy(() -> r.vincularReferencia(UUID.randomUUID(), UUID.randomUUID()))
+                    .isInstanceOf(IllegalStateException.class);
         }
     }
 
