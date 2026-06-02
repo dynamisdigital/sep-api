@@ -68,8 +68,9 @@ class FakePixProviderTest {
 
     @Test
     void normalizarWebhookRecebimentoTraduzTipoEHash() {
-        String payload =
-                "{\"event_id\":\"evt-1\",\"event_type\":\"pix.received\",\"end_to_end_id\":\"E2E-1\",\"amount\":250.00}";
+        String payload = "{\"event_id\":\"evt-1\",\"event_type\":\"pix.received\","
+                + "\"end_to_end_id\":\"E2E-1\",\"amount\":250.00,"
+                + "\"txid\":\"txid-1\",\"reference_id\":\"cob-9\"}";
 
         EventoWebhookPixNormalizado evento = provider.normalizarWebhook(payload);
 
@@ -77,6 +78,8 @@ class FakePixProviderTest {
         assertThat(evento.eventId()).isEqualTo("evt-1");
         assertThat(evento.endToEndId()).isEqualTo("E2E-1");
         assertThat(evento.valor()).isEqualByComparingTo("250.00");
+        assertThat(evento.txid()).isEqualTo("txid-1");
+        assertThat(evento.providerReferenciaId()).isEqualTo("cob-9");
         assertThat(evento.payloadHash()).matches("[a-f0-9]{64}");
     }
 

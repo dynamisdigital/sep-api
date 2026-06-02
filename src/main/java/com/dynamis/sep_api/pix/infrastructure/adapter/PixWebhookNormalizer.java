@@ -41,6 +41,8 @@ public class PixWebhookNormalizer {
                 payload.endToEndId(),
                 payload.valor(),
                 payload.transferId(),
+                payload.txid(),
+                payload.referenceId(),
                 payloadHash);
     }
 

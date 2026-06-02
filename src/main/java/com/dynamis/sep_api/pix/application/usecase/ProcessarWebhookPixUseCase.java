@@ -8,10 +8,12 @@ import com.dynamis.sep_api.pix.domain.event.PixWebhookFalhouEvent;
 import com.dynamis.sep_api.pix.domain.event.PixWebhookProcessadoEvent;
 import com.dynamis.sep_api.pix.domain.event.PixWebhookRecebidoEvent;
 import com.dynamis.sep_api.pix.domain.model.PixRecebimento;
+import com.dynamis.sep_api.pix.domain.model.PixReferenciaRecebimento;
 import com.dynamis.sep_api.pix.domain.model.PixTransferencia;
 import com.dynamis.sep_api.pix.domain.model.PixWebhookEvent;
 import com.dynamis.sep_api.pix.domain.vo.StatusPixWebhookEvent;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixRecebimentoRepository;
+import com.dynamis.sep_api.pix.infrastructure.persistence.PixReferenciaRecebimentoRepository;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixTransferenciaRepository;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixWebhookEventRepository;
 import com.dynamis.sep_api.shared.exception.ValidacaoException;
@@ -37,8 +39,10 @@ import java.util.Optional;
  *   <li>Idempotencia por {@code (provider, event_id)}: evento duplicado retorna sucesso sem
  *       reprocessar.
  *   <li>Persiste {@link PixWebhookEvent} em {@code RECEBIDO} (apenas hash do payload — nunca o JSON
- *       bruto) e roteia por tipo: recebimento cria {@code PixRecebimento}; status de transferencia
- *       e apenas reconhecido (sem acao na foundation); tipo desconhecido vira {@code IGNORADO}.
+ *       bruto) e roteia por tipo: recebimento cria {@code PixRecebimento} e o correlaciona a uma
+ *       {@code PixReferenciaRecebimento} pelo {@code txid} (Sprint 21 — sem referencia vira {@code
+ *       NAO_IDENTIFICADO}; a baixa de parcela fica para a Task 21.4); status de transferencia
+ *       reconsulta o provider e sincroniza (Sprint 20); tipo desconhecido vira {@code IGNORADO}.
  *   <li>Falha de processamento marca {@code FALHOU} para reprocesso futuro, sem estourar 5xx.
  * </ol>
  */
@@ -53,6 +57,7 @@ public class ProcessarWebhookPixUseCase {
     private final PixProvider pixProvider;
     private final PixWebhookEventRepository webhookEventRepository;
     private final PixRecebimentoRepository recebimentoRepository;
+    private final PixReferenciaRecebimentoRepository referenciaRepository;
     private final PixTransferenciaRepository transferenciaRepository;
     private final SincronizadorStatusTransferencia sincronizador;
     private final ApplicationEventPublisher eventPublisher;
@@ -61,12 +66,14 @@ public class ProcessarWebhookPixUseCase {
             PixProvider pixProvider,
             PixWebhookEventRepository webhookEventRepository,
             PixRecebimentoRepository recebimentoRepository,
+            PixReferenciaRecebimentoRepository referenciaRepository,
             PixTransferenciaRepository transferenciaRepository,
             SincronizadorStatusTransferencia sincronizador,
             ApplicationEventPublisher eventPublisher) {
         this.pixProvider = pixProvider;
         this.webhookEventRepository = webhookEventRepository;
         this.recebimentoRepository = recebimentoRepository;
+        this.referenciaRepository = referenciaRepository;
         this.transferenciaRepository = transferenciaRepository;
         this.sincronizador = sincronizador;
         this.eventPublisher = eventPublisher;
@@ -143,11 +150,34 @@ public class ProcessarWebhookPixUseCase {
         // Garantia de nao-duplicidade: o unique parcial de end_to_end_id (V45). O pre-check acima
         // cobre redelivery; numa corrida concorrente rara (mesmo end_to_end_id em eventos de id
         // distinto) o insert falha por constraint e a transacao reverte (HTTP 5xx) — o reenvio do
-        // provider reconcilia, sem nunca creditar duas vezes. REQUIRES_NEW fica para Sprints 20/21
-        // quando houver desembolso real.
+        // provider reconcilia, sem nunca creditar duas vezes.
         PixRecebimento recebimento =
                 PixRecebimento.registrar(evt.endToEndId(), evt.valor(), OffsetDateTime.now(), correlationId);
+
+        // Correlacao deterministica (Sprint 21 Task 21.3): localiza a referencia Pix pelo txid (ou,
+        // em fallback, pelo id de cobranca do provider). Sem referencia, o recebimento nao baixa
+        // parcela automaticamente — fica NAO_IDENTIFICADO para a operacao assistida (backoffice na
+        // Task 21.5). Com referencia, marca EM_PROCESSAMENTO; a baixa da parcela e o vinculo de
+        // conciliacao em cobranca/escrow ficam para a Task 21.4.
+        if (localizarReferencia(evt).isPresent()) {
+            recebimento.marcarEmProcessamento();
+        } else {
+            recebimento.marcarNaoIdentificado();
+        }
         recebimentoRepository.save(recebimento);
+    }
+
+    private Optional<PixReferenciaRecebimento> localizarReferencia(EventoWebhookPixNormalizado evt) {
+        if (evt.txid() != null && !evt.txid().isBlank()) {
+            Optional<PixReferenciaRecebimento> porTxid = referenciaRepository.findByTxid(evt.txid());
+            if (porTxid.isPresent()) {
+                return porTxid;
+            }
+        }
+        if (evt.providerReferenciaId() != null && !evt.providerReferenciaId().isBlank()) {
+            return referenciaRepository.findByProviderReferenciaId(evt.providerReferenciaId());
+        }
+        return Optional.empty();
     }
 
     /**

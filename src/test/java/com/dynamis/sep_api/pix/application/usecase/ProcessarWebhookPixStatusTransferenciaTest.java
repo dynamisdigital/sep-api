@@ -12,6 +12,7 @@ import com.dynamis.sep_api.pix.domain.model.PixWebhookEvent;
 import com.dynamis.sep_api.pix.domain.vo.StatusPixWebhookEvent;
 import com.dynamis.sep_api.pix.domain.vo.TipoPixWebhookEvent;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixRecebimentoRepository;
+import com.dynamis.sep_api.pix.infrastructure.persistence.PixReferenciaRecebimentoRepository;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixTransferenciaRepository;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixWebhookEventRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +46,7 @@ class ProcessarWebhookPixStatusTransferenciaTest {
         pixProvider = mock(PixProvider.class);
         webhookEventRepository = mock(PixWebhookEventRepository.class);
         PixRecebimentoRepository recebimentoRepository = mock(PixRecebimentoRepository.class);
+        PixReferenciaRecebimentoRepository referenciaRepository = mock(PixReferenciaRecebimentoRepository.class);
         transferenciaRepository = mock(PixTransferenciaRepository.class);
         sincronizador = mock(SincronizadorStatusTransferencia.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
@@ -52,6 +54,7 @@ class ProcessarWebhookPixStatusTransferenciaTest {
                 pixProvider,
                 webhookEventRepository,
                 recebimentoRepository,
+                referenciaRepository,
                 transferenciaRepository,
                 sincronizador,
                 eventPublisher);
@@ -65,7 +68,7 @@ class ProcessarWebhookPixStatusTransferenciaTest {
 
     private void stubWebhookStatus(String externalId) {
         EventoWebhookPixNormalizado evt = new EventoWebhookPixNormalizado(
-                TipoPixWebhookEvent.STATUS_TRANSFERENCIA, "evt-1", null, null, externalId, "a".repeat(64));
+                TipoPixWebhookEvent.STATUS_TRANSFERENCIA, "evt-1", null, null, externalId, null, null, "a".repeat(64));
         when(pixProvider.normalizarWebhook(any())).thenReturn(evt);
     }
 
