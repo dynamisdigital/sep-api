@@ -183,6 +183,24 @@ class PixRecebimentoControllerTest {
     }
 
     @Test
+    void cliente_naoConsultaReferencia_403() throws Exception {
+        autenticar(Role.CLIENTE);
+
+        mockMvc.perform(get("/api/v1/pix/recebimentos/referencias/{id}", referenciaId))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void referenciaInexistente_404() throws Exception {
+        autenticar(Role.FINANCEIRO);
+        when(consultarReferencia.executar(referenciaId))
+                .thenThrow(new RecursoNaoEncontradoException("PIX-404-REFERENCIA", "nao encontrada"));
+
+        mockMvc.perform(get("/api/v1/pix/recebimentos/referencias/{id}", referenciaId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void cliente_naoConsultaRecebimento_403() throws Exception {
         autenticar(Role.CLIENTE);
 
