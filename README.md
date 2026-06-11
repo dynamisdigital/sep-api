@@ -5,6 +5,11 @@ Backend Java 21 + Spring Boot 3.5.x da plataforma SEP (Sociedade de Emprestimo e
 > Documentacao consolidada do produto vive no repositorio [`docs-SEP`](../docs-SEP):
 > [PRD](../docs-SEP/docs-sep/PRD.md), [CONTEXT](../docs-SEP/docs-sep/CONTEXT.md), [AGENT.md](../docs-SEP/AGENT.md), [ADRs](../docs-SEP/adr/), [specs](../docs-SEP/specs/), [steps fase 1](../docs-SEP/steps-fase-1/backend/), [steps fase 2](../docs-SEP/steps-fase-2/backend/) e [docs especificos da API](../docs-SEP/repos/sep-api/).
 
+
+## Infográfico Geral
+
+![Infográfico Geral do Projeto](docs/assets/infograficos/infografico_visao_geral_projeto.png)
+
 ## Setup do desenvolvedor
 
 Apos clonar o repositorio:

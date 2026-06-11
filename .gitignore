@@ -130,3 +130,23 @@ postgres-data/
 # ========================
 .history/
 .cache/
+
+# Dynamis Control Center managed ignores
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.venv/
+**/venv/
+**/ENV/
+**/env/
+**/.idea/
+**/.qodo/
+**/.vscode/
+**/Thumbs.db
+**/Desktop.ini
+**/.DS_Store
+**/evidences/
+**/logs/
+**/*.log
