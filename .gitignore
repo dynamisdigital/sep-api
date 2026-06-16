@@ -150,3 +150,9 @@ postgres-data/
 **/evidences/
 **/logs/
 **/*.log
+
+.eggs/
+wheels/
+*.egg-info/
+*.egg
+MANIFEST
