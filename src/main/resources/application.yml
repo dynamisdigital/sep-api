@@ -1,6 +1,4 @@
 spring:
-  profiles:
-    default: dev
   application:
     name: sep-api
 
@@ -45,7 +43,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, info, metrics, prometheus
+        include: health, info, prometheus
   endpoint:
     health:
       show-details: never # nao expor detalhes em prod; dev sobrescreve
@@ -69,6 +67,9 @@ server:
 
 # Propriedades de aplicacao (placeholders; valores reais via env vars)
 app:
+  observability:
+    environment: ${APP_ENVIRONMENT:local}
+    version: ${APP_VERSION:0.0.1-SNAPSHOT}
   jwt:
     secret: ${APP_JWT_SECRET:placeholder-dev-only-min-256-bits-key-replace-in-prod-please}
     # access-expiration-seconds substitui expiration-seconds (Sprint 5 Task 5.3 — access curto + refresh longo)
@@ -374,7 +375,5 @@ resilience4j:
 logging:
   level:
     root: INFO
-    com.dynamis.sep_api: DEBUG
+    com.dynamis.sep_api: INFO
     org.hibernate.SQL: WARN
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{correlationId:-}] %-5level %logger{36} - %msg%n"
