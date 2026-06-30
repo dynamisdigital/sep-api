@@ -77,7 +77,7 @@ public class ProcessarCallbackKycUseCase {
     public Resultado executar(String idempotencyKey, String signature, String payloadCru, CelcoinKycCallback callback) {
         boolean gravado = registrarWebhookEventUseCase.executar(PROVIDER, EVENT, idempotencyKey, signature, payloadCru);
         if (!gravado) {
-            log.info("Webhook KYC duplicado idempotencyKey={} — sem reprocessamento", idempotencyKey);
+            log.info("Webhook KYC duplicado — sem reprocessamento");
             return new Resultado(true, true);
         }
 
@@ -89,7 +89,7 @@ public class ProcessarCallbackKycUseCase {
                 || callback.idVerificacao() == null
                 || callback.idVerificacao().isBlank()) {
             evento.marcarFalhou("verification_id ausente no payload");
-            log.warn("Webhook KYC sem verification_id idempotencyKey={}", idempotencyKey);
+            log.warn("Webhook KYC sem verification_id");
             return new Resultado(true, false);
         }
 
@@ -97,7 +97,7 @@ public class ProcessarCallbackKycUseCase {
                 solicitacaoRepository.findByIdVerificacaoExterna(callback.idVerificacao());
         if (solicitacaoOpt.isEmpty()) {
             evento.marcarFalhou("solicitacao nao encontrada para verification_id");
-            log.warn("Webhook KYC sem solicitacao correspondente idempotencyKey={}", idempotencyKey);
+            log.warn("Webhook KYC sem solicitacao correspondente");
             return new Resultado(true, false);
         }
         SolicitacaoOnboarding solicitacao = solicitacaoOpt.get();
@@ -107,10 +107,7 @@ public class ProcessarCallbackKycUseCase {
         ResultadoKycProvider resultado = mapper.toResultadoKyc(resposta, payloadCru);
 
         if (resultado instanceof ResultadoKycProvider.EmAndamento) {
-            log.info(
-                    "Webhook KYC em andamento idempotencyKey={} verification_id={} — nao finaliza",
-                    idempotencyKey,
-                    callback.idVerificacao());
+            log.info("Webhook KYC em andamento verification_id={} — nao finaliza", callback.idVerificacao());
             evento.marcarProcessado();
             return new Resultado(true, false);
         }
@@ -129,15 +126,13 @@ public class ProcessarCallbackKycUseCase {
             if (statusExistente == finalizado.statusFinal()) {
                 evento.marcarProcessado();
                 log.info(
-                        "Webhook KYC duplicado tardio idempotencyKey={} solicitacao={} status={} — sem reescrita",
-                        idempotencyKey,
+                        "Webhook KYC duplicado tardio solicitacao={} status={} — sem reescrita",
                         solicitacao.getId(),
                         statusExistente);
             } else {
                 evento.marcarFalhou("resultado conflitante com finalizacao previa");
                 log.warn(
-                        "Webhook KYC conflitante idempotencyKey={} solicitacao={} statusExistente={} statusNovo={}",
-                        idempotencyKey,
+                        "Webhook KYC conflitante solicitacao={} statusExistente={} statusNovo={}",
                         solicitacao.getId(),
                         statusExistente,
                         finalizado.statusFinal());
@@ -156,11 +151,7 @@ public class ProcessarCallbackKycUseCase {
                 solicitacao.getId(), solicitacao.getUsuarioId(), finalizado.statusFinal(), callback.idVerificacao()));
 
         evento.marcarProcessado();
-        log.info(
-                "Webhook KYC processado idempotencyKey={} solicitacao={} status={}",
-                idempotencyKey,
-                solicitacao.getId(),
-                finalizado.statusFinal());
+        log.info("Webhook KYC processado solicitacao={} status={}", solicitacao.getId(), finalizado.statusFinal());
         return new Resultado(true, false);
     }
 

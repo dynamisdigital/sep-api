@@ -80,7 +80,7 @@ public class ProcessarWebhookOpenFinanceUseCase {
             String idempotencyKey, String signature, String payloadCru, CallbackOpenFinance callback) {
         boolean gravado = registrarWebhookEventUseCase.executar(PROVIDER, EVENT, idempotencyKey, signature, payloadCru);
         if (!gravado) {
-            log.info("Webhook Open Finance duplicado idempotencyKey={} — sem reprocessamento", idempotencyKey);
+            log.info("Webhook Open Finance duplicado — sem reprocessamento");
             return new Resultado(true, true);
         }
 
@@ -92,7 +92,7 @@ public class ProcessarWebhookOpenFinanceUseCase {
                 || callback.consentId() == null
                 || callback.consentId().isBlank()) {
             evento.marcarFalhou("consent_id ausente no payload");
-            log.warn("Webhook Open Finance sem consent_id idempotencyKey={}", idempotencyKey);
+            log.warn("Webhook Open Finance sem consent_id");
             return new Resultado(true, false);
         }
 
@@ -137,7 +137,7 @@ public class ProcessarWebhookOpenFinanceUseCase {
 
         // Tipo desconhecido — payload evolui no provider; nao quebrar producao.
         evento.marcarFalhou("tipo de callback desconhecido: " + callback.tipo());
-        log.warn("Webhook Open Finance tipo desconhecido idempotencyKey={} tipo={}", idempotencyKey, callback.tipo());
+        log.warn("Webhook Open Finance tipo desconhecido tipo={}", callback.tipo());
         return new Resultado(true, false);
     }
 }

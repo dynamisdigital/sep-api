@@ -16,6 +16,9 @@ public class LogEmailService implements EmailService {
 
     @Override
     public void enviar(String para, String assunto, String corpo) {
-        log.info("[email-fake] para={} assunto={} corpo={}", para, assunto, corpo);
+        log.atInfo()
+                .addKeyValue("event", "notification_simulated")
+                .addKeyValue("channel", "email")
+                .log("Envio de email simulado");
     }
 }

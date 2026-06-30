@@ -36,7 +36,7 @@ public class RegistrarWebhookEventUseCase {
         }
 
         if (repository.existsByIdempotencyKey(idempotencyKey)) {
-            log.info("Webhook duplicado ignorado (idempotencyKey ja registrada): {}", idempotencyKey);
+            log.info("Webhook duplicado ignorado (idempotency key ja registrada)");
             return false;
         }
 
