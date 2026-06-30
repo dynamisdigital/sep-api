@@ -76,7 +76,10 @@ public class LockoutService {
         long falhasJanela =
                 attemptRepository.countByUsernameAndStatusInAndJanela(username, STATUSES_FALHA, inicioJanelaDetecao);
         if (falhasJanela == properties.getMaxAttempts()) {
-            log.warn("Conta {} entrou em lockout por {} min", username, properties.getLockoutMinutes());
+            log.atWarn()
+                    .addKeyValue("event", "account_lockout")
+                    .addKeyValue("durationMinutes", properties.getLockoutMinutes())
+                    .log("Conta entrou em lockout");
             auditRepository.save(AuditLogSeguranca.registrar(
                     TipoEventoSeguranca.LOCKOUT,
                     usuarioId,

@@ -78,7 +78,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String key = prefixo + ":" + ip;
         boolean permitido = registry.rateLimiter(key, config).acquirePermission();
         if (!permitido) {
-            log.warn("Rate limit excedido em {} para IP {}", path, ip);
+            log.atWarn()
+                    .addKeyValue("event", "rate_limit_exceeded")
+                    .addKeyValue("path", path)
+                    .log("Rate limit excedido");
             escreverErro429(response, path);
             return;
         }

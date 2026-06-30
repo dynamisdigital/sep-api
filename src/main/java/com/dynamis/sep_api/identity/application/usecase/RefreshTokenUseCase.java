@@ -86,7 +86,7 @@ public class RefreshTokenUseCase {
             Optional<RefreshToken> opt = repository.findByTokenHash(hash);
             if (opt.isPresent() && opt.get().foiUsado()) {
                 RefreshToken usado = opt.get();
-                log.warn("Reuse detection: refresh token ja usado re-apresentado (familia {})", usado.getFamilyId());
+                log.warn("Reuse detection: refresh token ja usado foi reapresentado");
                 repository.revogarFamilia(usado.getFamilyId(), OffsetDateTime.now());
                 auditRepository.save(AuditLogSeguranca.registrar(
                         TipoEventoSeguranca.REFRESH_REUSE_DETECTED,

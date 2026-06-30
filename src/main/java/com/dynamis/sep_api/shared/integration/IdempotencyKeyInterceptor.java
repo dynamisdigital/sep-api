@@ -36,12 +36,11 @@ public class IdempotencyKeyInterceptor implements ClientHttpRequestInterceptor {
         if (correlationId != null && !correlationId.isBlank()) {
             request.getHeaders().add(CorrelationIdFilter.HEADER, correlationId);
         }
-        log.debug(
-                "Outbound HTTP {} {} (correlationId={}, idempotency={})",
-                request.getMethod(),
-                request.getURI(),
-                correlationId,
-                idempotencyKey);
+        log.atDebug()
+                .addKeyValue("event", "outbound_http_request")
+                .addKeyValue("method", request.getMethod())
+                .addKeyValue("path", request.getURI().getPath())
+                .log("Outbound HTTP request");
         return execution.execute(request, body);
     }
 }

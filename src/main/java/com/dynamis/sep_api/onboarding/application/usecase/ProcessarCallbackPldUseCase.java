@@ -80,7 +80,7 @@ public class ProcessarCallbackPldUseCase {
             String idempotencyKey, String signature, String payloadCru, CelcoinPldCallbackRequest callback) {
         boolean gravado = registrarWebhookEventUseCase.executar(PROVIDER, EVENT, idempotencyKey, signature, payloadCru);
         if (!gravado) {
-            log.info("Webhook PLD duplicado idempotencyKey={} — sem reprocessamento", idempotencyKey);
+            log.info("Webhook PLD duplicado — sem reprocessamento");
             return new Resultado(true, true);
         }
 
@@ -114,11 +114,7 @@ public class ProcessarCallbackPldUseCase {
         if (solicitacao.getStatus() == StatusOnboarding.APROVADO_FINAL
                 || solicitacao.getStatus() == StatusOnboarding.REPROVADO_PLD) {
             evento.marcarProcessado();
-            log.info(
-                    "Webhook PLD duplicado tardio idempotencyKey={} solicitacao={} status={}",
-                    idempotencyKey,
-                    solicitacaoId,
-                    solicitacao.getStatus());
+            log.info("Webhook PLD duplicado tardio solicitacao={} status={}", solicitacaoId, solicitacao.getStatus());
             return new Resultado(true, false);
         }
         if (solicitacao.getStatus() != StatusOnboarding.APROVADO) {
@@ -136,11 +132,7 @@ public class ProcessarCallbackPldUseCase {
                 callback, solicitacao.getTipo(), solicitacao.getDocumento(), cnpjEsperado, representantes);
         if (erroValidacao != null) {
             evento.marcarFalhou(erroValidacao);
-            log.warn(
-                    "Webhook PLD payload incompleto idempotencyKey={} solicitacao={} motivo={}",
-                    idempotencyKey,
-                    solicitacaoId,
-                    erroValidacao);
+            log.warn("Webhook PLD payload incompleto solicitacao={} motivo={}", solicitacaoId, erroValidacao);
             return new Resultado(true, false);
         }
 
@@ -149,11 +141,7 @@ public class ProcessarCallbackPldUseCase {
             houveHit = processarAlvos(solicitacaoId, solicitacao.getTipo(), callback, payloadCru, representantes);
         } catch (RuntimeException ex) {
             evento.marcarFalhou("falha ao processar alvos: " + ex.getClass().getSimpleName());
-            log.warn(
-                    "Webhook PLD processamento falhou idempotencyKey={} solicitacao={}: {}",
-                    idempotencyKey,
-                    solicitacaoId,
-                    ex.getMessage());
+            log.warn("Webhook PLD processamento falhou solicitacao={}: {}", solicitacaoId, ex.getMessage());
             return new Resultado(true, false);
         }
 
@@ -169,11 +157,7 @@ public class ProcessarCallbackPldUseCase {
         eventPublisher.publishEvent(new PldFinalizadoEvent(solicitacaoId, solicitacao.getUsuarioId(), statusFinal));
 
         evento.marcarProcessado();
-        log.info(
-                "Webhook PLD processado idempotencyKey={} solicitacao={} status={}",
-                idempotencyKey,
-                solicitacaoId,
-                statusFinal);
+        log.info("Webhook PLD processado solicitacao={} status={}", solicitacaoId, statusFinal);
         return new Resultado(true, false);
     }
 

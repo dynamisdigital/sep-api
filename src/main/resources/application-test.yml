@@ -27,6 +27,11 @@ management:
     health:
       show-details: never
 
+logging:
+  level:
+    root: WARN
+    com.dynamis.sep_api: INFO
+
 app:
   # Sprint 12: ITs deste perfil nao validam fluxo cobranca, entao listener
   # ContratoAssinadoEvent->agenda fica desligado pra evitar FK leak no teardown

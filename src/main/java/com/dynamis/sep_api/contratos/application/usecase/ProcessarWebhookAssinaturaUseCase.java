@@ -67,7 +67,7 @@ public class ProcessarWebhookAssinaturaUseCase {
         boolean gravado =
                 registrarWebhookEventUseCase.executar(providerOutbox, EVENT, idempotencyKey, signature, payloadCru);
         if (!gravado) {
-            log.info("Webhook assinatura duplicado idempotencyKey={} — sem reprocessamento", idempotencyKey);
+            log.info("Webhook assinatura duplicado — sem reprocessamento");
             return new Resultado(true, true);
         }
 
@@ -85,22 +85,19 @@ public class ProcessarWebhookAssinaturaUseCase {
 
         if (isBlank(documentKey)) {
             evento.marcarFalhou("document.key ausente no payload");
-            log.warn("Webhook assinatura sem document.key idempotencyKey={}", idempotencyKey);
+            log.warn("Webhook assinatura sem document.key");
             return new Resultado(true, false);
         }
         if (isBlank(eventName)) {
             evento.marcarFalhou("event.name ausente no payload");
-            log.warn("Webhook assinatura sem event.name idempotencyKey={} documentKey={}", idempotencyKey, documentKey);
+            log.warn("Webhook assinatura sem event.name documentKey={}", documentKey);
             return new Resultado(true, false);
         }
 
         StatusEnvelope status = mapearEvento(eventName);
         if (status == null) {
             evento.marcarFalhou("event.name desconhecido: " + eventName);
-            log.warn(
-                    "Webhook assinatura event.name desconhecido idempotencyKey={} eventName={}",
-                    idempotencyKey,
-                    eventName);
+            log.warn("Webhook assinatura event.name desconhecido eventName={}", eventName);
             return new Resultado(true, false);
         }
 
@@ -110,8 +107,7 @@ public class ProcessarWebhookAssinaturaUseCase {
         } else {
             dataEvento = OffsetDateTime.now();
             log.warn(
-                    "Webhook assinatura sem event.occurred_at — fallback OffsetDateTime.now() idempotencyKey={} documentKey={} eventName={}",
-                    idempotencyKey,
+                    "Webhook assinatura sem event.occurred_at — fallback OffsetDateTime.now() documentKey={} eventName={}",
                     documentKey,
                     eventName);
         }
@@ -121,11 +117,7 @@ public class ProcessarWebhookAssinaturaUseCase {
             evento.marcarProcessado();
         } catch (ContratoEstadoInvalidoException ex) {
             evento.marcarFalhou("estado invalido: " + ex.getMessage());
-            log.warn(
-                    "Webhook assinatura estado invalido idempotencyKey={} documentKey={}: {}",
-                    idempotencyKey,
-                    documentKey,
-                    ex.getMessage());
+            log.warn("Webhook assinatura estado invalido documentKey={}: {}", documentKey, ex.getMessage());
         }
         return new Resultado(true, false);
     }

@@ -117,7 +117,7 @@ public class CelcoinOAuthTokenProvider {
                 throw new IllegalStateException("Resposta OAuth Celcoin sem access_token");
             }
             long expiresInSec = response.expiresIn() > 0 ? response.expiresIn() : 3600;
-            log.info("Celcoin OAuth token renovado para cache={} expira em {}s", creds.cacheKey(), expiresInSec);
+            log.info("Celcoin OAuth token renovado; expira em {}s", expiresInSec);
             return new CachedToken(response.accessToken(), Instant.now().plusSeconds(expiresInSec));
         } catch (RestClientResponseException ex) {
             // Nao logar body — pode conter detalhes/secret.

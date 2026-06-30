@@ -32,6 +32,6 @@ app:
 
 logging:
   level:
-    org.springframework.security: DEBUG
-    org.springframework.web: DEBUG
-    com.dynamis.sep_api: TRACE
+    org.springframework.security: INFO
+    org.springframework.web: INFO
+    com.dynamis.sep_api: DEBUG
