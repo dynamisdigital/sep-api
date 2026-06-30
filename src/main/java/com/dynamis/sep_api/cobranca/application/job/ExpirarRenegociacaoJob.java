@@ -82,7 +82,12 @@ public class ExpirarRenegociacaoJob {
                     processadas++;
                 }
             } catch (RuntimeException e) {
-                log.warn("ExpirarRenegociacaoJob: falha em renegociacao={}", renegociacao.getId(), e);
+                log.atError()
+                        .addKeyValue("event", "job_failed")
+                        .addKeyValue("job", "expirar_renegociacao")
+                        .addKeyValue("entityId", renegociacao.getId())
+                        .setCause(e)
+                        .log("Falha ao expirar renegociacao");
             }
         }
         if (processadas > 0) {

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <springProperty scope="context" name="SERVICE_NAME" source="spring.application.name" defaultValue="sep-api"/>
+  <springProperty scope="context" name="ENVIRONMENT" source="app.observability.environment" defaultValue="local"/>
+  <springProperty scope="context" name="APP_VERSION" source="app.observability.version" defaultValue="unknown"/>
+  <springProperty scope="context" name="LOG_PATH" source="logging.file.path" defaultValue="/var/log/sep-api"/>
+
+  <springProfile name="!prod">
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder>
+        <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{correlationId:-}] %-5level %logger{36} - %msg%n</pattern>
+      </encoder>
+    </appender>
+
+    <root level="INFO">
+      <appender-ref ref="CONSOLE"/>
+    </root>
+  </springProfile>
+
+  <springProfile name="prod">
+    <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+      <file>${LOG_PATH}/application.json</file>
+      <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+        <providers>
+          <timestamp>
+            <fieldName>timestamp</fieldName>
+            <timeZone>UTC</timeZone>
+          </timestamp>
+          <pattern>
+            <pattern>{"service":"${SERVICE_NAME}","environment":"${ENVIRONMENT}","version":"${APP_VERSION}"}</pattern>
+          </pattern>
+          <logLevel>
+            <fieldName>level</fieldName>
+          </logLevel>
+          <loggerName>
+            <fieldName>logger</fieldName>
+          </loggerName>
+          <threadName>
+            <fieldName>thread</fieldName>
+          </threadName>
+          <message/>
+          <mdc>
+            <includeMdcKeyName>correlationId</includeMdcKeyName>
+          </mdc>
+          <keyValuePairs/>
+          <stackTrace>
+            <fieldName>exception</fieldName>
+          </stackTrace>
+        </providers>
+      </encoder>
+      <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+        <fileNamePattern>${LOG_PATH}/application.%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
+        <maxFileSize>50MB</maxFileSize>
+        <maxHistory>7</maxHistory>
+        <totalSizeCap>2GB</totalSizeCap>
+      </rollingPolicy>
+    </appender>
+
+    <appender name="ASYNC_JSON" class="ch.qos.logback.classic.AsyncAppender">
+      <queueSize>8192</queueSize>
+      <discardingThreshold>0</discardingThreshold>
+      <neverBlock>false</neverBlock>
+      <maxFlushTime>5000</maxFlushTime>
+      <appender-ref ref="JSON_FILE"/>
+    </appender>
+
+    <logger name="com.dynamis.sep_api.escrow.infrastructure.adapter.fake.FakeEscrowProvider" level="OFF"/>
+
+    <root level="INFO">
+      <appender-ref ref="ASYNC_JSON"/>
+    </root>
+  </springProfile>
+</configuration>

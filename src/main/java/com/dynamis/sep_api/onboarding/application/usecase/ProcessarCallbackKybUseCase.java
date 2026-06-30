@@ -81,7 +81,7 @@ public class ProcessarCallbackKybUseCase {
             String idempotencyKey, String signature, String payloadCru, CelcoinKybCallbackRequest callback) {
         boolean gravado = registrarWebhookEventUseCase.executar(PROVIDER, EVENT, idempotencyKey, signature, payloadCru);
         if (!gravado) {
-            log.info("Webhook KYB duplicado idempotencyKey={} — sem reprocessamento", idempotencyKey);
+            log.info("Webhook KYB duplicado — sem reprocessamento");
             return new Resultado(true, true);
         }
 
@@ -94,7 +94,7 @@ public class ProcessarCallbackKybUseCase {
                 || callback.externalId() == null
                 || callback.externalId().isBlank()) {
             evento.marcarFalhou("external_id ausente no payload");
-            log.warn("Webhook KYB sem external_id idempotencyKey={}", idempotencyKey);
+            log.warn("Webhook KYB sem external_id");
             return new Resultado(true, false);
         }
 
@@ -109,7 +109,7 @@ public class ProcessarCallbackKybUseCase {
         Optional<SolicitacaoOnboarding> solicitacaoOpt = solicitacaoRepository.findById(solicitacaoId);
         if (solicitacaoOpt.isEmpty()) {
             evento.marcarFalhou("solicitacao nao encontrada");
-            log.warn("Webhook KYB sem solicitacao correspondente idempotencyKey={}", idempotencyKey);
+            log.warn("Webhook KYB sem solicitacao correspondente");
             return new Resultado(true, false);
         }
         SolicitacaoOnboarding solicitacao = solicitacaoOpt.get();
@@ -117,8 +117,7 @@ public class ProcessarCallbackKybUseCase {
         if (solicitacao.getStatus().isFinal()) {
             evento.marcarProcessado();
             log.info(
-                    "Webhook KYB duplicado tardio idempotencyKey={} solicitacao={} status={}",
-                    idempotencyKey,
+                    "Webhook KYB duplicado tardio solicitacao={} status={}",
                     solicitacao.getId(),
                     solicitacao.getStatus());
             return new Resultado(true, false);
@@ -165,11 +164,7 @@ public class ProcessarCallbackKybUseCase {
                 new KybFinalizadoEvent(solicitacaoId, solicitacao.getUsuarioId(), statusFinal, kyb.getId()));
 
         evento.marcarProcessado();
-        log.info(
-                "Webhook KYB processado idempotencyKey={} solicitacao={} status={}",
-                idempotencyKey,
-                solicitacaoId,
-                statusFinal);
+        log.info("Webhook KYB processado solicitacao={} status={}", solicitacaoId, statusFinal);
         return new Resultado(true, false);
     }
 

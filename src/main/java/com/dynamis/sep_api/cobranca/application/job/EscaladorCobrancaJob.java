@@ -92,7 +92,12 @@ public class EscaladorCobrancaJob {
                 processarParcela(parcela, dias);
                 processadas++;
             } catch (RuntimeException e) {
-                log.warn("EscaladorCobrancaJob: falha ao escalar parcela={} dias={}", parcela.getId(), dias, e);
+                log.atError()
+                        .addKeyValue("event", "job_failed")
+                        .addKeyValue("job", "escalador_cobranca")
+                        .addKeyValue("entityId", parcela.getId())
+                        .setCause(e)
+                        .log("Falha ao escalar parcela de cobranca");
             }
         }
         if (processadas > 0) {

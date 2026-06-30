@@ -77,7 +77,7 @@ public class ApiExceptionHandler {
         String causa = ex.getMostSpecificCause() != null
                 ? String.valueOf(ex.getMostSpecificCause().getMessage())
                 : "";
-        log.warn("Violacao de integridade: {}", causa);
+        log.atWarn().addKeyValue("event", "data_integrity_violation").log("Violacao de integridade");
         String mensagem;
         if (causa.contains("usuario_username_key") || causa.toLowerCase().contains("username")) {
             mensagem = "Username ja cadastrado";
@@ -153,7 +153,12 @@ public class ApiExceptionHandler {
             status = HttpStatus.BAD_GATEWAY;
             error = "Bad Gateway";
         }
-        log.warn("Falha do provider de assinatura ({}): {}", status, ex.getMessage());
+        log.atWarn()
+                .addKeyValue("event", "provider_failed")
+                .addKeyValue("provider", "assinatura")
+                .addKeyValue("status", status.value())
+                .addKeyValue("exceptionType", ex.getClass().getSimpleName())
+                .log("Falha do provider de assinatura");
         return build(status, error, ex.getMessage(), request);
     }
 
@@ -177,7 +182,12 @@ public class ApiExceptionHandler {
             status = HttpStatus.BAD_GATEWAY;
             error = "Bad Gateway";
         }
-        log.warn("Falha do provider Pix ({}): {}", status, ex.getMessage());
+        log.atWarn()
+                .addKeyValue("event", "provider_failed")
+                .addKeyValue("provider", "pix")
+                .addKeyValue("status", status.value())
+                .addKeyValue("exceptionType", ex.getClass().getSimpleName())
+                .log("Falha do provider Pix");
         return build(status, error, ex.getMessage(), request);
     }
 
@@ -197,7 +207,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponseDto> handleGeneric(Exception ex, HttpServletRequest request) {
-        log.error("Erro nao tratado", ex);
+        log.atError().addKeyValue("event", "unhandled_exception").setCause(ex).log("Erro nao tratado");
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", FALLBACK_500_MESSAGE, request);
     }
 

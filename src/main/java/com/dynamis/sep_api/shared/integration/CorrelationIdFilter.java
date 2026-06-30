@@ -12,6 +12,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Servlet filter que injeta um {@code correlationId} (UUID) no MDC para cada request. Se o header
@@ -28,12 +29,14 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
 
     public static final String HEADER = "X-Correlation-Id";
     public static final String MDC_KEY = "correlationId";
+    private static final int MAX_LENGTH = 128;
+    private static final Pattern VALID_VALUE = Pattern.compile("[A-Za-z0-9._:-]{1," + MAX_LENGTH + "}");
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         String correlationId = request.getHeader(HEADER);
-        if (correlationId == null || correlationId.isBlank()) {
+        if (!isValid(correlationId)) {
             correlationId = UUID.randomUUID().toString();
         }
         MDC.put(MDC_KEY, correlationId);
@@ -43,5 +46,9 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
         } finally {
             MDC.remove(MDC_KEY);
         }
+    }
+
+    static boolean isValid(String value) {
+        return value != null && VALID_VALUE.matcher(value).matches();
     }
 }

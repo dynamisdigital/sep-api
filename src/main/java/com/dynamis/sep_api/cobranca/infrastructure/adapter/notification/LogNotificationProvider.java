@@ -29,10 +29,9 @@ public class LogNotificationProvider implements NotificationProvider {
     @Override
     public ResultadoNotificacao enviar(Notificacao notificacao) {
         log.info(
-                "[LogNotificationProvider] canal={} template={} destinatario_mascarado={} variaveis_chaves={} correlationId={}",
+                "[LogNotificationProvider] canal={} template={} variaveis_chaves={} correlationId={}",
                 notificacao.canal(),
                 notificacao.template(),
-                mascarar(notificacao.destinatario(), notificacao.canal()),
                 notificacao.variaveis().keySet(),
                 notificacao.correlationId());
         return ResultadoNotificacao.sucesso(NOME, null);
@@ -46,31 +45,5 @@ public class LogNotificationProvider implements NotificationProvider {
     @Override
     public String nome() {
         return NOME;
-    }
-
-    /**
-     * Mascara destinatario antes de logar — defesa em profundidade (LGPD). Email mostra primeira
-     * letra + dominio; telefone mostra ultimos 4 digitos.
-     */
-    private static String mascarar(String destinatario, CanalNotificacao canal) {
-        return switch (canal) {
-            case EMAIL -> mascararEmail(destinatario);
-            case SMS -> mascararTelefone(destinatario);
-        };
-    }
-
-    private static String mascararEmail(String email) {
-        int at = email.indexOf('@');
-        if (at <= 1) {
-            return "***@***";
-        }
-        return email.charAt(0) + "***" + email.substring(at);
-    }
-
-    private static String mascararTelefone(String telefone) {
-        if (telefone.length() < 4) {
-            return "****";
-        }
-        return "****" + telefone.substring(telefone.length() - 4);
     }
 }
