@@ -18,6 +18,9 @@ public interface RecebimentoRepository extends JpaRepository<Recebimento, UUID> 
 
     List<Recebimento> findByParcela_IdOrderByDataRecebimentoAsc(UUID parcelaId);
 
+    /** Historico owner-scoped do tomador (Sprint 23): recebimentos da parcela mais recentes primeiro. */
+    List<Recebimento> findByParcela_IdOrderByDataRecebimentoDesc(UUID parcelaId);
+
     /**
      * Listagem ordenada por data DESC com {@code parcela} carregada via fetch join (Sprint 12
      * Task 12.6 fix code review manual). Evita N+1 e leitura lazy fora da transacao quando o

@@ -15,4 +15,13 @@ public class CobrancaOwnershipException extends AcessoNegadoException {
     public CobrancaOwnershipException(UUID contratoId) {
         super(CODIGO, "Recurso de cobranca pertence a outro tomador: contrato " + contratoId);
     }
+
+    /**
+     * Variante generica sem identificador (Sprint 23): usada pelos endpoints do tomador para que
+     * parcela inexistente e parcela de outro tomador retornem 403 identico, sem vazar UUID que
+     * permitiria enumeracao.
+     */
+    public CobrancaOwnershipException() {
+        super(CODIGO, "Recurso de cobranca indisponivel");
+    }
 }
