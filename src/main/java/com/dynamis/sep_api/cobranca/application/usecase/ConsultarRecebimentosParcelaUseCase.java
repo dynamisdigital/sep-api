@@ -36,12 +36,9 @@ public class ConsultarRecebimentosParcelaUseCase {
     }
 
     public List<RecebimentoTomadorResult> executar(UUID parcelaId, UUID tomadorAutenticadoId) {
-        ParcelaCobranca parcela =
-                parcelaRepository.findById(parcelaId).orElseThrow(CobrancaOwnershipException::new);
+        ParcelaCobranca parcela = parcelaRepository.findById(parcelaId).orElseThrow(CobrancaOwnershipException::new);
         UUID contratoId = parcela.getAgenda().getContratoId();
-        UUID owner = contratoQueryPort
-                .tomadorIdDoContrato(contratoId)
-                .orElseThrow(CobrancaOwnershipException::new);
+        UUID owner = contratoQueryPort.tomadorIdDoContrato(contratoId).orElseThrow(CobrancaOwnershipException::new);
         if (!owner.equals(tomadorAutenticadoId)) {
             throw new CobrancaOwnershipException();
         }
