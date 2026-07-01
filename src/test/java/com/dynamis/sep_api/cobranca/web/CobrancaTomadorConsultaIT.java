@@ -45,6 +45,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * E2E backend do historico owner-scoped de recebimentos do tomador (Sprint 23). Sobe Spring Boot
@@ -240,7 +241,9 @@ class CobrancaTomadorConsultaIT {
                 .statusCode(200)
                 .body("size()", equalTo(2))
                 .body("[0].recebimentoId", equalTo(idRecente.toString()))
-                .body("[1].recebimentoId", equalTo(idAntigo.toString()));
+                .body("[0].dataRecebimento", startsWith("2026-06-20"))
+                .body("[1].recebimentoId", equalTo(idAntigo.toString()))
+                .body("[1].dataRecebimento", startsWith("2026-06-10"));
     }
 
     @Test
