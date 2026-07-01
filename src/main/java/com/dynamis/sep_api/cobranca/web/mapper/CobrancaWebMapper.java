@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.cobranca.web.mapper;
 
 import com.dynamis.sep_api.cobranca.application.dto.ParcelaAtualizadaResult;
+import com.dynamis.sep_api.cobranca.application.dto.RecebimentoTomadorResult;
 import com.dynamis.sep_api.cobranca.application.dto.RegistrarRecebimentoResult;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
@@ -8,6 +9,7 @@ import com.dynamis.sep_api.cobranca.domain.model.Recebimento;
 import com.dynamis.sep_api.cobranca.web.dto.AgendaPagamentoResponse;
 import com.dynamis.sep_api.cobranca.web.dto.ParcelaResponse;
 import com.dynamis.sep_api.cobranca.web.dto.RecebimentoResponse;
+import com.dynamis.sep_api.cobranca.web.dto.RecebimentoTomadorResponse;
 import com.dynamis.sep_api.cobranca.web.dto.ValorAtualizadoParcelaResponse;
 import org.springframework.stereotype.Component;
 
@@ -92,5 +94,19 @@ public class CobrancaWebMapper {
 
     public List<RecebimentoResponse> toRecebimentoListResponse(List<Recebimento> recebimentos) {
         return recebimentos.stream().map(this::toRecebimentoResponse).toList();
+    }
+
+    /**
+     * Mapeia o result owner-scoped do tomador (Sprint 23) para a resposta publica minima. Mapeamento
+     * dedicado — nao reutiliza {@link #toRecebimentoResponse(Recebimento)}, que carrega campos
+     * operacionais (status, escrow, identificador externo).
+     */
+    public RecebimentoTomadorResponse toRecebimentoTomadorResponse(RecebimentoTomadorResult r) {
+        return new RecebimentoTomadorResponse(
+                r.recebimentoId(), r.valorRecebido(), r.dataRecebimento(), r.meioPagamento());
+    }
+
+    public List<RecebimentoTomadorResponse> toRecebimentoTomadorListResponse(List<RecebimentoTomadorResult> results) {
+        return results.stream().map(this::toRecebimentoTomadorResponse).toList();
     }
 }
