@@ -141,6 +141,31 @@ class RecebimentoRepositoryTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test
+    void findByParcela_IdOrderByDataRecebimentoDesc_retornaMaisRecentesPrimeiro() {
+        // Insere fora de ordem cronologica (meio, mais recente, mais antigo) — a query deve
+        // reordenar por dataRecebimento DESC independente da ordem de insercao.
+        OffsetDateTime meio = OffsetDateTime.parse("2026-06-15T10:00:00-03:00");
+        OffsetDateTime recente = OffsetDateTime.parse("2026-06-20T10:00:00-03:00");
+        OffsetDateTime antigo = OffsetDateTime.parse("2026-06-10T10:00:00-03:00");
+        Recebimento rMeio = registrar("10.00", meio, "k-meio");
+        Recebimento rRecente = registrar("10.00", recente, "k-recente");
+        Recebimento rAntigo = registrar("10.00", antigo, "k-antigo");
+        parcelaRepository.saveAndFlush(parcela);
+
+        List<Recebimento> ordenados = recebimentoRepository.findByParcela_IdOrderByDataRecebimentoDesc(parcela.getId());
+
+        assertThat(ordenados)
+                .extracting(Recebimento::getId)
+                .containsExactly(rRecente.getId(), rMeio.getId(), rAntigo.getId());
+        assertThat(ordenados).extracting(Recebimento::getDataRecebimento).containsExactly(recente, meio, antigo);
+    }
+
+    private Recebimento registrar(String valor, OffsetDateTime data, String idempotencyKey) {
+        return parcela.registrarRecebimento(
+                new BigDecimal(valor), DEVIDO, data, "TRANSFERENCIA", null, idempotencyKey, null, operadorId);
+    }
+
     private ParcelaCobranca criarOutraParcelaIsolada() {
         Usuario u = usuarioRepository.saveAndFlush(Usuario.criar("outro@sep.test", "hash", Role.CLIENTE));
         SolicitacaoOnboarding onb = onboardingRepository.saveAndFlush(SolicitacaoOnboarding.criarPessoa(
