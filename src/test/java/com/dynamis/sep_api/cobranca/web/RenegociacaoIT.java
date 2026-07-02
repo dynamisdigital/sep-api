@@ -47,6 +47,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -559,7 +560,7 @@ class RenegociacaoIT {
         ContratoFixture fx = criarContratoComParcelaAtrasada(tomador);
         Renegociacao r = proporRenegociacao(financeiro, fx.parcelaId());
 
-        RestAssured.given()
+        var resposta = RestAssured.given()
                 .header("Authorization", "Bearer " + tomador.token())
                 .when()
                 .get(PATH_ATIVA, fx.parcelaId())
@@ -568,15 +569,20 @@ class RenegociacaoIT {
                 .body("renegociacaoId", equalTo(r.getId().toString()))
                 .body("parcelaId", equalTo(fx.parcelaId().toString()))
                 .body("status", equalTo("PROPOSTA"))
-                .body("novoValorParcela", equalTo(110.0f))
                 .body("numeroParcelas", equalTo(3))
-                // total calculado no backend: 110.00 * 3.
-                .body("valorTotalRenegociado", equalTo(330.0f))
                 .body("$", not(hasKey("tomadorId")))
                 .body("$", not(hasKey("propostaPor")))
                 .body("$", not(hasKey("agendaOriginalId")))
                 .body("$", not(hasKey("statusParcelaAnterior")))
-                .body("$", not(hasKey("justificativa")));
+                .body("$", not(hasKey("justificativa")))
+                .extract()
+                .response();
+
+        // Valores monetarios comparados por valor, sem depender do tipo numerico do parser JSON.
+        assertThat(new BigDecimal(resposta.path("novoValorParcela").toString())).isEqualByComparingTo("110.00");
+        // total calculado no backend: 110.00 * 3.
+        assertThat(new BigDecimal(resposta.path("valorTotalRenegociado").toString()))
+                .isEqualByComparingTo("330.00");
 
         // GET e read-only: nada muda no banco.
         assertThat(renegociacaoRepository.findById(r.getId()).orElseThrow().getStatus())
