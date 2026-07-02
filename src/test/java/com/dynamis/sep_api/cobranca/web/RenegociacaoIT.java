@@ -54,6 +54,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * E2E da Sprint 13 — fluxo de renegociacao (Task 13.9).
@@ -285,6 +289,24 @@ class RenegociacaoIT {
         return "{\"novoValorParcela\":110.00,\"novoVencimento\":\""
                 + LocalDate.now().plusDays(30)
                 + "\",\"numeroParcelas\":3,\"desconto\":0.00,\"justificativa\":\"Acordo amigavel\"}";
+    }
+
+    private static final String PATH_ATIVA = "/api/v1/cobranca/parcelas/{parcelaId}/renegociacao-ativa";
+
+    /** Financeiro propoe (com step-up) e devolve a PROPOSTA persistida. */
+    private Renegociacao proporRenegociacao(Autenticado financeiro, UUID parcelaId) {
+        RestAssured.given()
+                .header("Authorization", "Bearer " + financeiro.token())
+                .header("X-Step-Up-Token", emitirStepUp(financeiro.id()))
+                .contentType(ContentType.JSON)
+                .body(corpoProposta())
+                .when()
+                .post("/api/v1/cobranca/parcelas/" + parcelaId + "/renegociacao")
+                .then()
+                .statusCode(201);
+        return renegociacaoRepository
+                .findByParcelaOriginalIdAndStatus(parcelaId, StatusRenegociacao.PROPOSTA)
+                .orElseThrow();
     }
 
     // ============== cenarios ==============
@@ -526,5 +548,174 @@ class RenegociacaoIT {
                 () -> auditLogRepository.findAll().stream()
                         .anyMatch(a -> a.getTipo() == TipoEventoSeguranca.RENEGOCIACAO_EXPIRADA),
                 "audit RENEGOCIACAO_EXPIRADA");
+    }
+
+    // ============== Sprint 24 — consulta owner-scoped da renegociacao ativa ==============
+
+    @Test
+    void tomadorConsultaAtiva_recebeTermosETotal_semAlterarStatus() {
+        Autenticado tomador = criarELogar(Role.CLIENTE);
+        Autenticado financeiro = criarELogar(Role.FINANCEIRO, true);
+        ContratoFixture fx = criarContratoComParcelaAtrasada(tomador);
+        Renegociacao r = proporRenegociacao(financeiro, fx.parcelaId());
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + tomador.token())
+                .when()
+                .get(PATH_ATIVA, fx.parcelaId())
+                .then()
+                .statusCode(200)
+                .body("renegociacaoId", equalTo(r.getId().toString()))
+                .body("parcelaId", equalTo(fx.parcelaId().toString()))
+                .body("status", equalTo("PROPOSTA"))
+                .body("novoValorParcela", equalTo(110.0f))
+                .body("numeroParcelas", equalTo(3))
+                // total calculado no backend: 110.00 * 3.
+                .body("valorTotalRenegociado", equalTo(330.0f))
+                .body("$", not(hasKey("tomadorId")))
+                .body("$", not(hasKey("propostaPor")))
+                .body("$", not(hasKey("agendaOriginalId")))
+                .body("$", not(hasKey("statusParcelaAnterior")))
+                .body("$", not(hasKey("justificativa")));
+
+        // GET e read-only: nada muda no banco.
+        assertThat(renegociacaoRepository.findById(r.getId()).orElseThrow().getStatus())
+                .isEqualTo(StatusRenegociacao.PROPOSTA);
+        assertThat(parcelaRepository.findById(fx.parcelaId()).orElseThrow().getStatus())
+                .isEqualTo(StatusParcela.EM_NEGOCIACAO);
+    }
+
+    @Test
+    void outroCliente_naConsultaAtiva_403() {
+        Autenticado dono = criarELogar(Role.CLIENTE);
+        Autenticado alheio = criarELogar(Role.CLIENTE);
+        Autenticado financeiro = criarELogar(Role.FINANCEIRO, true);
+        ContratoFixture fx = criarContratoComParcelaAtrasada(dono);
+        proporRenegociacao(financeiro, fx.parcelaId());
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + alheio.token())
+                .when()
+                .get(PATH_ATIVA, fx.parcelaId())
+                .then()
+                .statusCode(403);
+    }
+
+    @Test
+    void parcelaInexistente_naConsultaAtiva_403() {
+        Autenticado tomador = criarELogar(Role.CLIENTE);
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + tomador.token())
+                .when()
+                .get(PATH_ATIVA, UUID.randomUUID())
+                .then()
+                .statusCode(403);
+    }
+
+    @Test
+    void parcelaPropriaSemProposta_naConsultaAtiva_404() {
+        Autenticado tomador = criarELogar(Role.CLIENTE);
+        ContratoFixture fx = criarContratoComParcelaAtrasada(tomador);
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + tomador.token())
+                .when()
+                .get(PATH_ATIVA, fx.parcelaId())
+                .then()
+                .statusCode(404);
+    }
+
+    @Test
+    void propostaVencidaPeloClock_404_antesDoJob() {
+        Autenticado tomador = criarELogar(Role.CLIENTE);
+        Autenticado financeiro = criarELogar(Role.FINANCEIRO, true);
+        ContratoFixture fx = criarContratoComParcelaAtrasada(tomador);
+        Renegociacao r = proporRenegociacao(financeiro, fx.parcelaId());
+        // Vence a proposta sem rodar o job (check constraint exige data_expiracao > data_proposta).
+        jdbcTemplate.update(
+                "UPDATE renegociacao SET data_proposta = ?, data_expiracao = ? WHERE id = ?",
+                java.sql.Timestamp.valueOf(java.time.LocalDateTime.now().minusDays(10)),
+                java.sql.Timestamp.valueOf(java.time.LocalDateTime.now().minusDays(1)),
+                r.getId());
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + tomador.token())
+                .when()
+                .get(PATH_ATIVA, fx.parcelaId())
+                .then()
+                .statusCode(404);
+
+        // Job nao rodou: renegociacao continua PROPOSTA (so o Clock a exclui da leitura).
+        assertThat(renegociacaoRepository.findById(r.getId()).orElseThrow().getStatus())
+                .isEqualTo(StatusRenegociacao.PROPOSTA);
+    }
+
+    @Test
+    void consultaAtiva_apos_aceite_com_step_up_deixaDeAparecer() {
+        Autenticado tomador = criarELogar(Role.CLIENTE, true);
+        Autenticado financeiro = criarELogar(Role.FINANCEIRO, true);
+        ContratoFixture fx = criarContratoComParcelaAtrasada(tomador);
+        Renegociacao r = proporRenegociacao(financeiro, fx.parcelaId());
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + tomador.token())
+                .when()
+                .get(PATH_ATIVA, fx.parcelaId())
+                .then()
+                .statusCode(200);
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + tomador.token())
+                .header("X-Step-Up-Token", emitirStepUp(tomador.id()))
+                .when()
+                .patch("/api/v1/cobranca/renegociacoes/" + r.getId() + "/aceite")
+                .then()
+                .statusCode(200)
+                .body("status", equalTo("ACEITA"))
+                .body("agendaSubstitutaId", notNullValue());
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + tomador.token())
+                .when()
+                .get(PATH_ATIVA, fx.parcelaId())
+                .then()
+                .statusCode(404);
+        // Aceite continua gerando a agenda substituta e renegociando a parcela.
+        assertThat(parcelaRepository.findById(fx.parcelaId()).orElseThrow().getStatus())
+                .isEqualTo(StatusParcela.RENEGOCIADA);
+    }
+
+    @Test
+    void consultaAtiva_apos_recusa_sem_step_up_deixaDeAparecer() {
+        Autenticado tomador = criarELogar(Role.CLIENTE);
+        Autenticado financeiro = criarELogar(Role.FINANCEIRO, true);
+        ContratoFixture fx = criarContratoComParcelaAtrasada(tomador);
+        Renegociacao r = proporRenegociacao(financeiro, fx.parcelaId());
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + tomador.token())
+                .when()
+                .get(PATH_ATIVA, fx.parcelaId())
+                .then()
+                .statusCode(200);
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + tomador.token())
+                .when()
+                .patch("/api/v1/cobranca/renegociacoes/" + r.getId() + "/recusa")
+                .then()
+                .statusCode(200)
+                .body("status", equalTo("RECUSADA"));
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + tomador.token())
+                .when()
+                .get(PATH_ATIVA, fx.parcelaId())
+                .then()
+                .statusCode(404);
+        // Recusa restaura o status anterior da parcela.
+        assertThat(parcelaRepository.findById(fx.parcelaId()).orElseThrow().getStatus())
+                .isEqualTo(StatusParcela.ATRASADA);
     }
 }
