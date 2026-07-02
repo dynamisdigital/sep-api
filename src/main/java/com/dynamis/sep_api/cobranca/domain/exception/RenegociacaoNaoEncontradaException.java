@@ -12,4 +12,17 @@ public class RenegociacaoNaoEncontradaException extends RecursoNaoEncontradoExce
     public RenegociacaoNaoEncontradaException(UUID renegociacaoId) {
         super(CODIGO, "Renegociacao nao encontrada: " + renegociacaoId);
     }
+
+    private RenegociacaoNaoEncontradaException(String mensagem) {
+        super(CODIGO, mensagem);
+    }
+
+    /**
+     * Consulta owner-scoped do tomador (Sprint 24): parcela propria sem proposta ativa. Mensagem
+     * generica sem UUID de parcela/contrato/tomador/renegociacao (spec 024 — nao expor identificador
+     * interno no corpo do 404).
+     */
+    public static RenegociacaoNaoEncontradaException semPropostaAtiva() {
+        return new RenegociacaoNaoEncontradaException("Nenhuma renegociacao ativa para a parcela informada");
+    }
 }
