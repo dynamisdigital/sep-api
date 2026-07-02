@@ -57,8 +57,7 @@ public class ConsultarRenegociacaoAtivaTomadorUseCase {
     }
 
     private void exigirOwnership(UUID parcelaId, UUID tomadorAutenticadoId) {
-        ParcelaCobranca parcela =
-                parcelaRepository.findById(parcelaId).orElseThrow(CobrancaOwnershipException::new);
+        ParcelaCobranca parcela = parcelaRepository.findById(parcelaId).orElseThrow(CobrancaOwnershipException::new);
         UUID owner = contratoQueryPort
                 .tomadorIdDoContrato(parcela.getAgenda().getContratoId())
                 .orElseThrow(CobrancaOwnershipException::new);

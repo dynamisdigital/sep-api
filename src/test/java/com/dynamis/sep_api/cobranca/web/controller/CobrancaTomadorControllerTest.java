@@ -1,9 +1,14 @@
 package com.dynamis.sep_api.cobranca.web.controller;
 
 import com.dynamis.sep_api.cobranca.application.dto.RecebimentoTomadorResult;
+import com.dynamis.sep_api.cobranca.application.dto.RenegociacaoTomadorResult;
 import com.dynamis.sep_api.cobranca.application.usecase.ConsultarRecebimentosParcelaUseCase;
+import com.dynamis.sep_api.cobranca.application.usecase.ConsultarRenegociacaoAtivaTomadorUseCase;
 import com.dynamis.sep_api.cobranca.domain.exception.CobrancaOwnershipException;
+import com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoNaoEncontradaException;
+import com.dynamis.sep_api.cobranca.domain.vo.StatusRenegociacao;
 import com.dynamis.sep_api.cobranca.web.dto.RecebimentoTomadorResponse;
+import com.dynamis.sep_api.cobranca.web.dto.RenegociacaoTomadorResponse;
 import com.dynamis.sep_api.cobranca.web.mapper.CobrancaWebMapper;
 import com.dynamis.sep_api.identity.application.service.StepUpTokenService;
 import com.dynamis.sep_api.identity.infrastructure.security.JwtAuthenticationFilter;
@@ -27,6 +32,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -34,6 +40,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -53,6 +60,9 @@ class CobrancaTomadorControllerTest {
 
     @MockBean
     private ConsultarRecebimentosParcelaUseCase consultarRecebimentosParcelaUseCase;
+
+    @MockBean
+    private ConsultarRenegociacaoAtivaTomadorUseCase consultarRenegociacaoAtivaTomadorUseCase;
 
     @MockBean
     private CobrancaWebMapper mapper;
@@ -167,5 +177,119 @@ class CobrancaTomadorControllerTest {
                 .andExpect(jsonPath("$[0].registradoPor").doesNotExist())
                 .andExpect(jsonPath("$[0].idempotencyKey").doesNotExist())
                 .andExpect(jsonPath("$[0].statusParcela").doesNotExist());
+    }
+
+    // --- GET /parcelas/{parcelaId}/renegociacao-ativa (Sprint 24) ---
+
+    @Test
+    void renegociacaoAtivaOwner200_semConsumirStepUp() throws Exception {
+        UUID tomadorId = UUID.randomUUID();
+        UUID parcelaId = UUID.randomUUID();
+        UUID renegociacaoId = UUID.randomUUID();
+        autenticar(tomadorId, Role.CLIENTE);
+        when(consultarRenegociacaoAtivaTomadorUseCase.executar(eq(parcelaId), eq(tomadorId)))
+                .thenReturn(result(renegociacaoId, parcelaId));
+        when(mapper.toRenegociacaoTomadorResponse(any())).thenReturn(response(renegociacaoId, parcelaId));
+
+        mockMvc.perform(get("/api/v1/cobranca/parcelas/{parcelaId}/renegociacao-ativa", parcelaId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.renegociacaoId").value(renegociacaoId.toString()))
+                .andExpect(jsonPath("$.status").value("PROPOSTA"))
+                .andExpect(jsonPath("$.numeroParcelas").value(3));
+
+        // GET read-only nao exige nem consome step-up.
+        verifyNoInteractions(stepUpTokenService);
+    }
+
+    @Test
+    void renegociacaoSemPropostaAtiva404() throws Exception {
+        UUID parcelaId = UUID.randomUUID();
+        autenticar(UUID.randomUUID(), Role.CLIENTE);
+        when(consultarRenegociacaoAtivaTomadorUseCase.executar(any(), any()))
+                .thenThrow(RenegociacaoNaoEncontradaException.semPropostaAtiva());
+
+        mockMvc.perform(get("/api/v1/cobranca/parcelas/{parcelaId}/renegociacao-ativa", parcelaId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void renegociacaoOwnershipFalha403ComMensagemGenericaSemUuid() throws Exception {
+        UUID parcelaId = UUID.randomUUID();
+        autenticar(UUID.randomUUID(), Role.CLIENTE);
+        when(consultarRenegociacaoAtivaTomadorUseCase.executar(any(), any()))
+                .thenThrow(new CobrancaOwnershipException());
+
+        mockMvc.perform(get("/api/v1/cobranca/parcelas/{parcelaId}/renegociacao-ativa", parcelaId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Recurso de cobranca indisponivel"));
+    }
+
+    @Test
+    void renegociacaoParcelaIdInvalido400() throws Exception {
+        autenticar(UUID.randomUUID(), Role.CLIENTE);
+        mockMvc.perform(get("/api/v1/cobranca/parcelas/{parcelaId}/renegociacao-ativa", "nao-eh-uuid"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void renegociacaoFinanceiroRejeitado403() throws Exception {
+        autenticar(UUID.randomUUID(), Role.FINANCEIRO);
+        mockMvc.perform(get("/api/v1/cobranca/parcelas/{parcelaId}/renegociacao-ativa", UUID.randomUUID()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void renegociacaoAdminRejeitado403() throws Exception {
+        autenticar(UUID.randomUUID(), Role.ADMIN);
+        mockMvc.perform(get("/api/v1/cobranca/parcelas/{parcelaId}/renegociacao-ativa", UUID.randomUUID()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void renegociacaoJsonNaoContemCamposProibidos() throws Exception {
+        UUID tomadorId = UUID.randomUUID();
+        UUID parcelaId = UUID.randomUUID();
+        UUID renegociacaoId = UUID.randomUUID();
+        autenticar(tomadorId, Role.CLIENTE);
+        when(consultarRenegociacaoAtivaTomadorUseCase.executar(any(), any()))
+                .thenReturn(result(renegociacaoId, parcelaId));
+        when(mapper.toRenegociacaoTomadorResponse(any())).thenReturn(response(renegociacaoId, parcelaId));
+
+        mockMvc.perform(get("/api/v1/cobranca/parcelas/{parcelaId}/renegociacao-ativa", parcelaId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tomadorId").doesNotExist())
+                .andExpect(jsonPath("$.propostaPor").doesNotExist())
+                .andExpect(jsonPath("$.agendaOriginalId").doesNotExist())
+                .andExpect(jsonPath("$.agendaSubstitutaId").doesNotExist())
+                .andExpect(jsonPath("$.statusParcelaAnterior").doesNotExist())
+                .andExpect(jsonPath("$.justificativa").doesNotExist());
+    }
+
+    private static RenegociacaoTomadorResult result(UUID renegociacaoId, UUID parcelaId) {
+        return new RenegociacaoTomadorResult(
+                renegociacaoId,
+                parcelaId,
+                StatusRenegociacao.PROPOSTA,
+                new BigDecimal("200.00"),
+                3,
+                new BigDecimal("600.00"),
+                LocalDate.of(2026, 7, 1),
+                new BigDecimal("50.00"),
+                OffsetDateTime.now(),
+                OffsetDateTime.now().plusDays(7));
+    }
+
+    private static RenegociacaoTomadorResponse response(UUID renegociacaoId, UUID parcelaId) {
+        return new RenegociacaoTomadorResponse(
+                renegociacaoId,
+                parcelaId,
+                StatusRenegociacao.PROPOSTA,
+                new BigDecimal("200.00"),
+                3,
+                new BigDecimal("600.00"),
+                LocalDate.of(2026, 7, 1),
+                new BigDecimal("50.00"),
+                OffsetDateTime.now(),
+                OffsetDateTime.now().plusDays(7));
     }
 }
