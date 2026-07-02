@@ -3,6 +3,7 @@ package com.dynamis.sep_api.cobranca.web.mapper;
 import com.dynamis.sep_api.cobranca.application.dto.ParcelaAtualizadaResult;
 import com.dynamis.sep_api.cobranca.application.dto.RecebimentoTomadorResult;
 import com.dynamis.sep_api.cobranca.application.dto.RegistrarRecebimentoResult;
+import com.dynamis.sep_api.cobranca.application.dto.RenegociacaoTomadorResult;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.model.Recebimento;
@@ -10,6 +11,7 @@ import com.dynamis.sep_api.cobranca.web.dto.AgendaPagamentoResponse;
 import com.dynamis.sep_api.cobranca.web.dto.ParcelaResponse;
 import com.dynamis.sep_api.cobranca.web.dto.RecebimentoResponse;
 import com.dynamis.sep_api.cobranca.web.dto.RecebimentoTomadorResponse;
+import com.dynamis.sep_api.cobranca.web.dto.RenegociacaoTomadorResponse;
 import com.dynamis.sep_api.cobranca.web.dto.ValorAtualizadoParcelaResponse;
 import org.springframework.stereotype.Component;
 
@@ -108,5 +110,24 @@ public class CobrancaWebMapper {
 
     public List<RecebimentoTomadorResponse> toRecebimentoTomadorListResponse(List<RecebimentoTomadorResult> results) {
         return results.stream().map(this::toRecebimentoTomadorResponse).toList();
+    }
+
+    /**
+     * Mapeia o result owner-scoped de renegociacao ativa (Sprint 24) para a resposta publica minima.
+     * Mapeamento dedicado — nao reutiliza {@code RenegociacaoResponse.from}, que expoe IDs de agenda,
+     * operador, justificativa e status da parcela anterior.
+     */
+    public RenegociacaoTomadorResponse toRenegociacaoTomadorResponse(RenegociacaoTomadorResult r) {
+        return new RenegociacaoTomadorResponse(
+                r.renegociacaoId(),
+                r.parcelaId(),
+                r.status(),
+                r.novoValorParcela(),
+                r.numeroParcelas(),
+                r.valorTotalRenegociado(),
+                r.novoVencimento(),
+                r.desconto(),
+                r.dataProposta(),
+                r.dataExpiracao());
     }
 }

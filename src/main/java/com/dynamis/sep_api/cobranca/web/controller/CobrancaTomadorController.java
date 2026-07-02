@@ -1,7 +1,9 @@
 package com.dynamis.sep_api.cobranca.web.controller;
 
 import com.dynamis.sep_api.cobranca.application.usecase.ConsultarRecebimentosParcelaUseCase;
+import com.dynamis.sep_api.cobranca.application.usecase.ConsultarRenegociacaoAtivaTomadorUseCase;
 import com.dynamis.sep_api.cobranca.web.dto.RecebimentoTomadorResponse;
+import com.dynamis.sep_api.cobranca.web.dto.RenegociacaoTomadorResponse;
 import com.dynamis.sep_api.cobranca.web.mapper.CobrancaWebMapper;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
@@ -35,11 +37,15 @@ import java.util.UUID;
 public class CobrancaTomadorController {
 
     private final ConsultarRecebimentosParcelaUseCase consultarRecebimentosParcelaUseCase;
+    private final ConsultarRenegociacaoAtivaTomadorUseCase consultarRenegociacaoAtivaTomadorUseCase;
     private final CobrancaWebMapper mapper;
 
     public CobrancaTomadorController(
-            ConsultarRecebimentosParcelaUseCase consultarRecebimentosParcelaUseCase, CobrancaWebMapper mapper) {
+            ConsultarRecebimentosParcelaUseCase consultarRecebimentosParcelaUseCase,
+            ConsultarRenegociacaoAtivaTomadorUseCase consultarRenegociacaoAtivaTomadorUseCase,
+            CobrancaWebMapper mapper) {
         this.consultarRecebimentosParcelaUseCase = consultarRecebimentosParcelaUseCase;
+        this.consultarRenegociacaoAtivaTomadorUseCase = consultarRenegociacaoAtivaTomadorUseCase;
         this.mapper = mapper;
     }
 
@@ -69,5 +75,39 @@ public class CobrancaTomadorController {
             @PathVariable UUID parcelaId, @AuthenticationPrincipal UsuarioAutenticado principal) {
         var recebimentos = consultarRecebimentosParcelaUseCase.executar(parcelaId, principal.id());
         return ResponseEntity.ok(mapper.toRecebimentoTomadorListResponse(recebimentos));
+    }
+
+    @GetMapping("/parcelas/{parcelaId}/renegociacao-ativa")
+    @PreAuthorize("hasRole('CLIENTE')")
+    @Operation(
+            summary = "Termos da renegociacao ativa de uma parcela propria",
+            description = "Tomador consulta os termos financeiros de uma renegociacao ativa (PROPOSTA nao"
+                    + " expirada) de uma parcela de contrato proprio, antes de aceitar ou recusar. Read-only,"
+                    + " sem step-up. Parcela inexistente ou de outro tomador retorna 403 uniforme, sem"
+                    + " identificador, para nao permitir enumeracao. Parcela propria sem proposta ativa retorna"
+                    + " 404. Exclusivo de ROLE_CLIENTE.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Termos da renegociacao ativa"),
+        @ApiResponse(
+                responseCode = "400",
+                description = "parcelaId invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Sem role CLIENTE, parcela inexistente ou de outro tomador",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Parcela propria sem renegociacao ativa",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<RenegociacaoTomadorResponse> consultarRenegociacaoAtiva(
+            @PathVariable UUID parcelaId, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        var renegociacao = consultarRenegociacaoAtivaTomadorUseCase.executar(parcelaId, principal.id());
+        return ResponseEntity.ok(mapper.toRenegociacaoTomadorResponse(renegociacao));
     }
 }
