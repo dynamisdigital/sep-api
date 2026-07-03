@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.credores.application.usecase;
 
 import com.dynamis.sep_api.credores.application.dto.AssociarOperacaoFinanciadaCommand;
+import com.dynamis.sep_api.credores.application.dto.InteresseView;
 import com.dynamis.sep_api.credores.application.port.out.ConsultarContratoParaCarteiraCredoraPort;
 import com.dynamis.sep_api.credores.application.port.out.ConsultarPropostasElegiveisParaCredoraPort;
 import com.dynamis.sep_api.credores.application.port.out.ContratoCarteiraView;
@@ -11,6 +12,7 @@ import com.dynamis.sep_api.credores.domain.event.InteresseCredoraRegistradoEvent
 import com.dynamis.sep_api.credores.domain.event.OperacaoFinanciadaAssociadaEvent;
 import com.dynamis.sep_api.credores.domain.exception.ContratoNaoElegivelException;
 import com.dynamis.sep_api.credores.domain.exception.CredoraNaoElegivelException;
+import com.dynamis.sep_api.credores.domain.exception.EmpresaCredoraNaoEncontradaException;
 import com.dynamis.sep_api.credores.domain.exception.InteresseDuplicadoException;
 import com.dynamis.sep_api.credores.domain.exception.InteresseNaoEncontradoException;
 import com.dynamis.sep_api.credores.domain.exception.OperacaoFinanciadaDuplicadaException;
@@ -185,6 +187,53 @@ class CarteiraCredoraUseCaseTest {
 
         assertThatThrownBy(() -> uc.executar(USUARIO, oportunidadeId))
                 .isInstanceOf(InteresseNaoEncontradoException.class);
+    }
+
+    // ===== ConsultarInteresseAtivo =====
+
+    @Test
+    void consultarInteresseAtivoSucesso() {
+        var uc = new ConsultarInteresseAtivoCredoraUseCase(empresaRepository, interesseRepository);
+        UUID oportunidadeId = UUID.randomUUID();
+        EmpresaCredora credora = credoraElegivel();
+        InteresseCredora interesse = InteresseCredora.registrar(credora.getId(), oportunidadeId);
+
+        when(empresaRepository.findByUsuarioId(USUARIO)).thenReturn(Optional.of(credora));
+        when(interesseRepository.findByEmpresaCredoraIdAndOportunidadeIdAndStatus(
+                        credora.getId(), oportunidadeId, StatusInteresseCredora.ATIVO))
+                .thenReturn(Optional.of(interesse));
+
+        var view = uc.executar(USUARIO, oportunidadeId);
+
+        assertThat(view.oportunidadeId()).isEqualTo(oportunidadeId);
+        assertThat(view.status()).isEqualTo(StatusInteresseCredora.ATIVO);
+        verify(interesseRepository, never()).save(any());
+    }
+
+    @Test
+    void consultarInteresseAtivoSemInteresse() {
+        var uc = new ConsultarInteresseAtivoCredoraUseCase(empresaRepository, interesseRepository);
+        UUID oportunidadeId = UUID.randomUUID();
+        EmpresaCredora credora = credoraElegivel();
+
+        when(empresaRepository.findByUsuarioId(USUARIO)).thenReturn(Optional.of(credora));
+        when(interesseRepository.findByEmpresaCredoraIdAndOportunidadeIdAndStatus(
+                        credora.getId(), oportunidadeId, StatusInteresseCredora.ATIVO))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> uc.executar(USUARIO, oportunidadeId))
+                .isInstanceOf(InteresseNaoEncontradoException.class);
+    }
+
+    @Test
+    void consultarInteresseAtivoSemCredoraNaoBuscaInteresse() {
+        var uc = new ConsultarInteresseAtivoCredoraUseCase(empresaRepository, interesseRepository);
+        when(empresaRepository.findByUsuarioId(USUARIO)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> uc.executar(USUARIO, UUID.randomUUID()))
+                .isInstanceOf(EmpresaCredoraNaoEncontradaException.class);
+        verify(interesseRepository, never())
+                .findByEmpresaCredoraIdAndOportunidadeIdAndStatus(any(), any(), any());
     }
 
     // ===== AssociarOperacaoFinanciada =====
