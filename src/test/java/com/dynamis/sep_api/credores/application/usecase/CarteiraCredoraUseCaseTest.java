@@ -1,7 +1,6 @@
 package com.dynamis.sep_api.credores.application.usecase;
 
 import com.dynamis.sep_api.credores.application.dto.AssociarOperacaoFinanciadaCommand;
-import com.dynamis.sep_api.credores.application.dto.InteresseView;
 import com.dynamis.sep_api.credores.application.port.out.ConsultarContratoParaCarteiraCredoraPort;
 import com.dynamis.sep_api.credores.application.port.out.ConsultarPropostasElegiveisParaCredoraPort;
 import com.dynamis.sep_api.credores.application.port.out.ContratoCarteiraView;
@@ -232,8 +231,7 @@ class CarteiraCredoraUseCaseTest {
 
         assertThatThrownBy(() -> uc.executar(USUARIO, UUID.randomUUID()))
                 .isInstanceOf(EmpresaCredoraNaoEncontradaException.class);
-        verify(interesseRepository, never())
-                .findByEmpresaCredoraIdAndOportunidadeIdAndStatus(any(), any(), any());
+        verify(interesseRepository, never()).findByEmpresaCredoraIdAndOportunidadeIdAndStatus(any(), any(), any());
     }
 
     // ===== AssociarOperacaoFinanciada =====

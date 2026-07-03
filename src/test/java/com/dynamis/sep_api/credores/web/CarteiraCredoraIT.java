@@ -431,4 +431,66 @@ class CarteiraCredoraIT {
                 .then()
                 .statusCode(404);
     }
+
+    // ============== Leitura do interesse ativo (Sprint 25 - Gate I1) ==============
+
+    @Test
+    void interesseAtivoRetorna200ComStatusAtivoESomenteQuatroCampos() {
+        Autenticado admin = criarAdminELogar();
+        Autenticado cliente = criarClienteELogar();
+        cadastrarCredoraElegivel(cliente, CNPJ_VALIDO);
+        criarPropostaAprovadaComContrato();
+        sincronizar(admin);
+        String oportunidadeId = idPrimeiraOportunidade(cliente);
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + cliente.token())
+                .when()
+                .post("/api/v1/credores/oportunidades/" + oportunidadeId + "/interesses")
+                .then()
+                .statusCode(201);
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + cliente.token())
+                .when()
+                .get("/api/v1/credores/oportunidades/" + oportunidadeId + "/interesses/me")
+                .then()
+                .statusCode(200)
+                .body("status", org.hamcrest.Matchers.equalTo("ATIVO"))
+                .body("oportunidadeId", org.hamcrest.Matchers.equalTo(oportunidadeId))
+                .body("id", org.hamcrest.Matchers.notNullValue())
+                .body("dataCriacao", org.hamcrest.Matchers.notNullValue())
+                .body("$", org.hamcrest.Matchers.aMapWithSize(4));
+    }
+
+    @Test
+    void semInteresseAtivoRetorna404Neutro() {
+        Autenticado admin = criarAdminELogar();
+        Autenticado cliente = criarClienteELogar();
+        cadastrarCredoraElegivel(cliente, CNPJ_VALIDO);
+        criarPropostaAprovadaComContrato();
+        sincronizar(admin);
+        String oportunidadeId = idPrimeiraOportunidade(cliente);
+
+        // credora existe, mas nunca registrou interesse nesta oportunidade
+        RestAssured.given()
+                .header("Authorization", "Bearer " + cliente.token())
+                .when()
+                .get("/api/v1/credores/oportunidades/" + oportunidadeId + "/interesses/me")
+                .then()
+                .statusCode(404);
+    }
+
+    @Test
+    void semCredoraRetorna404NeutroNoInteresseAtivo() {
+        Autenticado cliente = criarClienteELogar();
+
+        // usuario sem credora: mesmo 404 neutro, sem enumerar credora/interesse
+        RestAssured.given()
+                .header("Authorization", "Bearer " + cliente.token())
+                .when()
+                .get("/api/v1/credores/oportunidades/" + UUID.randomUUID() + "/interesses/me")
+                .then()
+                .statusCode(404);
+    }
 }
