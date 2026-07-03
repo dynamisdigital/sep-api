@@ -493,4 +493,89 @@ class CarteiraCredoraIT {
                 .then()
                 .statusCode(404);
     }
+
+    @Test
+    void getInteresseAtivoNaoAlteraEstadoECicloRefleteCancelamento() {
+        Autenticado admin = criarAdminELogar();
+        Autenticado cliente = criarClienteELogar();
+        cadastrarCredoraElegivel(cliente, CNPJ_VALIDO);
+        criarPropostaAprovadaComContrato();
+        sincronizar(admin);
+        String oportunidadeId = idPrimeiraOportunidade(cliente);
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + cliente.token())
+                .when()
+                .post("/api/v1/credores/oportunidades/" + oportunidadeId + "/interesses")
+                .then()
+                .statusCode(201);
+
+        // ler duas vezes: 200 ATIVO, leitura idempotente e sem mutacao
+        for (int i = 0; i < 2; i++) {
+            RestAssured.given()
+                    .header("Authorization", "Bearer " + cliente.token())
+                    .when()
+                    .get("/api/v1/credores/oportunidades/" + oportunidadeId + "/interesses/me")
+                    .then()
+                    .statusCode(200)
+                    .body("status", org.hamcrest.Matchers.equalTo("ATIVO"));
+        }
+
+        // GET nao gera auditoria: apenas o registro emitiu evento (== 1)
+        pollUntilAsserted(() -> assertThat(auditLogRepository.findByUsuarioIdAndTipoOrderByDataEventoDesc(
+                        cliente.id(), TipoEventoSeguranca.CREDORA_INTERESSE_REGISTRADO))
+                .hasSize(1));
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + cliente.token())
+                .when()
+                .delete("/api/v1/credores/oportunidades/" + oportunidadeId + "/interesses/me")
+                .then()
+                .statusCode(204);
+
+        // apos cancelar, o filtro JPA por ATIVO nao retorna o interesse CANCELADO
+        RestAssured.given()
+                .header("Authorization", "Bearer " + cliente.token())
+                .when()
+                .get("/api/v1/credores/oportunidades/" + oportunidadeId + "/interesses/me")
+                .then()
+                .statusCode(404);
+    }
+
+    @Test
+    void interesseAtivoDeOutraCredoraNaoVisivel() {
+        Autenticado admin = criarAdminELogar();
+        Autenticado dono = criarClienteELogar();
+        Autenticado outro = criarClienteELogar();
+        cadastrarCredoraElegivel(dono, CNPJ_VALIDO);
+        cadastrarCredoraElegivel(outro, "11444777000161");
+        criarPropostaAprovadaComContrato();
+        sincronizar(admin);
+        String oportunidadeId = idPrimeiraOportunidade(dono);
+
+        // dono registra interesse
+        RestAssured.given()
+                .header("Authorization", "Bearer " + dono.token())
+                .when()
+                .post("/api/v1/credores/oportunidades/" + oportunidadeId + "/interesses")
+                .then()
+                .statusCode(201);
+
+        // outro tem credora propria, mas nenhum interesse: 404 (escopo por credora, nao por oportunidade)
+        RestAssured.given()
+                .header("Authorization", "Bearer " + outro.token())
+                .when()
+                .get("/api/v1/credores/oportunidades/" + oportunidadeId + "/interesses/me")
+                .then()
+                .statusCode(404);
+
+        // dono continua enxergando o proprio interesse
+        RestAssured.given()
+                .header("Authorization", "Bearer " + dono.token())
+                .when()
+                .get("/api/v1/credores/oportunidades/" + oportunidadeId + "/interesses/me")
+                .then()
+                .statusCode(200)
+                .body("status", org.hamcrest.Matchers.equalTo("ATIVO"));
+    }
 }
