@@ -60,6 +60,10 @@ class CarteiraCredoraIT {
 
     private static final String CNPJ_VALIDO = "11222333000181";
 
+    // Corpo do 404 compartilhado por "sem credora" e "sem interesse" (404 neutro anti-enumeracao).
+    private static final String INTERESSE_404_MSG =
+            "Nenhum interesse ativo encontrado para esta credora na oportunidade";
+
     @DynamicPropertySource
     static void configurarTest(DynamicPropertyRegistry registry) {
         registry.add("app.security.rate-limit.login-per-minute-per-ip", () -> 1000);
@@ -478,20 +482,23 @@ class CarteiraCredoraIT {
                 .when()
                 .get("/api/v1/credores/oportunidades/" + oportunidadeId + "/interesses/me")
                 .then()
-                .statusCode(404);
+                .statusCode(404)
+                .body("message", org.hamcrest.Matchers.equalTo(INTERESSE_404_MSG));
     }
 
     @Test
     void semCredoraRetorna404NeutroNoInteresseAtivo() {
         Autenticado cliente = criarClienteELogar();
 
-        // usuario sem credora: mesmo 404 neutro, sem enumerar credora/interesse
+        // usuario sem credora: MESMO corpo do caso "sem interesse" (nao vaza usuarioId nem
+        // permite distinguir sem-credora de sem-interesse)
         RestAssured.given()
                 .header("Authorization", "Bearer " + cliente.token())
                 .when()
                 .get("/api/v1/credores/oportunidades/" + UUID.randomUUID() + "/interesses/me")
                 .then()
-                .statusCode(404);
+                .statusCode(404)
+                .body("message", org.hamcrest.Matchers.equalTo(INTERESSE_404_MSG));
     }
 
     @Test

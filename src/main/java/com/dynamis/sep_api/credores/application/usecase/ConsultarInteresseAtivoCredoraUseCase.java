@@ -1,7 +1,6 @@
 package com.dynamis.sep_api.credores.application.usecase;
 
 import com.dynamis.sep_api.credores.application.dto.InteresseView;
-import com.dynamis.sep_api.credores.domain.exception.EmpresaCredoraNaoEncontradaException;
 import com.dynamis.sep_api.credores.domain.exception.InteresseNaoEncontradoException;
 import com.dynamis.sep_api.credores.domain.model.EmpresaCredora;
 import com.dynamis.sep_api.credores.domain.model.InteresseCredora;
@@ -16,8 +15,11 @@ import java.util.UUID;
 /**
  * Consulta o interesse ATIVO da credora do usuario autenticado numa oportunidade (Sprint 25, Gate I1
  * da M-10). Leitura autoritativa que permite ao mobile distinguir manifestar de cancelar apos reload
- * ou novo login. Read-only: sem evento, mutacao ou step-up. Resolve a credora antes de buscar o
- * interesse para nao revelar existencia a quem nao possui credora.
+ * ou novo login. Read-only: sem evento, mutacao ou step-up.
+ *
+ * <p>404 neutro (anti-enumeracao): usuario sem credora e credora sem interesse ativo retornam a
+ * mesma {@link InteresseNaoEncontradoException} — mesmo corpo, sem vazar o {@code usuarioId} — para
+ * nao permitir distinguir os dois casos.
  */
 @Service
 public class ConsultarInteresseAtivoCredoraUseCase {
@@ -33,9 +35,10 @@ public class ConsultarInteresseAtivoCredoraUseCase {
 
     @Transactional(readOnly = true)
     public InteresseView executar(UUID usuarioId, UUID oportunidadeId) {
-        EmpresaCredora credora = empresaRepository
-                .findByUsuarioId(usuarioId)
-                .orElseThrow(() -> EmpresaCredoraNaoEncontradaException.porUsuario(usuarioId));
+        EmpresaCredora credora = empresaRepository.findByUsuarioId(usuarioId).orElse(null);
+        if (credora == null) {
+            throw new InteresseNaoEncontradoException();
+        }
 
         InteresseCredora interesse = interesseRepository
                 .findByEmpresaCredoraIdAndOportunidadeIdAndStatus(

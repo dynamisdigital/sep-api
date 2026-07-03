@@ -11,7 +11,6 @@ import com.dynamis.sep_api.credores.domain.event.InteresseCredoraRegistradoEvent
 import com.dynamis.sep_api.credores.domain.event.OperacaoFinanciadaAssociadaEvent;
 import com.dynamis.sep_api.credores.domain.exception.ContratoNaoElegivelException;
 import com.dynamis.sep_api.credores.domain.exception.CredoraNaoElegivelException;
-import com.dynamis.sep_api.credores.domain.exception.EmpresaCredoraNaoEncontradaException;
 import com.dynamis.sep_api.credores.domain.exception.InteresseDuplicadoException;
 import com.dynamis.sep_api.credores.domain.exception.InteresseNaoEncontradoException;
 import com.dynamis.sep_api.credores.domain.exception.OperacaoFinanciadaDuplicadaException;
@@ -225,12 +224,13 @@ class CarteiraCredoraUseCaseTest {
     }
 
     @Test
-    void consultarInteresseAtivoSemCredoraNaoBuscaInteresse() {
+    void consultarInteresseAtivoSemCredoraLancaNeutroSemBuscarInteresse() {
         var uc = new ConsultarInteresseAtivoCredoraUseCase(empresaRepository, interesseRepository);
         when(empresaRepository.findByUsuarioId(USUARIO)).thenReturn(Optional.empty());
 
+        // 404 neutro: sem credora lanca a MESMA excecao de "sem interesse", sem tocar o interesse
         assertThatThrownBy(() -> uc.executar(USUARIO, UUID.randomUUID()))
-                .isInstanceOf(EmpresaCredoraNaoEncontradaException.class);
+                .isInstanceOf(InteresseNaoEncontradoException.class);
         verify(interesseRepository, never()).findByEmpresaCredoraIdAndOportunidadeIdAndStatus(any(), any(), any());
     }
 
