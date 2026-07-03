@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.credores.web.controller;
 
 import com.dynamis.sep_api.credores.application.usecase.CancelarInteresseCredoraUseCase;
+import com.dynamis.sep_api.credores.application.usecase.ConsultarInteresseAtivoCredoraUseCase;
 import com.dynamis.sep_api.credores.application.usecase.ConsultarOportunidadeCredoraUseCase;
 import com.dynamis.sep_api.credores.application.usecase.ListarOportunidadesCredoraUseCase;
 import com.dynamis.sep_api.credores.application.usecase.RegistrarInteresseCredoraUseCase;
@@ -40,6 +41,7 @@ public class EmpresaCredoraOportunidadeController {
     private final ConsultarOportunidadeCredoraUseCase consultarUseCase;
     private final RegistrarInteresseCredoraUseCase registrarInteresseUseCase;
     private final CancelarInteresseCredoraUseCase cancelarInteresseUseCase;
+    private final ConsultarInteresseAtivoCredoraUseCase consultarInteresseAtivoUseCase;
     private final SincronizarOportunidadesInvestimentoUseCase sincronizarUseCase;
     private final CarteiraCredoraWebMapper mapper;
 
@@ -48,12 +50,14 @@ public class EmpresaCredoraOportunidadeController {
             ConsultarOportunidadeCredoraUseCase consultarUseCase,
             RegistrarInteresseCredoraUseCase registrarInteresseUseCase,
             CancelarInteresseCredoraUseCase cancelarInteresseUseCase,
+            ConsultarInteresseAtivoCredoraUseCase consultarInteresseAtivoUseCase,
             SincronizarOportunidadesInvestimentoUseCase sincronizarUseCase,
             CarteiraCredoraWebMapper mapper) {
         this.listarUseCase = listarUseCase;
         this.consultarUseCase = consultarUseCase;
         this.registrarInteresseUseCase = registrarInteresseUseCase;
         this.cancelarInteresseUseCase = cancelarInteresseUseCase;
+        this.consultarInteresseAtivoUseCase = consultarInteresseAtivoUseCase;
         this.sincronizarUseCase = sincronizarUseCase;
         this.mapper = mapper;
     }
@@ -129,6 +133,25 @@ public class EmpresaCredoraOportunidadeController {
             @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
         cancelarInteresseUseCase.executar(principal.id(), id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/interesses/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Consultar o interesse ativo da credora autenticada na oportunidade")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Interesse ativo retornado"),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Credora ou interesse ativo nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<InteresseResponse> consultarInteresseAtivo(
+            @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        return ResponseEntity.ok(mapper.toResponse(consultarInteresseAtivoUseCase.executar(principal.id(), id)));
     }
 
     @PostMapping("/sync")
