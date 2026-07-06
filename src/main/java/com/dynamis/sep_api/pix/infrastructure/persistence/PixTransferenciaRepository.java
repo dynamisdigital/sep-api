@@ -22,4 +22,10 @@ public interface PixTransferenciaRepository extends JpaRepository<PixTransferenc
      */
     Optional<PixTransferencia> findFirstByContratoIdAndStatusInOrderByDataCriacaoDesc(
             UUID contratoId, Collection<StatusPixTransferencia> status);
+
+    /**
+     * Transferencia mais recente do contrato, sem filtro de status — reflete a tentativa corrente
+     * inclusive {@code FALHOU}/{@code CANCELADA} (Sprint 26, leitura owner-scoped do tomador/credora).
+     */
+    Optional<PixTransferencia> findFirstByContratoIdOrderByDataCriacaoDesc(UUID contratoId);
 }
