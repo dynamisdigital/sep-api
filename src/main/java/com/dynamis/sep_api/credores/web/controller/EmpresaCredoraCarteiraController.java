@@ -4,8 +4,10 @@ import com.dynamis.sep_api.credores.application.dto.AssociarOperacaoFinanciadaCo
 import com.dynamis.sep_api.credores.application.usecase.AssociarOperacaoFinanciadaUseCase;
 import com.dynamis.sep_api.credores.application.usecase.ConsultarCarteiraCredoraUseCase;
 import com.dynamis.sep_api.credores.application.usecase.ConsultarOperacaoCarteiraUseCase;
+import com.dynamis.sep_api.credores.application.usecase.ConsultarStatusPixOperacaoCredoraUseCase;
 import com.dynamis.sep_api.credores.web.dto.AssociarOperacaoRequest;
 import com.dynamis.sep_api.credores.web.dto.OperacaoCarteiraResponse;
+import com.dynamis.sep_api.credores.web.dto.PixOperacaoCredoraResponse;
 import com.dynamis.sep_api.credores.web.mapper.CarteiraCredoraWebMapper;
 import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
@@ -38,16 +40,19 @@ public class EmpresaCredoraCarteiraController {
 
     private final ConsultarCarteiraCredoraUseCase consultarCarteiraUseCase;
     private final ConsultarOperacaoCarteiraUseCase consultarOperacaoUseCase;
+    private final ConsultarStatusPixOperacaoCredoraUseCase consultarStatusPixOperacaoUseCase;
     private final AssociarOperacaoFinanciadaUseCase associarUseCase;
     private final CarteiraCredoraWebMapper mapper;
 
     public EmpresaCredoraCarteiraController(
             ConsultarCarteiraCredoraUseCase consultarCarteiraUseCase,
             ConsultarOperacaoCarteiraUseCase consultarOperacaoUseCase,
+            ConsultarStatusPixOperacaoCredoraUseCase consultarStatusPixOperacaoUseCase,
             AssociarOperacaoFinanciadaUseCase associarUseCase,
             CarteiraCredoraWebMapper mapper) {
         this.consultarCarteiraUseCase = consultarCarteiraUseCase;
         this.consultarOperacaoUseCase = consultarOperacaoUseCase;
+        this.consultarStatusPixOperacaoUseCase = consultarStatusPixOperacaoUseCase;
         this.associarUseCase = associarUseCase;
         this.mapper = mapper;
     }
@@ -83,6 +88,36 @@ public class EmpresaCredoraCarteiraController {
     public ResponseEntity<OperacaoCarteiraResponse> consultar(
             @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
         return ResponseEntity.ok(mapper.toResponse(consultarOperacaoUseCase.executar(principal.id(), id)));
+    }
+
+    @GetMapping("/{id}/pix")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Status Pix de uma operacao da carteira da credora autenticada",
+            description = "Credora consulta o status publico do desembolso Pix de uma operacao da propria"
+                    + " carteira. Read-only, sem step-up, sem role CREDORA (acesso por presenca de credora)."
+                    + " Usuario sem credora, operacao de outra credora, operacao inexistente ou operacao sem"
+                    + " desembolso Pix retornam 404 neutro, sem identificador. Nao expoe tomador, contrato,"
+                    + " chave Pix, IDs internos ou escrow.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Status publico do desembolso Pix da operacao"),
+        @ApiResponse(
+                responseCode = "400",
+                description = "id invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Credora, operacao ou status Pix nao encontrado",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<PixOperacaoCredoraResponse> consultarStatusPix(
+            @PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        return ResponseEntity.ok(
+                PixOperacaoCredoraResponse.from(consultarStatusPixOperacaoUseCase.executar(principal.id(), id)));
     }
 
     @PostMapping("/operacoes")
