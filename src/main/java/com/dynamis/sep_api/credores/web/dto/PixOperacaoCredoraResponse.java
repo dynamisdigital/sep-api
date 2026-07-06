@@ -12,7 +12,11 @@ import java.time.OffsetDateTime;
  * Pix, IDs internos, escrow ou detalhe operacional.
  */
 public record PixOperacaoCredoraResponse(
-        @Schema(description = "Status publico do desembolso Pix da operacao", example = "LIQUIDADO") String status,
+        @Schema(
+                        description = "Status publico do desembolso Pix da operacao",
+                        example = "LIQUIDADO",
+                        allowableValues = {"EM_PROCESSAMENTO", "LIQUIDADO", "FALHOU", "CANCELADO"})
+                String status,
         @Schema(description = "Valor do desembolso", example = "1500.00") BigDecimal valor,
         @Schema(description = "Instante da ultima atualizacao do status") OffsetDateTime atualizadoEm) {
 
