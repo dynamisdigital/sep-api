@@ -93,6 +93,19 @@ class StatusPixParcelaPublicoMapperTest {
     }
 
     @Test
+    void referenciaPagaVenceRecebimentoPosterior() {
+        // Parcela paga (referencia PAGA) nao volta a FALHOU/DIVERGENTE por um recebimento tardio.
+        assertThat(StatusPixParcelaPublicoMapper.mapear(
+                                ref(StatusPixReferenciaRecebimento.PAGA), rec(StatusPixRecebimento.FALHOU))
+                        .status())
+                .isEqualTo(StatusPixParcelaPublico.LIQUIDADO);
+        assertThat(StatusPixParcelaPublicoMapper.mapear(
+                                ref(StatusPixReferenciaRecebimento.PAGA), rec(StatusPixRecebimento.NAO_IDENTIFICADO))
+                        .status())
+                .isEqualTo(StatusPixParcelaPublico.LIQUIDADO);
+    }
+
+    @Test
     void mensagemPublicaSomenteEmEstadosDeAtencao() {
         assertThat(StatusPixParcelaPublicoMapper.mapear(ref(StatusPixReferenciaRecebimento.ATIVA), null)
                         .mensagemPublica())

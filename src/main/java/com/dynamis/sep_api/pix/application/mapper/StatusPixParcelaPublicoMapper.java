@@ -29,25 +29,30 @@ public final class StatusPixParcelaPublicoMapper {
 
         StatusPixParcelaPublico status;
         OffsetDateTime atualizadoEm;
+        // Estados terminais da referencia sao autoritativos e vencem qualquer recebimento posterior
+        // (uma parcela PAGA nao volta a FALHOU/DIVERGENTE por um recebimento tardio na mesma referencia).
         if (ref == StatusPixReferenciaRecebimento.CANCELADA) {
             status = StatusPixParcelaPublico.CANCELADO;
             atualizadoEm = referencia.getDataModificacao();
         } else if (ref == StatusPixReferenciaRecebimento.EXPIRADA) {
             status = StatusPixParcelaPublico.EXPIRADO;
             atualizadoEm = referencia.getDataModificacao();
-        } else if (ref == StatusPixReferenciaRecebimento.DIVERGENTE || rec == StatusPixRecebimento.NAO_IDENTIFICADO) {
+        } else if (ref == StatusPixReferenciaRecebimento.PAGA) {
+            status = StatusPixParcelaPublico.LIQUIDADO;
+            atualizadoEm = referencia.getDataModificacao();
+        } else if (ref == StatusPixReferenciaRecebimento.DIVERGENTE) {
             status = StatusPixParcelaPublico.DIVERGENTE;
-            atualizadoEm = rec == StatusPixRecebimento.NAO_IDENTIFICADO
-                    ? recebimento.getDataModificacao()
-                    : referencia.getDataModificacao();
+            atualizadoEm = referencia.getDataModificacao();
+        } else if (rec == StatusPixRecebimento.NAO_IDENTIFICADO) {
+            // Referencia ATIVA a partir daqui: o recebimento correlacionado orienta o estado.
+            status = StatusPixParcelaPublico.DIVERGENTE;
+            atualizadoEm = recebimento.getDataModificacao();
         } else if (rec == StatusPixRecebimento.FALHOU) {
             status = StatusPixParcelaPublico.FALHOU;
             atualizadoEm = recebimento.getDataModificacao();
-        } else if (ref == StatusPixReferenciaRecebimento.PAGA || rec == StatusPixRecebimento.CONCILIADO) {
+        } else if (rec == StatusPixRecebimento.CONCILIADO) {
             status = StatusPixParcelaPublico.LIQUIDADO;
-            atualizadoEm = rec == StatusPixRecebimento.CONCILIADO
-                    ? recebimento.getDataModificacao()
-                    : referencia.getDataModificacao();
+            atualizadoEm = recebimento.getDataModificacao();
         } else if (rec == StatusPixRecebimento.RECEBIDO || rec == StatusPixRecebimento.EM_PROCESSAMENTO) {
             status = StatusPixParcelaPublico.EM_PROCESSAMENTO;
             atualizadoEm = recebimento.getDataModificacao();
