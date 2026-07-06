@@ -2,7 +2,9 @@ package com.dynamis.sep_api.pix.web.controller;
 
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.pix.application.usecase.ConsultarDesembolsoTomadorUseCase;
+import com.dynamis.sep_api.pix.application.usecase.ConsultarStatusPixParcelaUseCase;
 import com.dynamis.sep_api.pix.web.dto.PixDesembolsoTomadorResponse;
+import com.dynamis.sep_api.pix.web.dto.PixPagamentoParcelaResponse;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -32,9 +34,13 @@ import java.util.UUID;
 public class PixTomadorController {
 
     private final ConsultarDesembolsoTomadorUseCase consultarDesembolsoTomadorUseCase;
+    private final ConsultarStatusPixParcelaUseCase consultarStatusPixParcelaUseCase;
 
-    public PixTomadorController(ConsultarDesembolsoTomadorUseCase consultarDesembolsoTomadorUseCase) {
+    public PixTomadorController(
+            ConsultarDesembolsoTomadorUseCase consultarDesembolsoTomadorUseCase,
+            ConsultarStatusPixParcelaUseCase consultarStatusPixParcelaUseCase) {
         this.consultarDesembolsoTomadorUseCase = consultarDesembolsoTomadorUseCase;
+        this.consultarStatusPixParcelaUseCase = consultarStatusPixParcelaUseCase;
     }
 
     @GetMapping("/contratos/{contratoId}/desembolso")
@@ -68,5 +74,40 @@ public class PixTomadorController {
             @PathVariable UUID contratoId, @AuthenticationPrincipal UsuarioAutenticado principal) {
         var resultado = consultarDesembolsoTomadorUseCase.executar(contratoId, principal.id());
         return ResponseEntity.ok(PixDesembolsoTomadorResponse.from(resultado));
+    }
+
+    @GetMapping("/parcelas/{parcelaId}/status")
+    @PreAuthorize("hasRole('CLIENTE')")
+    @Operation(
+            summary = "Status Pix de uma parcela propria",
+            description = "Tomador consulta o estado Pix publico de uma parcela de contrato proprio (referencia"
+                    + " de recebimento e recebimento correlacionado). Read-only, sem step-up; nao gera referencia,"
+                    + " nao concilia e nao reprocessa. O historico liquidado continua em"
+                    + " GET /api/v1/cobranca/parcelas/{parcelaId}/recebimentos. Parcela inexistente, de outro"
+                    + " tomador ou sem estado Pix retorna 404 neutro, sem identificador. Nao expoe txid,"
+                    + " copia-cola, endToEndId, motivo tecnico ou IDs internos. Exclusivo de ROLE_CLIENTE.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Estado Pix publico da parcela"),
+        @ApiResponse(
+                responseCode = "400",
+                description = "parcelaId invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Sem role CLIENTE",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Parcela inexistente, de outro tomador ou sem estado Pix",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<PixPagamentoParcelaResponse> consultarStatusPixDaParcela(
+            @PathVariable UUID parcelaId, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        var resultado = consultarStatusPixParcelaUseCase.executar(parcelaId, principal.id());
+        return ResponseEntity.ok(PixPagamentoParcelaResponse.from(resultado));
     }
 }

@@ -16,4 +16,10 @@ public interface PixReferenciaRecebimentoRepository extends JpaRepository<PixRef
 
     /** Referencia ativa de uma parcela (idempotencia da geracao — no maximo uma ATIVA). */
     Optional<PixReferenciaRecebimento> findByParcelaIdAndStatus(UUID parcelaId, StatusPixReferenciaRecebimento status);
+
+    /**
+     * Referencia mais recente de uma parcela, sem filtro de status (Sprint 26, leitura owner-scoped
+     * do status Pix da parcela do tomador).
+     */
+    Optional<PixReferenciaRecebimento> findFirstByParcelaIdOrderByDataCriacaoDesc(UUID parcelaId);
 }

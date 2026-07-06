@@ -5,8 +5,11 @@ import com.dynamis.sep_api.identity.infrastructure.security.JwtAuthenticationFil
 import com.dynamis.sep_api.identity.infrastructure.security.JwtTokenProvider;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.pix.application.dto.PixDesembolsoTomadorResult;
+import com.dynamis.sep_api.pix.application.dto.PixPagamentoParcelaResult;
 import com.dynamis.sep_api.pix.application.usecase.ConsultarDesembolsoTomadorUseCase;
+import com.dynamis.sep_api.pix.application.usecase.ConsultarStatusPixParcelaUseCase;
 import com.dynamis.sep_api.pix.domain.exception.PixLeituraNaoEncontradaException;
+import com.dynamis.sep_api.pix.domain.vo.StatusPixParcelaPublico;
 import com.dynamis.sep_api.pix.domain.vo.StatusPixPublico;
 import com.dynamis.sep_api.shared.exception.ApiExceptionHandler;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
@@ -52,6 +55,9 @@ class PixTomadorControllerTest {
 
     @MockBean
     private ConsultarDesembolsoTomadorUseCase consultarDesembolsoTomadorUseCase;
+
+    @MockBean
+    private ConsultarStatusPixParcelaUseCase consultarStatusPixParcelaUseCase;
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -154,5 +160,71 @@ class PixTomadorControllerTest {
                 .andExpect(jsonPath("$.transferenciaId").doesNotExist())
                 .andExpect(jsonPath("$.contratoId").doesNotExist())
                 .andExpect(jsonPath("$.tomadorId").doesNotExist());
+    }
+
+    // --- GET /parcelas/{parcelaId}/status (Gate P2) ---
+
+    @Test
+    void parcelaClienteOwner200_semConsumirStepUp() throws Exception {
+        UUID tomadorId = UUID.randomUUID();
+        UUID parcelaId = UUID.randomUUID();
+        autenticar(tomadorId, Role.CLIENTE);
+        when(consultarStatusPixParcelaUseCase.executar(eq(parcelaId), eq(tomadorId)))
+                .thenReturn(new PixPagamentoParcelaResult(
+                        StatusPixParcelaPublico.DIVERGENTE,
+                        new BigDecimal("350.00"),
+                        OffsetDateTime.now(),
+                        "Pagamento Pix em verificacao. Se persistir, procure o suporte."));
+
+        mockMvc.perform(get("/api/v1/pix/parcelas/{parcelaId}/status", parcelaId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DIVERGENTE"))
+                .andExpect(jsonPath("$.valor").value(350.00))
+                .andExpect(jsonPath("$.mensagemPublica").isNotEmpty());
+
+        verifyNoInteractions(stepUpTokenService);
+    }
+
+    @Test
+    void parcelaSemEstadoPixOuAlheia404() throws Exception {
+        UUID parcelaId = UUID.randomUUID();
+        autenticar(UUID.randomUUID(), Role.CLIENTE);
+        when(consultarStatusPixParcelaUseCase.executar(any(), any())).thenThrow(new PixLeituraNaoEncontradaException());
+
+        mockMvc.perform(get("/api/v1/pix/parcelas/{parcelaId}/status", parcelaId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void parcelaIdInvalido400() throws Exception {
+        autenticar(UUID.randomUUID(), Role.CLIENTE);
+        mockMvc.perform(get("/api/v1/pix/parcelas/{parcelaId}/status", "nao-eh-uuid"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void parcelaFinanceiroRejeitado403() throws Exception {
+        autenticar(UUID.randomUUID(), Role.FINANCEIRO);
+        mockMvc.perform(get("/api/v1/pix/parcelas/{parcelaId}/status", UUID.randomUUID()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void parcelaJsonNaoContemCamposProibidos() throws Exception {
+        autenticar(UUID.randomUUID(), Role.CLIENTE);
+        when(consultarStatusPixParcelaUseCase.executar(any(), any()))
+                .thenReturn(new PixPagamentoParcelaResult(
+                        StatusPixParcelaPublico.AGUARDANDO, new BigDecimal("350.00"), OffsetDateTime.now(), null));
+
+        mockMvc.perform(get("/api/v1/pix/parcelas/{parcelaId}/status", UUID.randomUUID()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.txid").doesNotExist())
+                .andExpect(jsonPath("$.codigoCopiaCola").doesNotExist())
+                .andExpect(jsonPath("$.endToEndId").doesNotExist())
+                .andExpect(jsonPath("$.motivoDivergencia").doesNotExist())
+                .andExpect(jsonPath("$.referenciaId").doesNotExist())
+                .andExpect(jsonPath("$.recebimentoId").doesNotExist())
+                .andExpect(jsonPath("$.parcelaId").doesNotExist())
+                .andExpect(jsonPath("$.contratoId").doesNotExist());
     }
 }
