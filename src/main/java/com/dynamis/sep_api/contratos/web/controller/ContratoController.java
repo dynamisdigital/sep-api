@@ -53,7 +53,8 @@ import java.util.UUID;
  *   <li>{@code GET /api/v1/contratos/{id}} — ownership ou FINANCEIRO/ADMIN;
  *   <li>{@code GET /api/v1/contratos/{id}/versoes} — ownership ou FINANCEIRO/ADMIN;
  *   <li>{@code PATCH /api/v1/contratos/{id}/aceite} — CLIENTE (ownership) + step-up estrito;
- *   <li>{@code POST /api/v1/contratos/{id}/cancelar} — FINANCEIRO/ADMIN + step-up estrito.
+ *   <li>{@code POST /api/v1/contratos/{id}/cancelar} — FINANCEIRO/ADMIN + step-up estrito;
+ *   <li>{@code POST /api/v1/contratos/{id}/assinar} — FINANCEIRO/ADMIN + step-up estrito.
  * </ul>
  *
  * <p>Controller depende apenas dos use cases da camada {@code application} — nao acessa
@@ -269,7 +270,8 @@ public class ContratoController {
     @RequireStepUpEstrito
     @Operation(
             summary = "Enviar contrato para assinatura digital",
-            description = "FINANCEIRO/ADMIN dispara envio manual ao provider (Clicksign). Idempotente:"
+            description = "FINANCEIRO/ADMIN dispara envio manual ao provider (Clicksign). Exige step-up"
+                    + " estrito (X-Step-Up-Token + MFA ativo, sem bypass). Idempotente:"
                     + " envelope existente para a versao vigente eh devolvido sem chamar o provider novamente."
                     + " Disparo automatico apos aceite ocorre via ContratoAceitoListener (Sprint 11 Task 11.5);"
                     + " este endpoint serve para reprocessamento quando o auto-envio falhar (runbook em CONTRATOS.md).")
