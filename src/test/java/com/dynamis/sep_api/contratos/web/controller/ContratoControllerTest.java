@@ -41,6 +41,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -259,6 +261,57 @@ class ContratoControllerTest {
 
         mockMvc.perform(patch("/api/v1/contratos/{id}/aceite", c.getId()).header("X-Step-Up-Token", token))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void patchAceiteClienteSemMfa403SemBypass() throws Exception {
+        // Sprint 27: @RequireStepUpEstrito bloqueia usuario sem MFA mesmo com token — sem bypass.
+        UUID tomadorId = UUID.randomUUID();
+        autenticar(tomadorId, Role.CLIENTE, false);
+        when(stepUpTokenService.validarEConsumir(any())).thenReturn(Optional.of(tomadorId));
+
+        mockMvc.perform(patch("/api/v1/contratos/{id}/aceite", UUID.randomUUID())
+                        .header("X-Step-Up-Token", "token-qualquer"))
+                .andExpect(status().isForbidden());
+        verify(registrarAceiteUseCase, never()).executar(any());
+    }
+
+    @Test
+    void patchAceiteClienteTokenInvalido403() throws Exception {
+        autenticar(UUID.randomUUID(), Role.CLIENTE, true);
+        when(stepUpTokenService.validarEConsumir(any())).thenReturn(Optional.empty());
+
+        mockMvc.perform(patch("/api/v1/contratos/{id}/aceite", UUID.randomUUID())
+                        .header("X-Step-Up-Token", "token-invalido-ou-expirado"))
+                .andExpect(status().isForbidden());
+        verify(registrarAceiteUseCase, never()).executar(any());
+    }
+
+    @Test
+    void patchAceiteClienteTokenDeOutroUsuario403() throws Exception {
+        autenticar(UUID.randomUUID(), Role.CLIENTE, true);
+        when(stepUpTokenService.validarEConsumir("token-alheio")).thenReturn(Optional.of(UUID.randomUUID()));
+
+        mockMvc.perform(patch("/api/v1/contratos/{id}/aceite", UUID.randomUUID())
+                        .header("X-Step-Up-Token", "token-alheio"))
+                .andExpect(status().isForbidden());
+        verify(registrarAceiteUseCase, never()).executar(any());
+    }
+
+    @Test
+    void patchAceiteEstadoInvalido409DistintoDoStepUp403() throws Exception {
+        // Estado invalido chega como 409 do use case — distinto do 403 de step-up (Task 27.5).
+        UUID tomadorId = UUID.randomUUID();
+        autenticar(tomadorId, Role.CLIENTE, true);
+        String token = "step-up-token-valido";
+        when(stepUpTokenService.validarEConsumir(token)).thenReturn(Optional.of(tomadorId));
+        when(registrarAceiteUseCase.executar(any()))
+                .thenThrow(new com.dynamis.sep_api.contratos.domain.exception.ContratoEstadoInvalidoException(
+                        "registrarAceite", com.dynamis.sep_api.contratos.domain.vo.StatusFormalizacao.ACEITO));
+
+        mockMvc.perform(patch("/api/v1/contratos/{id}/aceite", UUID.randomUUID())
+                        .header("X-Step-Up-Token", token))
+                .andExpect(status().isConflict());
     }
 
     // ============== POST /{id}/cancelar ==============

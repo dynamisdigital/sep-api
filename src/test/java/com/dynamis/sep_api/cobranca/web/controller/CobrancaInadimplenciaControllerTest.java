@@ -382,6 +382,30 @@ class CobrancaInadimplenciaControllerTest {
     }
 
     @Test
+    void aceitarRenegociacao_semMfa_403SemBypass() throws Exception {
+        // Sprint 27: @RequireStepUpEstrito bloqueia usuario sem MFA mesmo com token — sem bypass.
+        UUID tomadorId = UUID.randomUUID();
+        autenticar(tomadorId, Role.CLIENTE, false);
+        when(stepUpTokenService.validarEConsumir(any())).thenReturn(Optional.of(tomadorId));
+
+        mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", UUID.randomUUID())
+                        .header(StepUpEnforcementAspect.HEADER, "token-qualquer"))
+                .andExpect(status().isForbidden());
+        verify(aceitarRenegociacaoUseCase, never()).executar(any(), any());
+    }
+
+    @Test
+    void aceitarRenegociacao_tokenInvalidoOuAlheio_403() throws Exception {
+        autenticar(UUID.randomUUID(), Role.CLIENTE, true);
+        when(stepUpTokenService.validarEConsumir(any())).thenReturn(Optional.empty());
+
+        mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", UUID.randomUUID())
+                        .header(StepUpEnforcementAspect.HEADER, "token-invalido-ou-expirado"))
+                .andExpect(status().isForbidden());
+        verify(aceitarRenegociacaoUseCase, never()).executar(any(), any());
+    }
+
+    @Test
     void proporRenegociacao_semStepUpComMfaHabilitado_403() throws Exception {
         autenticar(UUID.randomUUID(), Role.FINANCEIRO, true);
         String body =
