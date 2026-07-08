@@ -31,8 +31,9 @@ import java.util.UUID;
  * <p>Pipeline:
  *
  * <ol>
- *   <li>Carrega renegociacao em {@code PROPOSTA}; rejeita se ja decidida.
- *   <li>Valida ownership.
+ *   <li>Carrega renegociacao e valida ownership — antes do estado, pra nao-dono nao descobrir
+ *       status alheio via 409 (Sprint 27 Task 27.4).
+ *   <li>Exige status {@code PROPOSTA}; rejeita se ja decidida.
  *   <li>Re-checa nao-expiracao (mesmo motivo do aceite — race com job de expiracao).
  *   <li>Parcela volta para {@code statusParcelaAnterior} ({@code ATRASADA} ou {@code INADIMPLENTE}).
  *   <li>Marca renegociacao {@code RECUSADA} + publica {@link RenegociacaoRecusadaEvent}.
@@ -63,11 +64,13 @@ public class RecusarRenegociacaoUseCase {
         Renegociacao renegociacao = renegociacaoRepository
                 .findByIdForUpdate(renegociacaoId)
                 .orElseThrow(() -> new RenegociacaoNaoEncontradaException(renegociacaoId));
+        // Ownership antes do estado (Sprint 27 Task 27.4): nao-dono nao pode descobrir o status
+        // da renegociacao via 409; variante neutra nao vaza UUID de agenda alheia.
+        if (!renegociacao.getTomadorId().equals(tomadorAutenticadoId)) {
+            throw new CobrancaOwnershipException();
+        }
         if (renegociacao.getStatus() != StatusRenegociacao.PROPOSTA) {
             throw new RenegociacaoEstadoInvalidoException(renegociacaoId, renegociacao.getStatus(), "recusar");
-        }
-        if (!renegociacao.getTomadorId().equals(tomadorAutenticadoId)) {
-            throw new CobrancaOwnershipException(renegociacao.getAgendaOriginalId());
         }
         OffsetDateTime agora = OffsetDateTime.now(clock);
         if (renegociacao.expirouEm(agora)) {
