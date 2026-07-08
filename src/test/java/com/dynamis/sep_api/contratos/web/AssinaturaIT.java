@@ -14,6 +14,8 @@ import com.dynamis.sep_api.credito.infrastructure.persistence.ParecerCreditoRepo
 import com.dynamis.sep_api.credito.infrastructure.persistence.PropostaCreditoRepository;
 import com.dynamis.sep_api.credito.infrastructure.persistence.RegraCreditoAvaliadaRepository;
 import com.dynamis.sep_api.credito.infrastructure.persistence.ScoreInternoRepository;
+import com.dynamis.sep_api.identity.application.service.StepUpTokenService;
+import com.dynamis.sep_api.identity.infrastructure.security.StepUpEnforcementAspect;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.Cpf;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
@@ -67,8 +69,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>Reenvio (POST /assinar) com envelope ja existente eh idempotente.
  * </ul>
  *
- * <p>Step-up: usuarios criados com {@code mfaHabilitado=false} — {@code StepUpEnforcementAspect}
- * bypassa o token (mesmo padrao do {@code ContratoIT} Sprint 10).
+ * <p>Step-up: aceite e envio para assinatura usam {@code @RequireStepUpEstrito} (Sprint 27) —
+ * usuarios de fixture sao criados com MFA habilitado e cada chamada mutante envia
+ * {@code X-Step-Up-Token} emitido via {@link StepUpTokenService} (mesmo padrao do {@code ContratoIT}).
  *
  * <p>Follow-up Sprint 11 (spec §11.9 linha 253): cenario E2E com {@code app.assinatura.provider=clicksign}
  * + WireMock stubbing dos endpoints reais da Clicksign ({@code POST /api/v1/documents},
@@ -149,6 +152,9 @@ class AssinaturaIT {
     PasswordEncoder passwordEncoder;
 
     @Autowired
+    StepUpTokenService stepUpTokenService;
+
+    @Autowired
     org.springframework.core.env.Environment environment;
 
     @BeforeEach
@@ -189,6 +195,11 @@ class AssinaturaIT {
 
     private record Autenticado(UUID id, String email, String token) {}
 
+    /** Token de step-up de uso unico — emitir um novo por chamada mutante. */
+    private String stepUp(Autenticado autenticado) {
+        return stepUpTokenService.emitir(autenticado.id()).token();
+    }
+
     private Autenticado criarELogar(Role role) {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String email = role.name().toLowerCase() + "-" + suffix + "@sep.test";
@@ -207,8 +218,10 @@ class AssinaturaIT {
             u = usuarioRepository.findById(UUID.fromString(id)).orElseThrow();
         } else {
             u = Usuario.criar(email, passwordEncoder.encode(senha), role);
-            u = usuarioRepository.saveAndFlush(u);
         }
+        // Step-up estrito (Sprint 27) exige MFA ativo no aceite e no envio para assinatura.
+        u.marcarMfaHabilitado();
+        u = usuarioRepository.saveAndFlush(u);
         String token = RestAssured.given()
                 .contentType(ContentType.JSON)
                 .body("{\"username\":\"" + email + "\",\"password\":\"" + senha + "\"}")
@@ -255,6 +268,7 @@ class AssinaturaIT {
         Autenticado financeiro = criarELogar(Role.FINANCEIRO);
         RestAssured.given()
                 .header("Authorization", "Bearer " + financeiro.token())
+                .header(StepUpEnforcementAspect.HEADER, stepUp(financeiro))
                 .contentType(ContentType.JSON)
                 .body("{\"decisao\":\"APROVAR\",\"justificativa\":\"Cliente com historico interno limpo\"}")
                 .when()
@@ -276,6 +290,7 @@ class AssinaturaIT {
 
         RestAssured.given()
                 .header("Authorization", "Bearer " + cliente.token())
+                .header(StepUpEnforcementAspect.HEADER, stepUp(cliente))
                 .when()
                 .patch("/api/v1/contratos/" + contratoId + "/aceite")
                 .then()
@@ -545,6 +560,7 @@ class AssinaturaIT {
         Autenticado financeiro = criarELogar(Role.FINANCEIRO);
         RestAssured.given()
                 .header("Authorization", "Bearer " + financeiro.token())
+                .header(StepUpEnforcementAspect.HEADER, stepUp(financeiro))
                 .contentType(ContentType.JSON)
                 .body("{}")
                 .when()

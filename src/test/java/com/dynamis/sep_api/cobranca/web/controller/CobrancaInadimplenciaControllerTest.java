@@ -150,6 +150,13 @@ class CobrancaInadimplenciaControllerTest {
         when(usuarioRepository.findById(id)).thenReturn(Optional.of(u));
     }
 
+    /** Step-up estrito (Sprint 27): autentica com MFA ativo e devolve token valido pro header. */
+    private String autenticarComStepUp(UUID id, Role role) {
+        autenticar(id, role, true);
+        when(stepUpTokenService.validarEConsumir("tok-ok")).thenReturn(Optional.of(id));
+        return "tok-ok";
+    }
+
     // ============== GET /inadimplencia ==============
 
     @Test
@@ -259,7 +266,7 @@ class CobrancaInadimplenciaControllerTest {
     void proporRenegociacao_financeiro201() throws Exception {
         UUID financeiroId = UUID.randomUUID();
         UUID parcelaId = UUID.randomUUID();
-        autenticar(financeiroId, Role.FINANCEIRO);
+        String stepUp = autenticarComStepUp(financeiroId, Role.FINANCEIRO);
         when(iniciarRenegociacaoUseCase.executar(any())).thenReturn(novaRenegociacao(parcelaId));
 
         String body =
@@ -267,6 +274,7 @@ class CobrancaInadimplenciaControllerTest {
                 {"novoValorParcela":110.00,"novoVencimento":"2026-07-10","numeroParcelas":3,"desconto":0.00,"justificativa":"acordo"}
                 """;
         mockMvc.perform(post("/api/v1/cobranca/parcelas/{id}/renegociacao", parcelaId)
+                        .header(StepUpEnforcementAspect.HEADER, stepUp)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
@@ -300,7 +308,7 @@ class CobrancaInadimplenciaControllerTest {
 
     @Test
     void proporRenegociacao_conflito_409() throws Exception {
-        autenticar(UUID.randomUUID(), Role.FINANCEIRO);
+        String stepUp = autenticarComStepUp(UUID.randomUUID(), Role.FINANCEIRO);
         when(iniciarRenegociacaoUseCase.executar(any()))
                 .thenThrow(new RenegociacaoConflitanteException(UUID.randomUUID()));
         String body =
@@ -308,6 +316,7 @@ class CobrancaInadimplenciaControllerTest {
                 {"novoValorParcela":110.00,"novoVencimento":"2026-07-10","numeroParcelas":3,"desconto":0.00,"justificativa":"x"}
                 """;
         mockMvc.perform(post("/api/v1/cobranca/parcelas/{id}/renegociacao", UUID.randomUUID())
+                        .header(StepUpEnforcementAspect.HEADER, stepUp)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isConflict());
@@ -319,10 +328,11 @@ class CobrancaInadimplenciaControllerTest {
     void aceitarRenegociacao_owner200() throws Exception {
         UUID tomadorId = UUID.randomUUID();
         UUID renegociacaoId = UUID.randomUUID();
-        autenticar(tomadorId, Role.CLIENTE);
+        String stepUp = autenticarComStepUp(tomadorId, Role.CLIENTE);
         when(aceitarRenegociacaoUseCase.executar(any(), any())).thenReturn(novaRenegociacao(UUID.randomUUID()));
 
-        mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", renegociacaoId))
+        mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", renegociacaoId)
+                        .header(StepUpEnforcementAspect.HEADER, stepUp))
                 .andExpect(status().isOk());
     }
 
@@ -338,22 +348,26 @@ class CobrancaInadimplenciaControllerTest {
 
     @Test
     void aceitarRenegociacao_inexistente_404() throws Exception {
-        autenticar(UUID.randomUUID(), Role.CLIENTE);
+        String stepUp = autenticarComStepUp(UUID.randomUUID(), Role.CLIENTE);
         UUID id = UUID.randomUUID();
         when(aceitarRenegociacaoUseCase.executar(any(), any())).thenThrow(new RenegociacaoNaoEncontradaException(id));
 
-        mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", id)).andExpect(status().isNotFound());
+        mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", id)
+                        .header(StepUpEnforcementAspect.HEADER, stepUp))
+                .andExpect(status().isNotFound());
     }
 
     @Test
     void aceitarRenegociacao_jaDecidida_409() throws Exception {
-        autenticar(UUID.randomUUID(), Role.CLIENTE);
+        String stepUp = autenticarComStepUp(UUID.randomUUID(), Role.CLIENTE);
         UUID id = UUID.randomUUID();
         when(aceitarRenegociacaoUseCase.executar(any(), any()))
                 .thenThrow(new com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoEstadoInvalidoException(
                         id, com.dynamis.sep_api.cobranca.domain.vo.StatusRenegociacao.ACEITA, "aceitar"));
 
-        mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", id)).andExpect(status().isConflict());
+        mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", id)
+                        .header(StepUpEnforcementAspect.HEADER, stepUp))
+                .andExpect(status().isConflict());
     }
 
     @Test
@@ -363,6 +377,41 @@ class CobrancaInadimplenciaControllerTest {
         autenticar(UUID.randomUUID(), Role.CLIENTE, true);
 
         mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", UUID.randomUUID()))
+                .andExpect(status().isForbidden());
+        verify(aceitarRenegociacaoUseCase, never()).executar(any(), any());
+    }
+
+    @Test
+    void aceitarRenegociacao_semMfa_403SemBypass() throws Exception {
+        // Sprint 27: @RequireStepUpEstrito bloqueia usuario sem MFA mesmo enviando token — sem
+        // bypass; nega antes de sequer validar o token.
+        autenticar(UUID.randomUUID(), Role.CLIENTE, false);
+
+        mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", UUID.randomUUID())
+                        .header(StepUpEnforcementAspect.HEADER, "token-qualquer"))
+                .andExpect(status().isForbidden());
+        verify(aceitarRenegociacaoUseCase, never()).executar(any(), any());
+        verify(stepUpTokenService, never()).validarEConsumir(any());
+    }
+
+    @Test
+    void aceitarRenegociacao_tokenInvalido_403() throws Exception {
+        autenticar(UUID.randomUUID(), Role.CLIENTE, true);
+        when(stepUpTokenService.validarEConsumir(any())).thenReturn(Optional.empty());
+
+        mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", UUID.randomUUID())
+                        .header(StepUpEnforcementAspect.HEADER, "token-invalido-ou-expirado"))
+                .andExpect(status().isForbidden());
+        verify(aceitarRenegociacaoUseCase, never()).executar(any(), any());
+    }
+
+    @Test
+    void aceitarRenegociacao_tokenDeOutroUsuario_403() throws Exception {
+        autenticar(UUID.randomUUID(), Role.CLIENTE, true);
+        when(stepUpTokenService.validarEConsumir("token-alheio")).thenReturn(Optional.of(UUID.randomUUID()));
+
+        mockMvc.perform(patch("/api/v1/cobranca/renegociacoes/{id}/aceite", UUID.randomUUID())
+                        .header(StepUpEnforcementAspect.HEADER, "token-alheio"))
                 .andExpect(status().isForbidden());
         verify(aceitarRenegociacaoUseCase, never()).executar(any(), any());
     }
