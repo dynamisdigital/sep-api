@@ -100,6 +100,18 @@ class StepUpEnforcementAspectTest {
     }
 
     @Test
+    void estrito_tokenDeOutroUsuario_nega() {
+        Usuario usuario = usuarioComMfa(true);
+        when(usuarioRepository.findById(operadorId)).thenReturn(Optional.of(usuario));
+        request.addHeader(StepUpEnforcementAspect.HEADER, "token-alheio");
+        when(tokenService.validarEConsumir("token-alheio")).thenReturn(Optional.of(UUID.randomUUID()));
+
+        assertThatThrownBy(() -> aspect.aplicarEstrito())
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("nao pertence");
+    }
+
+    @Test
     void legado_mfaDesabilitado_aindaFazBypass() {
         Usuario usuario = usuarioComMfa(false);
         when(usuarioRepository.findById(operadorId)).thenReturn(Optional.of(usuario));

@@ -50,8 +50,8 @@ import java.util.regex.Pattern;
  *   <li>GET /api/v1/cobranca/recebimentos - FINANCEIRO/ADMIN
  *   <li>GET /api/v1/cobranca/inadimplencia - FINANCEIRO/ADMIN
  *   <li>POST /api/v1/cobranca/parcelas/{id}/contato - FINANCEIRO/ADMIN
- *   <li>POST /api/v1/cobranca/parcelas/{id}/renegociacao - FINANCEIRO/ADMIN + step-up
- *   <li>PATCH /api/v1/cobranca/renegociacoes/{id}/aceite - tomador + step-up
+ *   <li>POST /api/v1/cobranca/parcelas/{id}/renegociacao - FINANCEIRO/ADMIN + step-up estrito
+ *   <li>PATCH /api/v1/cobranca/renegociacoes/{id}/aceite - tomador + step-up estrito
  *   <li>PATCH /api/v1/cobranca/renegociacoes/{id}/recusa - tomador
  * </ul>
  *
@@ -358,16 +358,16 @@ public class CobrancaController {
 
     @PostMapping("/parcelas/{id}/renegociacao")
     @PreAuthorize("hasAnyRole('FINANCEIRO','ADMIN')")
-    @com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp
+    @com.dynamis.sep_api.identity.infrastructure.security.RequireStepUpEstrito
     @Operation(
             summary = "Propoe renegociacao",
             description =
-                    "Financeiro/admin propoe nova condicao pra parcela atrasada/inadimplente. Exige step-up. Parcela vai pra EM_NEGOCIACAO; expira em 7 dias.")
+                    "Financeiro/admin propoe nova condicao pra parcela atrasada/inadimplente. Exige step-up estrito (X-Step-Up-Token + MFA ativo, sem bypass). Parcela vai pra EM_NEGOCIACAO; expira em 7 dias.")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Proposta criada."),
         @ApiResponse(responseCode = "400", description = "Payload invalido."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
-        @ApiResponse(responseCode = "403", description = "Sem role financeiro/admin ou step-up ausente."),
+        @ApiResponse(responseCode = "403", description = "Sem role financeiro/admin, step-up ausente ou MFA inativo."),
         @ApiResponse(responseCode = "404", description = "Parcela nao encontrada."),
         @ApiResponse(responseCode = "409", description = "Ja existe renegociacao ativa pra parcela.")
     })
@@ -382,17 +382,17 @@ public class CobrancaController {
 
     @org.springframework.web.bind.annotation.PatchMapping("/renegociacoes/{id}/aceite")
     @PreAuthorize("isAuthenticated()")
-    @com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp
+    @com.dynamis.sep_api.identity.infrastructure.security.RequireStepUpEstrito
     @Operation(
             summary = "Aceita renegociacao",
             description =
-                    "Tomador aceita a proposta. Exige ownership + step-up. Gera AgendaPagamento substituta; parcela vira RENEGOCIADA.")
+                    "Tomador aceita a proposta. Exige ownership + step-up estrito (X-Step-Up-Token + MFA ativo, sem bypass). Gera AgendaPagamento substituta; parcela vira RENEGOCIADA.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Renegociacao aceita."),
         @ApiResponse(responseCode = "401", description = "Sem autenticacao."),
         @ApiResponse(
                 responseCode = "403",
-                description = "Owner invalido ou step-up ausente.",
+                description = "Owner invalido, step-up ausente ou MFA inativo.",
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(responseCode = "404", description = "Renegociacao nao encontrada."),
         @ApiResponse(responseCode = "409", description = "Renegociacao ja decidida ou expirada.")

@@ -31,14 +31,15 @@ import java.util.UUID;
  *
  * <ul>
  *   <li>Tomador autenticado eh owner ({@code Renegociacao.tomadorId}).
- *   <li>{@code @RequireStepUp} cobre operacao sensivel.
+ *   <li>{@code @RequireStepUpEstrito} cobre operacao sensivel (Sprint 27 — MFA ativo, sem bypass).
  * </ul>
  *
  * <p>Pipeline:
  *
  * <ol>
- *   <li>Carrega {@link Renegociacao} em status {@code PROPOSTA} (rejeita se ja decidida ou expirada).
- *   <li>Valida ownership via {@code tomadorId}.
+ *   <li>Carrega {@link Renegociacao} e valida ownership via {@code tomadorId} — antes do estado,
+ *       pra nao-dono nao descobrir status alheio via 409 (Sprint 27 Task 27.4).
+ *   <li>Exige status {@code PROPOSTA} (rejeita se ja decidida ou expirada).
  *   <li>Verifica nao-expiracao na hora ({@code Renegociacao.expirouEm}). Defesa: job
  *       {@code ExpirarRenegociacaoJob} cobre expiracao em background, mas use case re-checa
  *       pra evitar aceite em proposta vencida entre boot e execucao do job.
@@ -80,11 +81,13 @@ public class AceitarRenegociacaoUseCase {
         Renegociacao renegociacao = renegociacaoRepository
                 .findByIdForUpdate(renegociacaoId)
                 .orElseThrow(() -> new RenegociacaoNaoEncontradaException(renegociacaoId));
+        // Ownership antes do estado (Sprint 27 Task 27.4): nao-dono nao pode descobrir o status
+        // da renegociacao via 409; variante neutra nao vaza UUID de agenda alheia.
+        if (!renegociacao.getTomadorId().equals(tomadorAutenticadoId)) {
+            throw new CobrancaOwnershipException();
+        }
         if (renegociacao.getStatus() != StatusRenegociacao.PROPOSTA) {
             throw new RenegociacaoEstadoInvalidoException(renegociacaoId, renegociacao.getStatus(), "aceitar");
-        }
-        if (!renegociacao.getTomadorId().equals(tomadorAutenticadoId)) {
-            throw new CobrancaOwnershipException(renegociacao.getAgendaOriginalId());
         }
         OffsetDateTime agora = OffsetDateTime.now(clock);
         if (renegociacao.expirouEm(agora)) {

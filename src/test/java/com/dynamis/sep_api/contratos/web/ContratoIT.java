@@ -17,6 +17,8 @@ import com.dynamis.sep_api.credito.infrastructure.persistence.ParecerCreditoRepo
 import com.dynamis.sep_api.credito.infrastructure.persistence.PropostaCreditoRepository;
 import com.dynamis.sep_api.credito.infrastructure.persistence.RegraCreditoAvaliadaRepository;
 import com.dynamis.sep_api.credito.infrastructure.persistence.ScoreInternoRepository;
+import com.dynamis.sep_api.identity.application.service.StepUpTokenService;
+import com.dynamis.sep_api.identity.infrastructure.security.StepUpEnforcementAspect;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.Cpf;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
@@ -68,9 +70,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *   <li>Cancelamento com payload invalido -> 400.
  * </ul>
  *
- * <p>Step-up: usuarios criados com {@code mfaHabilitado=false} — {@code StepUpEnforcementAspect}
- * bypassa o token (limitacao documentada na Sprint 10 fix code review). Cenarios de step-up real
- * sao cobertos via {@code @WebMvcTest} em {@code ContratoControllerTest}.
+ * <p>Step-up: aceite e cancelamento usam {@code @RequireStepUpEstrito} (Sprint 27) — usuarios de
+ * fixture sao criados com MFA habilitado e cada chamada mutante envia {@code X-Step-Up-Token}
+ * emitido via {@link StepUpTokenService}. Cenarios negativos de step-up (sem MFA, sem token, token
+ * invalido) sao cobertos via {@code @WebMvcTest} em {@code ContratoControllerTest}.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -140,6 +143,9 @@ class ContratoIT {
     AuditLogSegurancaRepository auditLogRepository;
 
     @Autowired
+    StepUpTokenService stepUpTokenService;
+
+    @Autowired
     PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -190,6 +196,11 @@ class ContratoIT {
 
     private record Autenticado(UUID id, String email, String token) {}
 
+    /** Token de step-up de uso unico — emitir um novo por chamada mutante. */
+    private String stepUp(Autenticado autenticado) {
+        return stepUpTokenService.emitir(autenticado.id()).token();
+    }
+
     private Autenticado criarClienteELogar() {
         return criarELogar(Role.CLIENTE);
     }
@@ -216,8 +227,10 @@ class ContratoIT {
             u = usuarioRepository.findById(UUID.fromString(id)).orElseThrow();
         } else {
             u = Usuario.criar(email, passwordEncoder.encode(senha), role);
-            u = usuarioRepository.saveAndFlush(u);
         }
+        // Step-up estrito (Sprint 27) exige MFA ativo nas operacoes de aceite/cancelamento.
+        u.marcarMfaHabilitado();
+        u = usuarioRepository.saveAndFlush(u);
         String token = RestAssured.given()
                 .contentType(ContentType.JSON)
                 .body("{\"username\":\"" + email + "\",\"password\":\"" + senha + "\"}")
@@ -269,6 +282,7 @@ class ContratoIT {
         Autenticado financeiro = criarFinanceiroELogar();
         RestAssured.given()
                 .header("Authorization", "Bearer " + financeiro.token())
+                .header(StepUpEnforcementAspect.HEADER, stepUp(financeiro))
                 .contentType(ContentType.JSON)
                 .body("{\"decisao\":\"APROVAR\",\"justificativa\":\"Cliente com historico interno limpo\"}")
                 .when()
@@ -345,9 +359,10 @@ class ContratoIT {
                 .path("status");
         assertThat(status).isEqualTo("AGUARDANDO_ACEITE");
 
-        // Tomador aceita (mfa=false bypassa step-up)
+        // Tomador aceita (step-up estrito: MFA ativo + token valido)
         RestAssured.given()
                 .header("Authorization", "Bearer " + cliente.token())
+                .header(StepUpEnforcementAspect.HEADER, stepUp(cliente))
                 .contentType(ContentType.JSON)
                 .when()
                 .patch("/api/v1/contratos/" + contratoId + "/aceite")
@@ -373,6 +388,7 @@ class ContratoIT {
 
         RestAssured.given()
                 .header("Authorization", "Bearer " + outroCliente.token())
+                .header(StepUpEnforcementAspect.HEADER, stepUp(outroCliente))
                 .when()
                 .patch("/api/v1/contratos/" + contratoId + "/aceite")
                 .then()
@@ -389,6 +405,7 @@ class ContratoIT {
         Autenticado financeiro = criarFinanceiroELogar();
         RestAssured.given()
                 .header("Authorization", "Bearer " + financeiro.token())
+                .header(StepUpEnforcementAspect.HEADER, stepUp(financeiro))
                 .contentType(ContentType.JSON)
                 .body("{\"justificativa\":\"Cancelado por divergencia operacional antes do aceite.\"}")
                 .when()
@@ -414,6 +431,7 @@ class ContratoIT {
         // Tomador aceita primeiro
         RestAssured.given()
                 .header("Authorization", "Bearer " + cliente.token())
+                .header(StepUpEnforcementAspect.HEADER, stepUp(cliente))
                 .when()
                 .patch("/api/v1/contratos/" + contratoId + "/aceite")
                 .then()
@@ -422,6 +440,7 @@ class ContratoIT {
         Autenticado financeiro = criarFinanceiroELogar();
         RestAssured.given()
                 .header("Authorization", "Bearer " + financeiro.token())
+                .header(StepUpEnforcementAspect.HEADER, stepUp(financeiro))
                 .contentType(ContentType.JSON)
                 .body("{\"justificativa\":\"Tentativa indevida de cancelar apos aceite.\"}")
                 .when()
@@ -485,6 +504,7 @@ class ContratoIT {
 
         RestAssured.given()
                 .header("Authorization", "Bearer " + cliente.token())
+                .header(StepUpEnforcementAspect.HEADER, stepUp(cliente))
                 .contentType(ContentType.JSON)
                 .body("{\"justificativa\":\"tentativa indevida do tomador\"}")
                 .when()
@@ -503,6 +523,7 @@ class ContratoIT {
         Autenticado financeiro = criarFinanceiroELogar();
         RestAssured.given()
                 .header("Authorization", "Bearer " + financeiro.token())
+                .header(StepUpEnforcementAspect.HEADER, stepUp(financeiro))
                 .contentType(ContentType.JSON)
                 .body("{\"justificativa\":\"curta\"}")
                 .when()
