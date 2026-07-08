@@ -1,5 +1,8 @@
 package com.dynamis.sep_api.cobranca.application.usecase;
 
+import com.dynamis.sep_api.cobranca.application.port.out.AgendaPagamentoCobrancaPort;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
+import com.dynamis.sep_api.cobranca.application.port.out.RenegociacaoCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoAceitaEvent;
 import com.dynamis.sep_api.cobranca.domain.exception.CobrancaOwnershipException;
 import com.dynamis.sep_api.cobranca.domain.exception.ParcelaCobrancaNaoEncontradaException;
@@ -11,9 +14,6 @@ import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.model.Renegociacao;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusRenegociacao;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.AgendaPagamentoRepository;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.RenegociacaoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,21 +54,21 @@ import java.util.UUID;
 @Service
 public class AceitarRenegociacaoUseCase {
 
-    private final RenegociacaoRepository renegociacaoRepository;
-    private final ParcelaCobrancaRepository parcelaRepository;
-    private final AgendaPagamentoRepository agendaRepository;
+    private final RenegociacaoCobrancaPort renegociacaoPort;
+    private final ParcelaCobrancaPort parcelaPort;
+    private final AgendaPagamentoCobrancaPort agendaPort;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public AceitarRenegociacaoUseCase(
-            RenegociacaoRepository renegociacaoRepository,
-            ParcelaCobrancaRepository parcelaRepository,
-            AgendaPagamentoRepository agendaRepository,
+            RenegociacaoCobrancaPort renegociacaoPort,
+            ParcelaCobrancaPort parcelaPort,
+            AgendaPagamentoCobrancaPort agendaPort,
             org.springframework.context.ApplicationEventPublisher eventPublisher,
             Clock clock) {
-        this.renegociacaoRepository = renegociacaoRepository;
-        this.parcelaRepository = parcelaRepository;
-        this.agendaRepository = agendaRepository;
+        this.renegociacaoPort = renegociacaoPort;
+        this.parcelaPort = parcelaPort;
+        this.agendaPort = agendaPort;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
@@ -78,8 +78,8 @@ public class AceitarRenegociacaoUseCase {
         // Hotfix code review Task 13.6: lock pessimista na renegociacao serializa transicoes
         // concorrentes (aceite/recusa/job expirar). Sem isso, job poderia expirar entre o
         // status check e o accept call, deixando renegociacao em estado inconsistente.
-        Renegociacao renegociacao = renegociacaoRepository
-                .findByIdForUpdate(renegociacaoId)
+        Renegociacao renegociacao = renegociacaoPort
+                .buscarPorIdComLock(renegociacaoId)
                 .orElseThrow(() -> new RenegociacaoNaoEncontradaException(renegociacaoId));
         // Ownership antes do estado (Sprint 27 Task 27.4): nao-dono nao pode descobrir o status
         // da renegociacao via 409; variante neutra nao vaza UUID de agenda alheia.
@@ -94,24 +94,24 @@ public class AceitarRenegociacaoUseCase {
             throw RenegociacaoEstadoInvalidoException.expirada(renegociacaoId);
         }
         UUID parcelaOriginalId = renegociacao.getParcelaOriginalId();
-        ParcelaCobranca parcelaOriginal = parcelaRepository
-                .findByIdForUpdate(parcelaOriginalId)
+        ParcelaCobranca parcelaOriginal = parcelaPort
+                .buscarPorIdComLock(parcelaOriginalId)
                 .orElseThrow(() -> ParcelaCobrancaNaoEncontradaException.porId(parcelaOriginalId));
         AgendaPagamento agendaOriginal = parcelaOriginal.getAgenda();
         agendaOriginal.marcarSubstituida();
         // Flush antes do save da substituta — UNIQUE parcial em (contrato_id, ativa=true) so libera
         // depois que o update commitar o ativa=false.
-        agendaRepository.saveAndFlush(agendaOriginal);
+        agendaPort.salvarEFlush(agendaOriginal);
 
         AgendaPagamento novaAgenda = AgendaPagamento.criarSubstituta(
                 agendaOriginal.getContratoId(), agendaOriginal.getId(), planejarParcelas(renegociacao));
-        novaAgenda = agendaRepository.save(novaAgenda);
+        novaAgenda = agendaPort.salvar(novaAgenda);
 
         parcelaOriginal.marcarRenegociada();
-        parcelaRepository.save(parcelaOriginal);
+        parcelaPort.salvar(parcelaOriginal);
 
         renegociacao.aceitar(novaAgenda.getId(), agora);
-        renegociacao = renegociacaoRepository.save(renegociacao);
+        renegociacao = renegociacaoPort.salvar(renegociacao);
 
         eventPublisher.publishEvent(new RenegociacaoAceitaEvent(
                 renegociacao.getId(),

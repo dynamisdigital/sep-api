@@ -70,7 +70,7 @@ public class CalcularValorAtualizadoParcelaUseCase {
 
     /**
      * Variante para callers que ja tem a parcela em mao (Sprint 12 Task 12.4 — chamado pelo
-     * {@code RegistrarRecebimentoUseCase} apos {@code findByIdForUpdate}). Evita re-query e
+     * {@code RegistrarRecebimentoUseCase} apos {@code buscarPorIdComLock}). Evita re-query e
      * preserva o estado lockado.
      */
     public ParcelaAtualizadaResult calcular(ParcelaCobranca parcela) {

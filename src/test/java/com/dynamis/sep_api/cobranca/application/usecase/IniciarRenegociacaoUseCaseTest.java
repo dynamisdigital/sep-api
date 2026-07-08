@@ -2,6 +2,8 @@ package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.IniciarRenegociacaoCommand;
 import com.dynamis.sep_api.cobranca.application.port.out.ContratoCobrancaQueryPort;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
+import com.dynamis.sep_api.cobranca.application.port.out.RenegociacaoCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoPropostaEvent;
 import com.dynamis.sep_api.cobranca.domain.exception.ParcelaCobrancaNaoEncontradaException;
 import com.dynamis.sep_api.cobranca.domain.exception.ParcelaEstadoInvalidoException;
@@ -13,8 +15,6 @@ import com.dynamis.sep_api.cobranca.domain.model.Renegociacao;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusRenegociacao;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.RenegociacaoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -41,8 +41,8 @@ class IniciarRenegociacaoUseCaseTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-06-20T10:00:00Z"), ZoneOffset.UTC);
 
-    private ParcelaCobrancaRepository parcelaRepository;
-    private RenegociacaoRepository renegociacaoRepository;
+    private ParcelaCobrancaPort parcelaPort;
+    private RenegociacaoCobrancaPort renegociacaoPort;
     private ContratoCobrancaQueryPort contratoQuery;
     private ApplicationEventPublisher eventPublisher;
     private IniciarRenegociacaoUseCase useCase;
@@ -51,22 +51,21 @@ class IniciarRenegociacaoUseCaseTest {
 
     @BeforeEach
     void setup() {
-        parcelaRepository = mock(ParcelaCobrancaRepository.class);
-        renegociacaoRepository = mock(RenegociacaoRepository.class);
+        parcelaPort = mock(ParcelaCobrancaPort.class);
+        renegociacaoPort = mock(RenegociacaoCobrancaPort.class);
         contratoQuery = mock(ContratoCobrancaQueryPort.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         tomadorId = UUID.randomUUID();
         financeiroId = UUID.randomUUID();
         when(contratoQuery.tomadorIdDoContrato(any())).thenReturn(Optional.of(tomadorId));
-        when(renegociacaoRepository.saveAndFlush(any(Renegociacao.class))).thenAnswer(inv -> inv.getArgument(0));
-        useCase = new IniciarRenegociacaoUseCase(
-                parcelaRepository, renegociacaoRepository, contratoQuery, eventPublisher, CLOCK);
+        when(renegociacaoPort.salvarEFlush(any(Renegociacao.class))).thenAnswer(inv -> inv.getArgument(0));
+        useCase = new IniciarRenegociacaoUseCase(parcelaPort, renegociacaoPort, contratoQuery, eventPublisher, CLOCK);
     }
 
     @Test
     void executar_parcelaAtrasada_proposeRenegociacaoEMudaStatus() {
         ParcelaCobranca parcela = parcelaCom(StatusParcela.ATRASADA);
-        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(parcelaPort.buscarPorIdComLock(parcela.getId())).thenReturn(Optional.of(parcela));
 
         Renegociacao r = useCase.executar(comando(parcela.getId()));
 
@@ -76,13 +75,13 @@ class IniciarRenegociacaoUseCaseTest {
         assertThat(r.getTomadorId()).isEqualTo(tomadorId);
         assertThat(r.getDataExpiracao()).isEqualTo(r.getDataProposta().plusDays(7));
         verify(eventPublisher).publishEvent(any(RenegociacaoPropostaEvent.class));
-        verify(parcelaRepository).save(parcela);
+        verify(parcelaPort).salvar(parcela);
     }
 
     @Test
     void executar_parcelaInadimplente_proposeOK() {
         ParcelaCobranca parcela = parcelaCom(StatusParcela.INADIMPLENTE);
-        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(parcelaPort.buscarPorIdComLock(parcela.getId())).thenReturn(Optional.of(parcela));
 
         Renegociacao r = useCase.executar(comando(parcela.getId()));
 
@@ -93,7 +92,7 @@ class IniciarRenegociacaoUseCaseTest {
     @Test
     void executar_parcelaPendente_rejeita() {
         ParcelaCobranca parcela = parcelaCom(StatusParcela.PENDENTE);
-        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(parcelaPort.buscarPorIdComLock(parcela.getId())).thenReturn(Optional.of(parcela));
 
         assertThatThrownBy(() -> useCase.executar(comando(parcela.getId())))
                 .isInstanceOf(ParcelaEstadoInvalidoException.class);
@@ -103,7 +102,7 @@ class IniciarRenegociacaoUseCaseTest {
     @Test
     void executar_parcelaInexistente_rejeita() {
         UUID parcelaId = UUID.randomUUID();
-        when(parcelaRepository.findByIdForUpdate(parcelaId)).thenReturn(Optional.empty());
+        when(parcelaPort.buscarPorIdComLock(parcelaId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.executar(comando(parcelaId)))
                 .isInstanceOf(ParcelaCobrancaNaoEncontradaException.class);
@@ -112,8 +111,8 @@ class IniciarRenegociacaoUseCaseTest {
     @Test
     void executar_jaTemPropostaAtiva_rejeita() {
         ParcelaCobranca parcela = parcelaCom(StatusParcela.ATRASADA);
-        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
-        when(renegociacaoRepository.existsByParcelaOriginalIdAndStatus(parcela.getId(), StatusRenegociacao.PROPOSTA))
+        when(parcelaPort.buscarPorIdComLock(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(renegociacaoPort.existePorParcelaOriginalEStatus(parcela.getId(), StatusRenegociacao.PROPOSTA))
                 .thenReturn(true);
 
         assertThatThrownBy(() -> useCase.executar(comando(parcela.getId())))
@@ -124,8 +123,8 @@ class IniciarRenegociacaoUseCaseTest {
     @Test
     void executar_raceUniqueParcial_converteParaConflitante() {
         ParcelaCobranca parcela = parcelaCom(StatusParcela.ATRASADA);
-        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
-        when(renegociacaoRepository.saveAndFlush(any(Renegociacao.class)))
+        when(parcelaPort.buscarPorIdComLock(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(renegociacaoPort.salvarEFlush(any(Renegociacao.class)))
                 .thenThrow(new DataIntegrityViolationException(
                         "could not execute statement; constraint [uq_renegociacao_parcela_ativa]"));
 
@@ -138,8 +137,8 @@ class IniciarRenegociacaoUseCaseTest {
         // Hotfix code review: catch genérico converteria todas as DIV em RenegociacaoConflitante.
         // Filtra pelo nome do constraint pra deixar outras violacoes (FK, check, NOT NULL) subirem.
         ParcelaCobranca parcela = parcelaCom(StatusParcela.ATRASADA);
-        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
-        when(renegociacaoRepository.saveAndFlush(any(Renegociacao.class)))
+        when(parcelaPort.buscarPorIdComLock(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(renegociacaoPort.salvarEFlush(any(Renegociacao.class)))
                 .thenThrow(new DataIntegrityViolationException("constraint [fk_renegociacao_agenda] violated"));
 
         assertThatThrownBy(() -> useCase.executar(comando(parcela.getId())))
@@ -150,7 +149,7 @@ class IniciarRenegociacaoUseCaseTest {
     @Test
     void executar_semTomadorId_falha() {
         ParcelaCobranca parcela = parcelaCom(StatusParcela.ATRASADA);
-        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(parcelaPort.buscarPorIdComLock(parcela.getId())).thenReturn(Optional.of(parcela));
         when(contratoQuery.tomadorIdDoContrato(any())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.executar(comando(parcela.getId())))

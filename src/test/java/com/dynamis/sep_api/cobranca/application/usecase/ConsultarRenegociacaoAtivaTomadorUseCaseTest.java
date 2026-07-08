@@ -2,6 +2,8 @@ package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.RenegociacaoTomadorResult;
 import com.dynamis.sep_api.cobranca.application.port.out.ContratoCobrancaQueryPort;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
+import com.dynamis.sep_api.cobranca.application.port.out.RenegociacaoCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.exception.CobrancaOwnershipException;
 import com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoNaoEncontradaException;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
@@ -11,8 +13,6 @@ import com.dynamis.sep_api.cobranca.domain.model.Renegociacao;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusRenegociacao;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.RenegociacaoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -38,18 +38,18 @@ class ConsultarRenegociacaoAtivaTomadorUseCaseTest {
     private static final Instant AGORA = Instant.parse("2026-06-15T12:00:00Z");
     private static final OffsetDateTime AGORA_ODT = OffsetDateTime.ofInstant(AGORA, ZoneOffset.UTC);
 
-    private ParcelaCobrancaRepository parcelaRepository;
+    private ParcelaCobrancaPort parcelaPort;
     private ContratoCobrancaQueryPort contratoQueryPort;
-    private RenegociacaoRepository renegociacaoRepository;
+    private RenegociacaoCobrancaPort renegociacaoPort;
     private ConsultarRenegociacaoAtivaTomadorUseCase useCase;
 
     @BeforeEach
     void setup() {
-        parcelaRepository = mock(ParcelaCobrancaRepository.class);
+        parcelaPort = mock(ParcelaCobrancaPort.class);
         contratoQueryPort = mock(ContratoCobrancaQueryPort.class);
-        renegociacaoRepository = mock(RenegociacaoRepository.class);
+        renegociacaoPort = mock(RenegociacaoCobrancaPort.class);
         useCase = new ConsultarRenegociacaoAtivaTomadorUseCase(
-                parcelaRepository, contratoQueryPort, renegociacaoRepository, Clock.fixed(AGORA, ZoneOffset.UTC));
+                parcelaPort, contratoQueryPort, renegociacaoPort, Clock.fixed(AGORA, ZoneOffset.UTC));
     }
 
     @Test
@@ -60,7 +60,7 @@ class ConsultarRenegociacaoAtivaTomadorUseCaseTest {
         UUID parcelaId = parcela.getId();
         Renegociacao ativa = proposta(parcelaId, AGORA_ODT.minusDays(1), AGORA_ODT.plusDays(7));
         stubOwner(parcela, contratoId, tomadorId);
-        when(renegociacaoRepository.findByParcelaOriginalIdAndStatus(parcelaId, StatusRenegociacao.PROPOSTA))
+        when(renegociacaoPort.buscarPorParcelaOriginalEStatus(parcelaId, StatusRenegociacao.PROPOSTA))
                 .thenReturn(Optional.of(ativa));
 
         RenegociacaoTomadorResult res = useCase.executar(parcelaId, tomadorId);
@@ -90,7 +90,7 @@ class ConsultarRenegociacaoAtivaTomadorUseCaseTest {
                 .isInstanceOf(RenegociacaoNaoEncontradaException.class);
 
         // Prova que ACEITA/RECUSADA/EXPIRADA nunca sao retornadas: a consulta filtra por PROPOSTA.
-        verify(renegociacaoRepository).findByParcelaOriginalIdAndStatus(parcelaId, StatusRenegociacao.PROPOSTA);
+        verify(renegociacaoPort).buscarPorParcelaOriginalEStatus(parcelaId, StatusRenegociacao.PROPOSTA);
     }
 
     @Test
@@ -101,7 +101,7 @@ class ConsultarRenegociacaoAtivaTomadorUseCaseTest {
         UUID parcelaId = parcela.getId();
         Renegociacao noInstante = proposta(parcelaId, AGORA_ODT.minusDays(1), AGORA_ODT);
         stubOwner(parcela, contratoId, tomadorId);
-        when(renegociacaoRepository.findByParcelaOriginalIdAndStatus(parcelaId, StatusRenegociacao.PROPOSTA))
+        when(renegociacaoPort.buscarPorParcelaOriginalEStatus(parcelaId, StatusRenegociacao.PROPOSTA))
                 .thenReturn(Optional.of(noInstante));
 
         assertThatThrownBy(() -> useCase.executar(parcelaId, tomadorId))
@@ -116,7 +116,7 @@ class ConsultarRenegociacaoAtivaTomadorUseCaseTest {
         UUID parcelaId = parcela.getId();
         Renegociacao vencida = proposta(parcelaId, AGORA_ODT.minusDays(8), AGORA_ODT.minusMinutes(1));
         stubOwner(parcela, contratoId, tomadorId);
-        when(renegociacaoRepository.findByParcelaOriginalIdAndStatus(parcelaId, StatusRenegociacao.PROPOSTA))
+        when(renegociacaoPort.buscarPorParcelaOriginalEStatus(parcelaId, StatusRenegociacao.PROPOSTA))
                 .thenReturn(Optional.of(vencida));
 
         assertThatThrownBy(() -> useCase.executar(parcelaId, tomadorId))
@@ -126,13 +126,13 @@ class ConsultarRenegociacaoAtivaTomadorUseCaseTest {
     @Test
     void parcelaInexistente_ownershipException_semConsultarContratoNemRenegociacao() {
         UUID parcelaId = UUID.randomUUID();
-        when(parcelaRepository.findById(parcelaId)).thenReturn(Optional.empty());
+        when(parcelaPort.buscarPorId(parcelaId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.executar(parcelaId, UUID.randomUUID()))
                 .isInstanceOf(CobrancaOwnershipException.class);
 
         verifyNoInteractions(contratoQueryPort);
-        verifyNoInteractions(renegociacaoRepository);
+        verifyNoInteractions(renegociacaoPort);
     }
 
     @Test
@@ -140,13 +140,13 @@ class ConsultarRenegociacaoAtivaTomadorUseCaseTest {
         UUID contratoId = UUID.randomUUID();
         ParcelaCobranca parcela = novaParcela(contratoId);
         UUID parcelaId = parcela.getId();
-        when(parcelaRepository.findById(parcelaId)).thenReturn(Optional.of(parcela));
+        when(parcelaPort.buscarPorId(parcelaId)).thenReturn(Optional.of(parcela));
         when(contratoQueryPort.tomadorIdDoContrato(contratoId)).thenReturn(Optional.of(UUID.randomUUID()));
 
         assertThatThrownBy(() -> useCase.executar(parcelaId, UUID.randomUUID()))
                 .isInstanceOf(CobrancaOwnershipException.class);
 
-        verifyNoInteractions(renegociacaoRepository);
+        verifyNoInteractions(renegociacaoPort);
     }
 
     @Test
@@ -154,17 +154,17 @@ class ConsultarRenegociacaoAtivaTomadorUseCaseTest {
         UUID contratoId = UUID.randomUUID();
         ParcelaCobranca parcela = novaParcela(contratoId);
         UUID parcelaId = parcela.getId();
-        when(parcelaRepository.findById(parcelaId)).thenReturn(Optional.of(parcela));
+        when(parcelaPort.buscarPorId(parcelaId)).thenReturn(Optional.of(parcela));
         when(contratoQueryPort.tomadorIdDoContrato(contratoId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.executar(parcelaId, UUID.randomUUID()))
                 .isInstanceOf(CobrancaOwnershipException.class);
 
-        verifyNoInteractions(renegociacaoRepository);
+        verifyNoInteractions(renegociacaoPort);
     }
 
     private void stubOwner(ParcelaCobranca parcela, UUID contratoId, UUID tomadorId) {
-        when(parcelaRepository.findById(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(parcelaPort.buscarPorId(parcela.getId())).thenReturn(Optional.of(parcela));
         when(contratoQueryPort.tomadorIdDoContrato(contratoId)).thenReturn(Optional.of(tomadorId));
     }
 

@@ -1,5 +1,8 @@
 package com.dynamis.sep_api.cobranca.application.usecase;
 
+import com.dynamis.sep_api.cobranca.application.port.out.AgendaPagamentoCobrancaPort;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
+import com.dynamis.sep_api.cobranca.application.port.out.RenegociacaoCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoAceitaEvent;
 import com.dynamis.sep_api.cobranca.domain.exception.CobrancaOwnershipException;
 import com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoNaoEncontradaException;
@@ -10,9 +13,6 @@ import com.dynamis.sep_api.cobranca.domain.model.Renegociacao;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusRenegociacao;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.AgendaPagamentoRepository;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.RenegociacaoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -39,33 +39,32 @@ class AceitarRenegociacaoUseCaseTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-06-20T10:00:00Z"), ZoneOffset.UTC);
 
-    private RenegociacaoRepository renegociacaoRepository;
-    private ParcelaCobrancaRepository parcelaRepository;
-    private AgendaPagamentoRepository agendaRepository;
+    private RenegociacaoCobrancaPort renegociacaoPort;
+    private ParcelaCobrancaPort parcelaPort;
+    private AgendaPagamentoCobrancaPort agendaPort;
     private ApplicationEventPublisher eventPublisher;
     private AceitarRenegociacaoUseCase useCase;
     private UUID tomadorId;
 
     @BeforeEach
     void setup() {
-        renegociacaoRepository = mock(RenegociacaoRepository.class);
-        parcelaRepository = mock(ParcelaCobrancaRepository.class);
-        agendaRepository = mock(AgendaPagamentoRepository.class);
+        renegociacaoPort = mock(RenegociacaoCobrancaPort.class);
+        parcelaPort = mock(ParcelaCobrancaPort.class);
+        agendaPort = mock(AgendaPagamentoCobrancaPort.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         tomadorId = UUID.randomUUID();
-        when(agendaRepository.saveAndFlush(any(AgendaPagamento.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(agendaRepository.save(any(AgendaPagamento.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(renegociacaoRepository.save(any(Renegociacao.class))).thenAnswer(inv -> inv.getArgument(0));
-        useCase = new AceitarRenegociacaoUseCase(
-                renegociacaoRepository, parcelaRepository, agendaRepository, eventPublisher, CLOCK);
+        when(agendaPort.salvarEFlush(any(AgendaPagamento.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(agendaPort.salvar(any(AgendaPagamento.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(renegociacaoPort.salvar(any(Renegociacao.class))).thenAnswer(inv -> inv.getArgument(0));
+        useCase = new AceitarRenegociacaoUseCase(renegociacaoPort, parcelaPort, agendaPort, eventPublisher, CLOCK);
     }
 
     @Test
     void executar_aceiteValido_geraAgendaSubstitutaEMarcaParcelaRenegociada() {
         ParcelaCobranca parcela = parcelaEmNegociacao();
         Renegociacao renegociacao = renegociacaoPara(parcela);
-        when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
-        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(renegociacaoPort.buscarPorIdComLock(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
+        when(parcelaPort.buscarPorIdComLock(parcela.getId())).thenReturn(Optional.of(parcela));
 
         Renegociacao decidida = useCase.executar(renegociacao.getId(), tomadorId);
 
@@ -80,7 +79,7 @@ class AceitarRenegociacaoUseCaseTest {
     void executar_ownerInvalido_rejeita() {
         ParcelaCobranca parcela = parcelaEmNegociacao();
         Renegociacao renegociacao = renegociacaoPara(parcela);
-        when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
+        when(renegociacaoPort.buscarPorIdComLock(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
 
         assertThatThrownBy(() -> useCase.executar(renegociacao.getId(), UUID.randomUUID()))
                 .isInstanceOf(CobrancaOwnershipException.class);
@@ -91,7 +90,7 @@ class AceitarRenegociacaoUseCaseTest {
     void executar_renegociacaoExpirada_rejeita() {
         ParcelaCobranca parcela = parcelaEmNegociacao();
         Renegociacao renegociacao = renegociacaoExpiradaPara(parcela);
-        when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
+        when(renegociacaoPort.buscarPorIdComLock(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
 
         assertThatThrownBy(() -> useCase.executar(renegociacao.getId(), tomadorId))
                 .isInstanceOf(com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoEstadoInvalidoException.class)
@@ -103,7 +102,7 @@ class AceitarRenegociacaoUseCaseTest {
         ParcelaCobranca parcela = parcelaEmNegociacao();
         Renegociacao renegociacao = renegociacaoPara(parcela);
         renegociacao.recusar(OffsetDateTime.now(CLOCK));
-        when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
+        when(renegociacaoPort.buscarPorIdComLock(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
 
         assertThatThrownBy(() -> useCase.executar(renegociacao.getId(), tomadorId))
                 .isInstanceOf(com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoEstadoInvalidoException.class)
@@ -113,7 +112,7 @@ class AceitarRenegociacaoUseCaseTest {
     @Test
     void executar_renegociacaoInexistente_rejeita() {
         UUID id = UUID.randomUUID();
-        when(renegociacaoRepository.findByIdForUpdate(id)).thenReturn(Optional.empty());
+        when(renegociacaoPort.buscarPorIdComLock(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.executar(id, tomadorId))
                 .isInstanceOf(RenegociacaoNaoEncontradaException.class);
@@ -123,13 +122,13 @@ class AceitarRenegociacaoUseCaseTest {
     void executar_novaAgendaTemNumeroParcelasCorreto() {
         ParcelaCobranca parcela = parcelaEmNegociacao();
         Renegociacao renegociacao = renegociacaoPara(parcela); // 3 parcelas
-        when(renegociacaoRepository.findByIdForUpdate(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
-        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(renegociacaoPort.buscarPorIdComLock(renegociacao.getId())).thenReturn(Optional.of(renegociacao));
+        when(parcelaPort.buscarPorIdComLock(parcela.getId())).thenReturn(Optional.of(parcela));
 
         useCase.executar(renegociacao.getId(), tomadorId);
 
         org.mockito.ArgumentCaptor<AgendaPagamento> captor = org.mockito.ArgumentCaptor.forClass(AgendaPagamento.class);
-        verify(agendaRepository).save(captor.capture());
+        verify(agendaPort).salvar(captor.capture());
         AgendaPagamento substituta = captor.getValue();
         assertThat(substituta.getNumeroParcelas()).isEqualTo(3);
         assertThat(substituta.getParcelas()).hasSize(3);
