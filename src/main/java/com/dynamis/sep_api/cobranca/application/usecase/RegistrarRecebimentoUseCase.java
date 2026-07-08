@@ -3,6 +3,8 @@ package com.dynamis.sep_api.cobranca.application.usecase;
 import com.dynamis.sep_api.cobranca.application.dto.RegistrarRecebimentoCommand;
 import com.dynamis.sep_api.cobranca.application.dto.RegistrarRecebimentoResult;
 import com.dynamis.sep_api.cobranca.application.port.out.ContratoCobrancaQueryPort;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
+import com.dynamis.sep_api.cobranca.application.port.out.RecebimentoCobrancaPort;
 import com.dynamis.sep_api.cobranca.application.port.out.RegistrarMovimentacaoEscrowPort;
 import com.dynamis.sep_api.cobranca.application.port.out.RegistrarMovimentacaoEscrowPort.MovimentacaoEscrowResult;
 import com.dynamis.sep_api.cobranca.domain.event.ParcelaPagaEvent;
@@ -13,8 +15,6 @@ import com.dynamis.sep_api.cobranca.domain.exception.ParcelaEstadoInvalidoExcept
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.model.Recebimento;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.RecebimentoRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +33,7 @@ import java.util.UUID;
  *       {@code valorRecebido} divergente do recebimento existente lanca
  *       {@link ChaveIdempotenciaConflitanteException} (HTTP 409) — evita confundir abuso ou erro
  *       de cliente com retry legitimo.
- *   <li>Lock pessimista na parcela ({@link ParcelaCobrancaRepository#findByIdForUpdate(UUID)})
+ *   <li>Lock pessimista na parcela ({@link ParcelaCobrancaPort#buscarPorIdComLock(UUID)})
  *       serializando dois recebimentos distintos sobre a mesma parcela.
  *   <li>Estado da parcela calculado contra {@code valorTotal()} da composicao original. Task 12.5
  *       substituira por {@code CalcularValorAtualizadoParcelaUseCase} pra incluir juros/multa.
@@ -51,22 +51,22 @@ import java.util.UUID;
 @Service
 public class RegistrarRecebimentoUseCase {
 
-    private final ParcelaCobrancaRepository parcelaRepository;
-    private final RecebimentoRepository recebimentoRepository;
+    private final ParcelaCobrancaPort parcelaPort;
+    private final RecebimentoCobrancaPort recebimentoPort;
     private final RegistrarMovimentacaoEscrowPort escrowPort;
     private final ContratoCobrancaQueryPort contratoQueryPort;
     private final CalcularValorAtualizadoParcelaUseCase calcularValorAtualizado;
     private final ApplicationEventPublisher eventPublisher;
 
     public RegistrarRecebimentoUseCase(
-            ParcelaCobrancaRepository parcelaRepository,
-            RecebimentoRepository recebimentoRepository,
+            ParcelaCobrancaPort parcelaPort,
+            RecebimentoCobrancaPort recebimentoPort,
             RegistrarMovimentacaoEscrowPort escrowPort,
             ContratoCobrancaQueryPort contratoQueryPort,
             CalcularValorAtualizadoParcelaUseCase calcularValorAtualizado,
             ApplicationEventPublisher eventPublisher) {
-        this.parcelaRepository = parcelaRepository;
-        this.recebimentoRepository = recebimentoRepository;
+        this.parcelaPort = parcelaPort;
+        this.recebimentoPort = recebimentoPort;
         this.escrowPort = escrowPort;
         this.contratoQueryPort = contratoQueryPort;
         this.calcularValorAtualizado = calcularValorAtualizado;
@@ -75,7 +75,7 @@ public class RegistrarRecebimentoUseCase {
 
     @Transactional
     public RegistrarRecebimentoResult executar(RegistrarRecebimentoCommand cmd) {
-        Optional<Recebimento> existentePreLock = recebimentoRepository.findByIdempotencyKey(cmd.idempotencyKey());
+        Optional<Recebimento> existentePreLock = recebimentoPort.buscarPorIdempotencyKey(cmd.idempotencyKey());
         if (existentePreLock.isPresent()) {
             return resultadoExistente(cmd, existentePreLock.get());
         }
@@ -105,12 +105,12 @@ public class RegistrarRecebimentoUseCase {
     }
 
     private RegistrarRecebimentoResult criarNovoRecebimento(RegistrarRecebimentoCommand cmd) {
-        ParcelaCobranca parcela = parcelaRepository
-                .findByIdForUpdate(cmd.parcelaId())
+        ParcelaCobranca parcela = parcelaPort
+                .buscarPorIdComLock(cmd.parcelaId())
                 .orElseThrow(() -> ParcelaCobrancaNaoEncontradaException.porId(cmd.parcelaId()));
 
         // Re-check pos-lock: outra thread pode ter persistido entre o pre-check e o lock.
-        Optional<Recebimento> existentePosLock = recebimentoRepository.findByIdempotencyKey(cmd.idempotencyKey());
+        Optional<Recebimento> existentePosLock = recebimentoPort.buscarPorIdempotencyKey(cmd.idempotencyKey());
         if (existentePosLock.isPresent()) {
             return resultadoExistente(cmd, existentePosLock.get());
         }
@@ -134,7 +134,7 @@ public class RegistrarRecebimentoUseCase {
                 cmd.idempotencyKey(),
                 cmd.observacao(),
                 cmd.registradoPor());
-        parcelaRepository.saveAndFlush(parcela);
+        parcelaPort.salvarEFlush(parcela);
 
         UUID contratoId = parcela.getAgenda().getContratoId();
         UUID propostaId = resolverPropostaId(contratoId);

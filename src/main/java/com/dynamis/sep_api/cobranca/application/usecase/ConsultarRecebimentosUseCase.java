@@ -1,7 +1,7 @@
 package com.dynamis.sep_api.cobranca.application.usecase;
 
+import com.dynamis.sep_api.cobranca.application.port.out.RecebimentoCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.model.Recebimento;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.RecebimentoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,13 +18,13 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class ConsultarRecebimentosUseCase {
 
-    private final RecebimentoRepository recebimentoRepository;
+    private final RecebimentoCobrancaPort recebimentoPort;
 
-    public ConsultarRecebimentosUseCase(RecebimentoRepository recebimentoRepository) {
-        this.recebimentoRepository = recebimentoRepository;
+    public ConsultarRecebimentosUseCase(RecebimentoCobrancaPort recebimentoPort) {
+        this.recebimentoPort = recebimentoPort;
     }
 
     public List<Recebimento> listar() {
-        return recebimentoRepository.findAllWithParcelaOrderByDataDesc();
+        return recebimentoPort.listarTodosComParcelaOrdenadoPorDataDesc();
     }
 }

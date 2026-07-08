@@ -4,6 +4,8 @@ import com.dynamis.sep_api.cobranca.application.dto.ParcelaAtualizadaResult;
 import com.dynamis.sep_api.cobranca.application.dto.RegistrarRecebimentoCommand;
 import com.dynamis.sep_api.cobranca.application.dto.RegistrarRecebimentoResult;
 import com.dynamis.sep_api.cobranca.application.port.out.ContratoCobrancaQueryPort;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
+import com.dynamis.sep_api.cobranca.application.port.out.RecebimentoCobrancaPort;
 import com.dynamis.sep_api.cobranca.application.port.out.RegistrarMovimentacaoEscrowPort;
 import com.dynamis.sep_api.cobranca.application.port.out.RegistrarMovimentacaoEscrowPort.MovimentacaoEscrowResult;
 import com.dynamis.sep_api.cobranca.domain.event.ParcelaPagaEvent;
@@ -17,8 +19,6 @@ import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.model.Recebimento;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.RecebimentoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -43,8 +43,8 @@ import static org.mockito.Mockito.when;
 
 class RegistrarRecebimentoUseCaseTest {
 
-    private ParcelaCobrancaRepository parcelaRepository;
-    private RecebimentoRepository recebimentoRepository;
+    private ParcelaCobrancaPort parcelaPort;
+    private RecebimentoCobrancaPort recebimentoPort;
     private RegistrarMovimentacaoEscrowPort escrowPort;
     private ContratoCobrancaQueryPort contratoQueryPort;
     private CalcularValorAtualizadoParcelaUseCase calcularValorAtualizado;
@@ -56,19 +56,14 @@ class RegistrarRecebimentoUseCaseTest {
 
     @BeforeEach
     void setup() {
-        parcelaRepository = mock(ParcelaCobrancaRepository.class);
-        recebimentoRepository = mock(RecebimentoRepository.class);
+        parcelaPort = mock(ParcelaCobrancaPort.class);
+        recebimentoPort = mock(RecebimentoCobrancaPort.class);
         escrowPort = mock(RegistrarMovimentacaoEscrowPort.class);
         contratoQueryPort = mock(ContratoCobrancaQueryPort.class);
         calcularValorAtualizado = mock(CalcularValorAtualizadoParcelaUseCase.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         useCase = new RegistrarRecebimentoUseCase(
-                parcelaRepository,
-                recebimentoRepository,
-                escrowPort,
-                contratoQueryPort,
-                calcularValorAtualizado,
-                eventPublisher);
+                parcelaPort, recebimentoPort, escrowPort, contratoQueryPort, calcularValorAtualizado, eventPublisher);
     }
 
     @Test
@@ -130,7 +125,7 @@ class RegistrarRecebimentoUseCaseTest {
                 KEY,
                 null,
                 OPERADOR_ID);
-        when(recebimentoRepository.findByIdempotencyKey(KEY)).thenReturn(Optional.of(existente));
+        when(recebimentoPort.buscarPorIdempotencyKey(KEY)).thenReturn(Optional.of(existente));
         when(contratoQueryPort.propostaIdDoContrato(parcela.getAgenda().getContratoId()))
                 .thenReturn(Optional.of(UUID.randomUUID()));
         when(escrowPort.registrarRecebimento(any(), any(), eq(KEY), any(), any(UUID.class)))
@@ -141,7 +136,7 @@ class RegistrarRecebimentoUseCaseTest {
 
         assertThat(r.novo()).isFalse();
         assertThat(r.recebimentoId()).isEqualTo(existente.getId());
-        verify(parcelaRepository, never()).findByIdForUpdate(any());
+        verify(parcelaPort, never()).buscarPorIdComLock(any());
         verify(eventPublisher, never()).publishEvent(any());
     }
 
@@ -157,8 +152,8 @@ class RegistrarRecebimentoUseCaseTest {
                 "key-anterior",
                 null,
                 OPERADOR_ID);
-        when(recebimentoRepository.findByIdempotencyKey(KEY)).thenReturn(Optional.empty());
-        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(recebimentoPort.buscarPorIdempotencyKey(KEY)).thenReturn(Optional.empty());
+        when(parcelaPort.buscarPorIdComLock(parcela.getId())).thenReturn(Optional.of(parcela));
 
         assertThatThrownBy(() -> useCase.executar(comando(parcela.getId(), new BigDecimal("10.00"), KEY)))
                 .isInstanceOf(ParcelaEstadoInvalidoException.class);
@@ -168,8 +163,8 @@ class RegistrarRecebimentoUseCaseTest {
     @Test
     void parcelaInexistente_lancaExcecao() {
         UUID parcelaId = UUID.randomUUID();
-        when(recebimentoRepository.findByIdempotencyKey(KEY)).thenReturn(Optional.empty());
-        when(parcelaRepository.findByIdForUpdate(parcelaId)).thenReturn(Optional.empty());
+        when(recebimentoPort.buscarPorIdempotencyKey(KEY)).thenReturn(Optional.empty());
+        when(parcelaPort.buscarPorIdComLock(parcelaId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.executar(comando(parcelaId, new BigDecimal("10.00"), KEY)))
                 .isInstanceOf(ParcelaCobrancaNaoEncontradaException.class);
@@ -188,7 +183,7 @@ class RegistrarRecebimentoUseCaseTest {
                 KEY,
                 null,
                 OPERADOR_ID);
-        when(recebimentoRepository.findByIdempotencyKey(KEY)).thenReturn(Optional.of(existente));
+        when(recebimentoPort.buscarPorIdempotencyKey(KEY)).thenReturn(Optional.of(existente));
 
         assertThatThrownBy(() -> useCase.executar(comando(outraParcela.getId(), new BigDecimal("100.00"), KEY)))
                 .isInstanceOf(ChaveIdempotenciaConflitanteException.class)
@@ -207,7 +202,7 @@ class RegistrarRecebimentoUseCaseTest {
                 KEY,
                 null,
                 OPERADOR_ID);
-        when(recebimentoRepository.findByIdempotencyKey(KEY)).thenReturn(Optional.of(existente));
+        when(recebimentoPort.buscarPorIdempotencyKey(KEY)).thenReturn(Optional.of(existente));
 
         assertThatThrownBy(() -> useCase.executar(comando(parcela.getId(), new BigDecimal("40.00"), KEY)))
                 .isInstanceOf(ChaveIdempotenciaConflitanteException.class)
@@ -227,10 +222,10 @@ class RegistrarRecebimentoUseCaseTest {
                 KEY,
                 null,
                 OPERADOR_ID);
-        when(recebimentoRepository.findByIdempotencyKey(KEY))
+        when(recebimentoPort.buscarPorIdempotencyKey(KEY))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(existente));
-        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(parcelaPort.buscarPorIdComLock(parcela.getId())).thenReturn(Optional.of(parcela));
         when(contratoQueryPort.propostaIdDoContrato(parcela.getAgenda().getContratoId()))
                 .thenReturn(Optional.of(UUID.randomUUID()));
         when(escrowPort.registrarRecebimento(any(), any(), eq(KEY), any(), any(UUID.class)))
@@ -240,7 +235,7 @@ class RegistrarRecebimentoUseCaseTest {
         RegistrarRecebimentoResult r = useCase.executar(comando(parcela.getId(), new BigDecimal("100.00"), KEY));
 
         assertThat(r.novo()).isFalse();
-        verify(parcelaRepository, never()).saveAndFlush(any());
+        verify(parcelaPort, never()).salvarEFlush(any());
         verify(eventPublisher, never()).publishEvent(any());
     }
 
@@ -257,9 +252,9 @@ class RegistrarRecebimentoUseCaseTest {
     }
 
     private void mockarFluxoNovo(ParcelaCobranca parcela, UUID contratoId, UUID propostaId) {
-        when(recebimentoRepository.findByIdempotencyKey(KEY)).thenReturn(Optional.empty());
-        when(parcelaRepository.findByIdForUpdate(parcela.getId())).thenReturn(Optional.of(parcela));
-        when(parcelaRepository.saveAndFlush(parcela)).thenReturn(parcela);
+        when(recebimentoPort.buscarPorIdempotencyKey(KEY)).thenReturn(Optional.empty());
+        when(parcelaPort.buscarPorIdComLock(parcela.getId())).thenReturn(Optional.of(parcela));
+        when(parcelaPort.salvarEFlush(parcela)).thenReturn(parcela);
         when(contratoQueryPort.propostaIdDoContrato(contratoId)).thenReturn(Optional.of(propostaId));
         when(calcularValorAtualizado.calcular(parcela)).thenReturn(novoResultSemMora(parcela));
         when(escrowPort.registrarRecebimento(any(), any(), any(), any(), any(UUID.class)))

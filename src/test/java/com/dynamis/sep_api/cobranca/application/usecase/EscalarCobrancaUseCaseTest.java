@@ -2,6 +2,7 @@ package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.EscalarCobrancaCommand;
 import com.dynamis.sep_api.cobranca.application.dto.EscalonamentoResult;
+import com.dynamis.sep_api.cobranca.application.port.out.EventoCobrancaPort;
 import com.dynamis.sep_api.cobranca.application.port.out.NotificationProvider;
 import com.dynamis.sep_api.cobranca.application.port.out.dto.Notificacao;
 import com.dynamis.sep_api.cobranca.application.port.out.dto.ResultadoNotificacao;
@@ -11,7 +12,6 @@ import com.dynamis.sep_api.cobranca.application.service.workflow.WorkflowCobranc
 import com.dynamis.sep_api.cobranca.domain.model.EventoCobranca;
 import com.dynamis.sep_api.cobranca.domain.vo.CanalNotificacao;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusEventoCobranca;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.EventoCobrancaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -35,7 +35,7 @@ class EscalarCobrancaUseCaseTest {
     private static final UUID PARCELA = UUID.randomUUID();
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-06-10T10:00:00Z"), ZoneOffset.UTC);
 
-    private EventoCobrancaRepository eventoRepository;
+    private EventoCobrancaPort eventoPort;
     private NotificationProvider emailProvider;
     private NotificationProvider smsProvider;
     private org.springframework.context.ApplicationEventPublisher eventPublisher;
@@ -43,7 +43,7 @@ class EscalarCobrancaUseCaseTest {
 
     @BeforeEach
     void setup() {
-        eventoRepository = mock(EventoCobrancaRepository.class);
+        eventoPort = mock(EventoCobrancaPort.class);
         emailProvider = mock(NotificationProvider.class);
         smsProvider = mock(NotificationProvider.class);
         eventPublisher = mock(org.springframework.context.ApplicationEventPublisher.class);
@@ -55,10 +55,10 @@ class EscalarCobrancaUseCaseTest {
         when(smsProvider.enviar(any())).thenReturn(ResultadoNotificacao.sucesso("zenvia", "id-sms"));
         // Task 13.8 fix: use case agora publica EventoCobrancaRegistradoEvent apos save; precisa
         // mockar save retornando o argumento pra getId() funcionar.
-        when(eventoRepository.save(any(EventoCobranca.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(eventoPort.salvar(any(EventoCobranca.class))).thenAnswer(inv -> inv.getArgument(0));
 
         useCase = new EscalarCobrancaUseCase(
-                resolverComEtapas(), List.of(emailProvider, smsProvider), eventoRepository, eventPublisher, CLOCK);
+                resolverComEtapas(), List.of(emailProvider, smsProvider), eventoPort, eventPublisher, CLOCK);
     }
 
     private static WorkflowCobrancaResolver resolverComEtapas() {
@@ -86,7 +86,7 @@ class EscalarCobrancaUseCaseTest {
         assertThat(r.tinhaEtapa()).isTrue();
         assertThat(r.eventosCriados()).isEqualTo(1);
         verify(emailProvider).enviar(any(Notificacao.class));
-        verify(eventoRepository).save(any(EventoCobranca.class));
+        verify(eventoPort).salvar(any(EventoCobranca.class));
     }
 
     @Test
@@ -100,8 +100,7 @@ class EscalarCobrancaUseCaseTest {
 
     @Test
     void notificacaoJaEnviada_skipsProvider() {
-        when(eventoRepository.existsByParcelaIdAndDiasAtrasoAndCanalAndTemplate(
-                        eq(PARCELA), eq(0), eq(CanalNotificacao.EMAIL), eq("cobranca-amigavel")))
+        when(eventoPort.jaNotificado(eq(PARCELA), eq(0), eq(CanalNotificacao.EMAIL), eq("cobranca-amigavel")))
                 .thenReturn(true);
 
         EscalonamentoResult r = useCase.escalar(comando(0));
@@ -118,7 +117,7 @@ class EscalarCobrancaUseCaseTest {
 
         assertThat(r.eventosCriados()).isEqualTo(1);
         verify(emailProvider, never()).enviar(any());
-        verify(eventoRepository).save(any(EventoCobranca.class));
+        verify(eventoPort).salvar(any(EventoCobranca.class));
     }
 
     @Test
@@ -147,7 +146,7 @@ class EscalarCobrancaUseCaseTest {
         EscalonamentoResult r = useCase.escalar(comando(0));
 
         assertThat(r.eventosCriados()).isEqualTo(1);
-        verify(eventoRepository).save(any(EventoCobranca.class));
+        verify(eventoPort).salvar(any(EventoCobranca.class));
         // Status carregado no evento — validado indiretamente via factory de EventoCobranca
         // (notificacaoAutomatica recebe status como argumento). Assert direta seria fragil; o
         // contrato esta coberto pela cadeia ResultadoNotificacao -> EventoCobranca.
@@ -159,7 +158,7 @@ class EscalarCobrancaUseCaseTest {
         // Hotfix Task 13.4: provider SMS ausente NAO quebra a transacao — email da etapa dia 5
         // permanece persistido e SMS vira EventoCobranca FALHA com motivo "provider ausente".
         useCase = new EscalarCobrancaUseCase(
-                resolverComEtapas(), List.of(emailProvider), eventoRepository, eventPublisher, CLOCK);
+                resolverComEtapas(), List.of(emailProvider), eventoPort, eventPublisher, CLOCK);
 
         EscalonamentoResult r = useCase.escalar(comando(5));
 
@@ -167,7 +166,7 @@ class EscalarCobrancaUseCaseTest {
         verify(emailProvider).enviar(any());
         verify(smsProvider, never()).enviar(any());
         org.mockito.ArgumentCaptor<EventoCobranca> captor = org.mockito.ArgumentCaptor.forClass(EventoCobranca.class);
-        verify(eventoRepository, org.mockito.Mockito.times(2)).save(captor.capture());
+        verify(eventoPort, org.mockito.Mockito.times(2)).salvar(captor.capture());
         assertThat(captor.getAllValues())
                 .extracting(EventoCobranca::getStatus)
                 .containsExactlyInAnyOrder(StatusEventoCobranca.SUCESSO, StatusEventoCobranca.FALHA);
@@ -180,7 +179,7 @@ class EscalarCobrancaUseCaseTest {
         useCase.escalar(comando(0));
 
         org.mockito.ArgumentCaptor<EventoCobranca> captor = org.mockito.ArgumentCaptor.forClass(EventoCobranca.class);
-        verify(eventoRepository).save(captor.capture());
+        verify(eventoPort).salvar(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(StatusEventoCobranca.FALHA);
     }
 
@@ -211,7 +210,7 @@ class EscalarCobrancaUseCaseTest {
 
         assertThat(r.eventosCriados()).isEqualTo(1);
         org.mockito.ArgumentCaptor<EventoCobranca> captor = org.mockito.ArgumentCaptor.forClass(EventoCobranca.class);
-        verify(eventoRepository).save(captor.capture());
+        verify(eventoPort).salvar(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(StatusEventoCobranca.FALHA);
     }
 
@@ -223,7 +222,7 @@ class EscalarCobrancaUseCaseTest {
         EscalonamentoResult r = useCase.escalar(comando(5));
 
         assertThat(r.eventosCriados()).isEqualTo(2);
-        verify(eventoRepository, org.mockito.Mockito.times(2)).save(any());
+        verify(eventoPort, org.mockito.Mockito.times(2)).salvar(any());
     }
 
     @Test

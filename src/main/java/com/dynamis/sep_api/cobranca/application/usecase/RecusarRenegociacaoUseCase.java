@@ -1,5 +1,7 @@
 package com.dynamis.sep_api.cobranca.application.usecase;
 
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
+import com.dynamis.sep_api.cobranca.application.port.out.RenegociacaoCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoRecusadaEvent;
 import com.dynamis.sep_api.cobranca.domain.exception.CobrancaOwnershipException;
 import com.dynamis.sep_api.cobranca.domain.exception.ParcelaCobrancaNaoEncontradaException;
@@ -8,8 +10,6 @@ import com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoNaoEncontradaEx
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.model.Renegociacao;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusRenegociacao;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.RenegociacaoRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,18 +42,18 @@ import java.util.UUID;
 @Service
 public class RecusarRenegociacaoUseCase {
 
-    private final RenegociacaoRepository renegociacaoRepository;
-    private final ParcelaCobrancaRepository parcelaRepository;
+    private final RenegociacaoCobrancaPort renegociacaoPort;
+    private final ParcelaCobrancaPort parcelaPort;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public RecusarRenegociacaoUseCase(
-            RenegociacaoRepository renegociacaoRepository,
-            ParcelaCobrancaRepository parcelaRepository,
+            RenegociacaoCobrancaPort renegociacaoPort,
+            ParcelaCobrancaPort parcelaPort,
             ApplicationEventPublisher eventPublisher,
             Clock clock) {
-        this.renegociacaoRepository = renegociacaoRepository;
-        this.parcelaRepository = parcelaRepository;
+        this.renegociacaoPort = renegociacaoPort;
+        this.parcelaPort = parcelaPort;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
@@ -61,8 +61,8 @@ public class RecusarRenegociacaoUseCase {
     @Transactional
     public Renegociacao executar(UUID renegociacaoId, UUID tomadorAutenticadoId) {
         // Hotfix code review Task 13.6: lock pessimista pra serializar aceite/recusa/job expirar.
-        Renegociacao renegociacao = renegociacaoRepository
-                .findByIdForUpdate(renegociacaoId)
+        Renegociacao renegociacao = renegociacaoPort
+                .buscarPorIdComLock(renegociacaoId)
                 .orElseThrow(() -> new RenegociacaoNaoEncontradaException(renegociacaoId));
         // Ownership antes do estado (Sprint 27 Task 27.4): nao-dono nao pode descobrir o status
         // da renegociacao via 409; variante neutra nao vaza UUID de agenda alheia.
@@ -77,13 +77,13 @@ public class RecusarRenegociacaoUseCase {
             throw RenegociacaoEstadoInvalidoException.expirada(renegociacaoId);
         }
         UUID parcelaOriginalId = renegociacao.getParcelaOriginalId();
-        ParcelaCobranca parcela = parcelaRepository
-                .findByIdForUpdate(parcelaOriginalId)
+        ParcelaCobranca parcela = parcelaPort
+                .buscarPorIdComLock(parcelaOriginalId)
                 .orElseThrow(() -> ParcelaCobrancaNaoEncontradaException.porId(parcelaOriginalId));
         parcela.reverterDeNegociacao(renegociacao.getStatusParcelaAnterior());
-        parcelaRepository.save(parcela);
+        parcelaPort.salvar(parcela);
         renegociacao.recusar(agora);
-        renegociacao = renegociacaoRepository.save(renegociacao);
+        renegociacao = renegociacaoPort.salvar(renegociacao);
         eventPublisher.publishEvent(new RenegociacaoRecusadaEvent(
                 renegociacao.getId(),
                 parcela.getId(),
