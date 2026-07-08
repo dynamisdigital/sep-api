@@ -2,6 +2,7 @@ package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.EscalarCobrancaCommand;
 import com.dynamis.sep_api.cobranca.application.dto.EscalonamentoResult;
+import com.dynamis.sep_api.cobranca.application.port.out.EventoCobrancaPort;
 import com.dynamis.sep_api.cobranca.application.port.out.NotificationProvider;
 import com.dynamis.sep_api.cobranca.application.port.out.dto.Notificacao;
 import com.dynamis.sep_api.cobranca.application.port.out.dto.ResultadoNotificacao;
@@ -12,7 +13,6 @@ import com.dynamis.sep_api.cobranca.domain.event.EtapaCobrancaAplicadaEvent;
 import com.dynamis.sep_api.cobranca.domain.model.EventoCobranca;
 import com.dynamis.sep_api.cobranca.domain.vo.CanalNotificacao;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusEventoCobranca;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.EventoCobrancaRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -28,7 +28,7 @@ import java.util.Optional;
  * Aplica a etapa do workflow de cobranca correspondente a {@code diasAtraso} (Sprint 13 Task 13.4).
  *
  * <p>Resolve etapa exata via {@link WorkflowCobrancaResolver}, itera as notificacoes configuradas,
- * checa idempotencia em {@code EventoCobrancaRepository} pra evitar reemissao no mesmo dia/canal/
+ * checa idempotencia em {@code EventoCobrancaPort} pra evitar reemissao no mesmo dia/canal/
  * template, despacha pra {@link NotificationProvider} compativel com o canal e persiste {@link
  * EventoCobranca} para cada tentativa (sucesso ou falha).
  *
@@ -44,19 +44,19 @@ public class EscalarCobrancaUseCase {
 
     private final WorkflowCobrancaResolver resolver;
     private final List<NotificationProvider> providers;
-    private final EventoCobrancaRepository eventoRepository;
+    private final EventoCobrancaPort eventoPort;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public EscalarCobrancaUseCase(
             WorkflowCobrancaResolver resolver,
             List<NotificationProvider> providers,
-            EventoCobrancaRepository eventoRepository,
+            EventoCobrancaPort eventoPort,
             ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.resolver = resolver;
         this.providers = providers;
-        this.eventoRepository = eventoRepository;
+        this.eventoPort = eventoPort;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
@@ -95,8 +95,7 @@ public class EscalarCobrancaUseCase {
     }
 
     private boolean jaEnviado(java.util.UUID parcelaId, int diasAtraso, NotificacaoEtapa notif) {
-        return eventoRepository.existsByParcelaIdAndDiasAtrasoAndCanalAndTemplate(
-                parcelaId, diasAtraso, notif.canal(), notif.template());
+        return eventoPort.jaNotificado(parcelaId, diasAtraso, notif.canal(), notif.template());
     }
 
     private int disparar(EscalarCobrancaCommand command, NotificacaoEtapa notif) {
@@ -153,7 +152,7 @@ public class EscalarCobrancaUseCase {
                     command, notif, agora, "provider lancou: " + e.getClass().getSimpleName());
             return 1;
         }
-        EventoCobranca evento = eventoRepository.save(EventoCobranca.notificacaoAutomatica(
+        EventoCobranca evento = eventoPort.salvar(EventoCobranca.notificacaoAutomatica(
                 command.parcelaId(),
                 notif.canal(),
                 notif.template(),
@@ -167,7 +166,7 @@ public class EscalarCobrancaUseCase {
 
     private void persistirFalha(
             EscalarCobrancaCommand command, NotificacaoEtapa notif, OffsetDateTime agora, String motivo) {
-        EventoCobranca evento = eventoRepository.save(EventoCobranca.notificacaoAutomatica(
+        EventoCobranca evento = eventoPort.salvar(EventoCobranca.notificacaoAutomatica(
                 command.parcelaId(),
                 notif.canal(),
                 notif.template(),

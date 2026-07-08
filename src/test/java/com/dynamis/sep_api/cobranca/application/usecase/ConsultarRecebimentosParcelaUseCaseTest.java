@@ -2,14 +2,14 @@ package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.RecebimentoTomadorResult;
 import com.dynamis.sep_api.cobranca.application.port.out.ContratoCobrancaQueryPort;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
+import com.dynamis.sep_api.cobranca.application.port.out.RecebimentoCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.exception.CobrancaOwnershipException;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento.ParcelaPlanejada;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.model.Recebimento;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.RecebimentoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -28,17 +28,17 @@ import static org.mockito.Mockito.when;
 
 class ConsultarRecebimentosParcelaUseCaseTest {
 
-    private ParcelaCobrancaRepository parcelaRepository;
+    private ParcelaCobrancaPort parcelaPort;
     private ContratoCobrancaQueryPort contratoQueryPort;
-    private RecebimentoRepository recebimentoRepository;
+    private RecebimentoCobrancaPort recebimentoPort;
     private ConsultarRecebimentosParcelaUseCase useCase;
 
     @BeforeEach
     void setup() {
-        parcelaRepository = mock(ParcelaCobrancaRepository.class);
+        parcelaPort = mock(ParcelaCobrancaPort.class);
         contratoQueryPort = mock(ContratoCobrancaQueryPort.class);
-        recebimentoRepository = mock(RecebimentoRepository.class);
-        useCase = new ConsultarRecebimentosParcelaUseCase(parcelaRepository, contratoQueryPort, recebimentoRepository);
+        recebimentoPort = mock(RecebimentoCobrancaPort.class);
+        useCase = new ConsultarRecebimentosParcelaUseCase(parcelaPort, contratoQueryPort, recebimentoPort);
     }
 
     @Test
@@ -49,11 +49,10 @@ class ConsultarRecebimentosParcelaUseCaseTest {
         Recebimento r1 = recebimento(parcela, "100.00", "k1");
         Recebimento r2 = recebimento(parcela, "200.00", "k2");
         UUID parcelaId = parcela.getId();
-        when(parcelaRepository.findById(parcelaId)).thenReturn(Optional.of(parcela));
+        when(parcelaPort.buscarPorId(parcelaId)).thenReturn(Optional.of(parcela));
         when(contratoQueryPort.tomadorIdDoContrato(contratoId)).thenReturn(Optional.of(tomadorId));
         // repository e responsavel pela ordenacao DESC — aqui devolvemos ja ordenado.
-        when(recebimentoRepository.findByParcela_IdOrderByDataRecebimentoDesc(parcelaId))
-                .thenReturn(List.of(r2, r1));
+        when(recebimentoPort.listarPorParcelaOrdenadoPorDataDesc(parcelaId)).thenReturn(List.of(r2, r1));
 
         List<RecebimentoTomadorResult> resultado = useCase.executar(parcelaId, tomadorId);
 
@@ -68,10 +67,9 @@ class ConsultarRecebimentosParcelaUseCaseTest {
         UUID tomadorId = UUID.randomUUID();
         ParcelaCobranca parcela = novaParcela(contratoId);
         UUID parcelaId = parcela.getId();
-        when(parcelaRepository.findById(parcelaId)).thenReturn(Optional.of(parcela));
+        when(parcelaPort.buscarPorId(parcelaId)).thenReturn(Optional.of(parcela));
         when(contratoQueryPort.tomadorIdDoContrato(contratoId)).thenReturn(Optional.of(tomadorId));
-        when(recebimentoRepository.findByParcela_IdOrderByDataRecebimentoDesc(parcelaId))
-                .thenReturn(List.of());
+        when(recebimentoPort.listarPorParcelaOrdenadoPorDataDesc(parcelaId)).thenReturn(List.of());
 
         assertThat(useCase.executar(parcelaId, tomadorId)).isEmpty();
     }
@@ -79,13 +77,13 @@ class ConsultarRecebimentosParcelaUseCaseTest {
     @Test
     void parcelaInexistente_lancaOwnershipException_semConsultarContratoOuRecebimentos() {
         UUID parcelaId = UUID.randomUUID();
-        when(parcelaRepository.findById(parcelaId)).thenReturn(Optional.empty());
+        when(parcelaPort.buscarPorId(parcelaId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.executar(parcelaId, UUID.randomUUID()))
                 .isInstanceOf(CobrancaOwnershipException.class);
 
         verifyNoInteractions(contratoQueryPort);
-        verifyNoInteractions(recebimentoRepository);
+        verifyNoInteractions(recebimentoPort);
     }
 
     @Test
@@ -93,13 +91,13 @@ class ConsultarRecebimentosParcelaUseCaseTest {
         UUID contratoId = UUID.randomUUID();
         ParcelaCobranca parcela = novaParcela(contratoId);
         UUID parcelaId = parcela.getId();
-        when(parcelaRepository.findById(parcelaId)).thenReturn(Optional.of(parcela));
+        when(parcelaPort.buscarPorId(parcelaId)).thenReturn(Optional.of(parcela));
         when(contratoQueryPort.tomadorIdDoContrato(contratoId)).thenReturn(Optional.of(UUID.randomUUID()));
 
         assertThatThrownBy(() -> useCase.executar(parcelaId, UUID.randomUUID()))
                 .isInstanceOf(CobrancaOwnershipException.class);
 
-        verifyNoInteractions(recebimentoRepository);
+        verifyNoInteractions(recebimentoPort);
     }
 
     @Test
@@ -107,13 +105,13 @@ class ConsultarRecebimentosParcelaUseCaseTest {
         UUID contratoId = UUID.randomUUID();
         ParcelaCobranca parcela = novaParcela(contratoId);
         UUID parcelaId = parcela.getId();
-        when(parcelaRepository.findById(parcelaId)).thenReturn(Optional.of(parcela));
+        when(parcelaPort.buscarPorId(parcelaId)).thenReturn(Optional.of(parcela));
         when(contratoQueryPort.tomadorIdDoContrato(contratoId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.executar(parcelaId, UUID.randomUUID()))
                 .isInstanceOf(CobrancaOwnershipException.class);
 
-        verifyNoInteractions(recebimentoRepository);
+        verifyNoInteractions(recebimentoPort);
     }
 
     @Test
@@ -123,10 +121,9 @@ class ConsultarRecebimentosParcelaUseCaseTest {
         ParcelaCobranca parcela = novaParcela(contratoId);
         Recebimento r = recebimento(parcela, "150.00", "k1");
         UUID parcelaId = parcela.getId();
-        when(parcelaRepository.findById(parcelaId)).thenReturn(Optional.of(parcela));
+        when(parcelaPort.buscarPorId(parcelaId)).thenReturn(Optional.of(parcela));
         when(contratoQueryPort.tomadorIdDoContrato(contratoId)).thenReturn(Optional.of(tomadorId));
-        when(recebimentoRepository.findByParcela_IdOrderByDataRecebimentoDesc(parcelaId))
-                .thenReturn(List.of(r));
+        when(recebimentoPort.listarPorParcelaOrdenadoPorDataDesc(parcelaId)).thenReturn(List.of(r));
 
         RecebimentoTomadorResult res = useCase.executar(parcelaId, tomadorId).get(0);
 
