@@ -2,6 +2,8 @@ package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.IniciarRenegociacaoCommand;
 import com.dynamis.sep_api.cobranca.application.port.out.ContratoCobrancaQueryPort;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
+import com.dynamis.sep_api.cobranca.application.port.out.RenegociacaoCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.event.RenegociacaoPropostaEvent;
 import com.dynamis.sep_api.cobranca.domain.exception.ParcelaCobrancaNaoEncontradaException;
 import com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoConflitanteException;
@@ -9,8 +11,6 @@ import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.model.Renegociacao;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusRenegociacao;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.RenegociacaoRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -34,7 +34,7 @@ import java.util.UUID;
  * <p>Pipeline:
  *
  * <ol>
- *   <li>Lock pessimista da parcela ({@code findByIdForUpdate}).
+ *   <li>Lock pessimista da parcela ({@code buscarPorIdComLock}).
  *   <li>Guard de status: parcela em {@code ATRASADA}/{@code INADIMPLENTE}.
  *   <li>Verifica nao haver renegociacao {@code PROPOSTA} ja ativa pra parcela. Defesa em
  *       profundidade: unique parcial {@code uq_renegociacao_parcela_ativa} no DB protege contra
@@ -52,20 +52,20 @@ public class IniciarRenegociacaoUseCase {
     /** Janela default de aceite (spec 13.6). */
     public static final Duration JANELA_RENEGOCIACAO = Duration.ofDays(7);
 
-    private final ParcelaCobrancaRepository parcelaRepository;
-    private final RenegociacaoRepository renegociacaoRepository;
+    private final ParcelaCobrancaPort parcelaPort;
+    private final RenegociacaoCobrancaPort renegociacaoPort;
     private final ContratoCobrancaQueryPort contratoQuery;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public IniciarRenegociacaoUseCase(
-            ParcelaCobrancaRepository parcelaRepository,
-            RenegociacaoRepository renegociacaoRepository,
+            ParcelaCobrancaPort parcelaPort,
+            RenegociacaoCobrancaPort renegociacaoPort,
             ContratoCobrancaQueryPort contratoQuery,
             ApplicationEventPublisher eventPublisher,
             Clock clock) {
-        this.parcelaRepository = parcelaRepository;
-        this.renegociacaoRepository = renegociacaoRepository;
+        this.parcelaPort = parcelaPort;
+        this.renegociacaoPort = renegociacaoPort;
         this.contratoQuery = contratoQuery;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
@@ -73,15 +73,15 @@ public class IniciarRenegociacaoUseCase {
 
     @Transactional
     public Renegociacao executar(IniciarRenegociacaoCommand command) {
-        ParcelaCobranca parcela = parcelaRepository
-                .findByIdForUpdate(command.parcelaId())
+        ParcelaCobranca parcela = parcelaPort
+                .buscarPorIdComLock(command.parcelaId())
                 .orElseThrow(() -> ParcelaCobrancaNaoEncontradaException.porId(command.parcelaId()));
         // Guard duplo: check antes da factory pra mensagem mais clara que o IllegalArgument do dominio.
         if (!parcela.getStatus().permiteIniciarRenegociacao()) {
             throw new com.dynamis.sep_api.cobranca.domain.exception.ParcelaEstadoInvalidoException(
                     "iniciarRenegociacao", parcela.getStatus());
         }
-        if (renegociacaoRepository.existsByParcelaOriginalIdAndStatus(parcela.getId(), StatusRenegociacao.PROPOSTA)) {
+        if (renegociacaoPort.existePorParcelaOriginalEStatus(parcela.getId(), StatusRenegociacao.PROPOSTA)) {
             throw new RenegociacaoConflitanteException(parcela.getId());
         }
         UUID contratoId = parcela.getAgenda().getContratoId();
@@ -105,16 +105,16 @@ public class IniciarRenegociacaoUseCase {
                 agora,
                 agora.plus(JANELA_RENEGOCIACAO));
         try {
-            renegociacao = renegociacaoRepository.saveAndFlush(renegociacao);
+            renegociacao = renegociacaoPort.salvarEFlush(renegociacao);
         } catch (DataIntegrityViolationException e) {
-            // Race: outra instancia/thread inseriu PROPOSTA entre o existsBy e o save.
+            // Race: outra instancia/thread inseriu PROPOSTA entre o guard de existencia e o save.
             // Filtra pelo nome do constraint pra evitar mascarar outras violacoes (FK, check, etc).
             if (mensagemContemConstraint(e, "uq_renegociacao_parcela_ativa")) {
                 throw new RenegociacaoConflitanteException(parcela.getId());
             }
             throw e;
         }
-        parcelaRepository.save(parcela);
+        parcelaPort.salvar(parcela);
         eventPublisher.publishEvent(
                 new RenegociacaoPropostaEvent(renegociacao.getId(), parcela.getId(), tomadorId, command.propostaPor()));
         return renegociacao;

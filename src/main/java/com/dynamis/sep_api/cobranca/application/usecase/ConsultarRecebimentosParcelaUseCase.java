@@ -2,10 +2,10 @@ package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.RecebimentoTomadorResult;
 import com.dynamis.sep_api.cobranca.application.port.out.ContratoCobrancaQueryPort;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
+import com.dynamis.sep_api.cobranca.application.port.out.RecebimentoCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.exception.CobrancaOwnershipException;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.RecebimentoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,27 +22,27 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class ConsultarRecebimentosParcelaUseCase {
 
-    private final ParcelaCobrancaRepository parcelaRepository;
+    private final ParcelaCobrancaPort parcelaPort;
     private final ContratoCobrancaQueryPort contratoQueryPort;
-    private final RecebimentoRepository recebimentoRepository;
+    private final RecebimentoCobrancaPort recebimentoPort;
 
     public ConsultarRecebimentosParcelaUseCase(
-            ParcelaCobrancaRepository parcelaRepository,
+            ParcelaCobrancaPort parcelaPort,
             ContratoCobrancaQueryPort contratoQueryPort,
-            RecebimentoRepository recebimentoRepository) {
-        this.parcelaRepository = parcelaRepository;
+            RecebimentoCobrancaPort recebimentoPort) {
+        this.parcelaPort = parcelaPort;
         this.contratoQueryPort = contratoQueryPort;
-        this.recebimentoRepository = recebimentoRepository;
+        this.recebimentoPort = recebimentoPort;
     }
 
     public List<RecebimentoTomadorResult> executar(UUID parcelaId, UUID tomadorAutenticadoId) {
-        ParcelaCobranca parcela = parcelaRepository.findById(parcelaId).orElseThrow(CobrancaOwnershipException::new);
+        ParcelaCobranca parcela = parcelaPort.buscarPorId(parcelaId).orElseThrow(CobrancaOwnershipException::new);
         UUID contratoId = parcela.getAgenda().getContratoId();
         UUID owner = contratoQueryPort.tomadorIdDoContrato(contratoId).orElseThrow(CobrancaOwnershipException::new);
         if (!owner.equals(tomadorAutenticadoId)) {
             throw new CobrancaOwnershipException();
         }
-        return recebimentoRepository.findByParcela_IdOrderByDataRecebimentoDesc(parcelaId).stream()
+        return recebimentoPort.listarPorParcelaOrdenadoPorDataDesc(parcelaId).stream()
                 .map(r -> new RecebimentoTomadorResult(
                         r.getId(), r.getValorRecebido(), r.getDataRecebimento(), r.getMeioPagamento()))
                 .toList();

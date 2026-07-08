@@ -1,8 +1,8 @@
 package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.ConsultarParcelasQuery;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,18 +16,18 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class ConsultarParcelasUseCase {
 
-    private final ParcelaCobrancaRepository parcelaRepository;
+    private final ParcelaCobrancaPort parcelaPort;
 
-    public ConsultarParcelasUseCase(ParcelaCobrancaRepository parcelaRepository) {
-        this.parcelaRepository = parcelaRepository;
+    public ConsultarParcelasUseCase(ParcelaCobrancaPort parcelaPort) {
+        this.parcelaPort = parcelaPort;
     }
 
     public List<ParcelaCobranca> executar(ConsultarParcelasQuery query) {
         List<ParcelaCobranca> base;
         if (query.contratoId() != null) {
-            base = parcelaRepository.findByAgenda_ContratoIdOrderByNumeroAsc(query.contratoId());
+            base = parcelaPort.listarPorContratoOrdenadoPorNumero(query.contratoId());
         } else {
-            base = parcelaRepository.findAll();
+            base = parcelaPort.listarTodas();
         }
         return base.stream()
                 .filter(p -> query.status() == null || p.getStatus() == query.status())

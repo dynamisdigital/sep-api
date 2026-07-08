@@ -2,13 +2,13 @@ package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.RenegociacaoTomadorResult;
 import com.dynamis.sep_api.cobranca.application.port.out.ContratoCobrancaQueryPort;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
+import com.dynamis.sep_api.cobranca.application.port.out.RenegociacaoCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.exception.CobrancaOwnershipException;
 import com.dynamis.sep_api.cobranca.domain.exception.RenegociacaoNaoEncontradaException;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.model.Renegociacao;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusRenegociacao;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.RenegociacaoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,33 +31,33 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class ConsultarRenegociacaoAtivaTomadorUseCase {
 
-    private final ParcelaCobrancaRepository parcelaRepository;
+    private final ParcelaCobrancaPort parcelaPort;
     private final ContratoCobrancaQueryPort contratoQueryPort;
-    private final RenegociacaoRepository renegociacaoRepository;
+    private final RenegociacaoCobrancaPort renegociacaoPort;
     private final Clock clock;
 
     public ConsultarRenegociacaoAtivaTomadorUseCase(
-            ParcelaCobrancaRepository parcelaRepository,
+            ParcelaCobrancaPort parcelaPort,
             ContratoCobrancaQueryPort contratoQueryPort,
-            RenegociacaoRepository renegociacaoRepository,
+            RenegociacaoCobrancaPort renegociacaoPort,
             Clock clock) {
-        this.parcelaRepository = parcelaRepository;
+        this.parcelaPort = parcelaPort;
         this.contratoQueryPort = contratoQueryPort;
-        this.renegociacaoRepository = renegociacaoRepository;
+        this.renegociacaoPort = renegociacaoPort;
         this.clock = clock;
     }
 
     public RenegociacaoTomadorResult executar(UUID parcelaId, UUID tomadorAutenticadoId) {
         exigirOwnership(parcelaId, tomadorAutenticadoId);
-        Renegociacao ativa = renegociacaoRepository
-                .findByParcelaOriginalIdAndStatus(parcelaId, StatusRenegociacao.PROPOSTA)
+        Renegociacao ativa = renegociacaoPort
+                .buscarPorParcelaOriginalEStatus(parcelaId, StatusRenegociacao.PROPOSTA)
                 .filter(r -> !r.expirouEm(OffsetDateTime.now(clock)))
                 .orElseThrow(RenegociacaoNaoEncontradaException::semPropostaAtiva);
         return toResult(ativa);
     }
 
     private void exigirOwnership(UUID parcelaId, UUID tomadorAutenticadoId) {
-        ParcelaCobranca parcela = parcelaRepository.findById(parcelaId).orElseThrow(CobrancaOwnershipException::new);
+        ParcelaCobranca parcela = parcelaPort.buscarPorId(parcelaId).orElseThrow(CobrancaOwnershipException::new);
         UUID owner = contratoQueryPort
                 .tomadorIdDoContrato(parcela.getAgenda().getContratoId())
                 .orElseThrow(CobrancaOwnershipException::new);

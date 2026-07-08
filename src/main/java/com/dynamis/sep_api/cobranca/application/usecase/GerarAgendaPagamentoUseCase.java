@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.GerarAgendaPagamentoCommand;
+import com.dynamis.sep_api.cobranca.application.port.out.AgendaPagamentoCobrancaPort;
 import com.dynamis.sep_api.cobranca.application.service.calculo.AmortizacaoDispatcher;
 import com.dynamis.sep_api.cobranca.application.service.calculo.ParametrosCobrancaProperties;
 import com.dynamis.sep_api.cobranca.application.service.calculo.dto.ParametrosCalculo;
@@ -10,7 +11,6 @@ import com.dynamis.sep_api.cobranca.domain.event.AgendaGeradaEvent;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento.ParcelaPlanejada;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.AgendaPagamentoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -43,7 +43,7 @@ public class GerarAgendaPagamentoUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(GerarAgendaPagamentoUseCase.class);
 
-    private final AgendaPagamentoRepository agendaRepository;
+    private final AgendaPagamentoCobrancaPort agendaPort;
     private final AmortizacaoDispatcher dispatcher;
     private final ParametrosCobrancaProperties properties;
     private final ApplicationEventPublisher eventPublisher;
@@ -51,12 +51,12 @@ public class GerarAgendaPagamentoUseCase {
     private final TransactionTemplate txReadOnly;
 
     public GerarAgendaPagamentoUseCase(
-            AgendaPagamentoRepository agendaRepository,
+            AgendaPagamentoCobrancaPort agendaPort,
             AmortizacaoDispatcher dispatcher,
             ParametrosCobrancaProperties properties,
             ApplicationEventPublisher eventPublisher,
             PlatformTransactionManager txManager) {
-        this.agendaRepository = agendaRepository;
+        this.agendaPort = agendaPort;
         this.dispatcher = dispatcher;
         this.properties = properties;
         this.eventPublisher = eventPublisher;
@@ -91,7 +91,7 @@ public class GerarAgendaPagamentoUseCase {
     }
 
     private Optional<AgendaPagamento> buscarPorContrato(UUID contratoId) {
-        return txReadOnly.execute(status -> agendaRepository.findByContratoIdAndAtivaTrue(contratoId));
+        return txReadOnly.execute(status -> agendaPort.buscarAtivaPorContrato(contratoId));
     }
 
     private AgendaPagamento criarPersistirEPublicar(GerarAgendaPagamentoCommand cmd) {
@@ -110,7 +110,7 @@ public class GerarAgendaPagamentoUseCase {
                     .toList();
 
             AgendaPagamento agenda = AgendaPagamento.criar(cmd.contratoId(), planejadas);
-            AgendaPagamento salva = agendaRepository.saveAndFlush(agenda);
+            AgendaPagamento salva = agendaPort.salvarEFlush(agenda);
             eventPublisher.publishEvent(new AgendaGeradaEvent(
                     salva.getId(),
                     salva.getContratoId(),

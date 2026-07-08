@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.GerarAgendaPagamentoCommand;
+import com.dynamis.sep_api.cobranca.application.port.out.AgendaPagamentoCobrancaPort;
 import com.dynamis.sep_api.cobranca.application.service.calculo.AmortizacaoDispatcher;
 import com.dynamis.sep_api.cobranca.application.service.calculo.CalculadoraPrice;
 import com.dynamis.sep_api.cobranca.application.service.calculo.CalculadoraSAC;
@@ -10,7 +11,6 @@ import com.dynamis.sep_api.cobranca.domain.event.AgendaGeradaEvent;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento.ParcelaPlanejada;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.AgendaPagamentoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
 
 class GerarAgendaPagamentoUseCaseTest {
 
-    private AgendaPagamentoRepository agendaRepository;
+    private AgendaPagamentoCobrancaPort agendaPort;
     private AmortizacaoDispatcher dispatcher;
     private ParametrosCobrancaProperties properties;
     private ApplicationEventPublisher eventPublisher;
@@ -45,13 +45,13 @@ class GerarAgendaPagamentoUseCaseTest {
 
     @BeforeEach
     void setup() {
-        agendaRepository = mock(AgendaPagamentoRepository.class);
+        agendaPort = mock(AgendaPagamentoCobrancaPort.class);
         dispatcher = new AmortizacaoDispatcher(List.of(new CalculadoraPrice(), new CalculadoraSAC()));
         properties = new ParametrosCobrancaProperties();
         eventPublisher = mock(ApplicationEventPublisher.class);
         txManager = mock(PlatformTransactionManager.class);
         when(txManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        useCase = new GerarAgendaPagamentoUseCase(agendaRepository, dispatcher, properties, eventPublisher, txManager);
+        useCase = new GerarAgendaPagamentoUseCase(agendaPort, dispatcher, properties, eventPublisher, txManager);
     }
 
     @Test
@@ -59,8 +59,8 @@ class GerarAgendaPagamentoUseCaseTest {
         UUID contratoId = UUID.randomUUID();
         UUID propostaId = UUID.randomUUID();
         UUID tomadorId = UUID.randomUUID();
-        when(agendaRepository.findByContratoIdAndAtivaTrue(contratoId)).thenReturn(Optional.empty());
-        when(agendaRepository.saveAndFlush(any(AgendaPagamento.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(agendaPort.buscarAtivaPorContrato(contratoId)).thenReturn(Optional.empty());
+        when(agendaPort.salvarEFlush(any(AgendaPagamento.class))).thenAnswer(inv -> inv.getArgument(0));
 
         AgendaPagamento agenda = useCase.executar(new GerarAgendaPagamentoCommand(
                 contratoId,
@@ -88,8 +88,8 @@ class GerarAgendaPagamentoUseCaseTest {
     @Test
     void gera_agenda_24_parcelas() {
         UUID contratoId = UUID.randomUUID();
-        when(agendaRepository.findByContratoIdAndAtivaTrue(contratoId)).thenReturn(Optional.empty());
-        when(agendaRepository.saveAndFlush(any(AgendaPagamento.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(agendaPort.buscarAtivaPorContrato(contratoId)).thenReturn(Optional.empty());
+        when(agendaPort.salvarEFlush(any(AgendaPagamento.class))).thenAnswer(inv -> inv.getArgument(0));
 
         AgendaPagamento agenda = useCase.executar(new GerarAgendaPagamentoCommand(
                 contratoId,
@@ -111,7 +111,7 @@ class GerarAgendaPagamentoUseCaseTest {
                 contratoId,
                 List.of(new ParcelaPlanejada(
                         1, ComposicaoValor.principalApenas(new BigDecimal("100")), LocalDate.of(2026, 6, 1))));
-        when(agendaRepository.findByContratoIdAndAtivaTrue(contratoId)).thenReturn(Optional.of(existente));
+        when(agendaPort.buscarAtivaPorContrato(contratoId)).thenReturn(Optional.of(existente));
 
         AgendaPagamento ret = useCase.executar(new GerarAgendaPagamentoCommand(
                 contratoId,
@@ -124,7 +124,7 @@ class GerarAgendaPagamentoUseCaseTest {
                 SistemaAmortizacao.PRICE));
 
         assertThat(ret).isSameAs(existente);
-        verify(agendaRepository, never()).saveAndFlush(any(AgendaPagamento.class));
+        verify(agendaPort, never()).salvarEFlush(any(AgendaPagamento.class));
         verify(eventPublisher, never()).publishEvent(any());
     }
 
@@ -137,10 +137,10 @@ class GerarAgendaPagamentoUseCaseTest {
                         1, ComposicaoValor.principalApenas(new BigDecimal("100")), LocalDate.of(2026, 6, 1))));
         // Primeira chamada (check inicial) volta vazia; segunda chamada (apos DIVE) volta com o
         // registro persistido pela outra transacao.
-        when(agendaRepository.findByContratoIdAndAtivaTrue(contratoId))
+        when(agendaPort.buscarAtivaPorContrato(contratoId))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(existente));
-        when(agendaRepository.saveAndFlush(any(AgendaPagamento.class)))
+        when(agendaPort.salvarEFlush(any(AgendaPagamento.class)))
                 .thenThrow(new DataIntegrityViolationException("uq_contrato_id violou"));
 
         AgendaPagamento ret = useCase.executar(new GerarAgendaPagamentoCommand(
@@ -156,6 +156,6 @@ class GerarAgendaPagamentoUseCaseTest {
         assertThat(ret).isSameAs(existente);
         // Evento nao deve ser publicado em corrida — outra transacao ja publicou.
         verify(eventPublisher, never()).publishEvent(any());
-        verify(agendaRepository, times(2)).findByContratoIdAndAtivaTrue(eq(contratoId));
+        verify(agendaPort, times(2)).buscarAtivaPorContrato(eq(contratoId));
     }
 }
