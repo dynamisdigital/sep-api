@@ -55,12 +55,12 @@ public class ParcelaCobrancaPersistenceAdapter implements ParcelaCobrancaPort {
     }
 
     @Override
-    public void salvar(ParcelaCobranca parcela) {
-        repository.save(parcela);
+    public ParcelaCobranca salvar(ParcelaCobranca parcela) {
+        return repository.save(parcela);
     }
 
     @Override
-    public void salvarEFlush(ParcelaCobranca parcela) {
-        repository.saveAndFlush(parcela);
+    public ParcelaCobranca salvarEFlush(ParcelaCobranca parcela) {
+        return repository.saveAndFlush(parcela);
     }
 }

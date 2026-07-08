@@ -29,8 +29,8 @@ public interface ParcelaCobrancaPort {
 
     List<ParcelaCobranca> listarPorStatusOrdenadoPorVencimento(Collection<StatusParcela> statuses);
 
-    void salvar(ParcelaCobranca parcela);
+    ParcelaCobranca salvar(ParcelaCobranca parcela);
 
     /** Persiste com flush imediato — recebimento precisa do estado consolidado dentro do lock. */
-    void salvarEFlush(ParcelaCobranca parcela);
+    ParcelaCobranca salvarEFlush(ParcelaCobranca parcela);
 }
