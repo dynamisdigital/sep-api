@@ -17,7 +17,7 @@ import com.dynamis.sep_api.contratos.web.dto.RegistrarAceiteRequest;
 import com.dynamis.sep_api.contratos.web.dto.StatusAssinaturaResponse;
 import com.dynamis.sep_api.contratos.web.dto.VersaoContratoResponse;
 import com.dynamis.sep_api.contratos.web.mapper.ContratoWebMapper;
-import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp;
+import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUpEstrito;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
@@ -52,21 +52,16 @@ import java.util.UUID;
  *   <li>{@code GET /api/v1/contratos/proposta/{propostaId}} — ownership ou FINANCEIRO/ADMIN;
  *   <li>{@code GET /api/v1/contratos/{id}} — ownership ou FINANCEIRO/ADMIN;
  *   <li>{@code GET /api/v1/contratos/{id}/versoes} — ownership ou FINANCEIRO/ADMIN;
- *   <li>{@code PATCH /api/v1/contratos/{id}/aceite} — CLIENTE (ownership) + step-up;
- *   <li>{@code POST /api/v1/contratos/{id}/cancelar} — FINANCEIRO/ADMIN + step-up.
+ *   <li>{@code PATCH /api/v1/contratos/{id}/aceite} — CLIENTE (ownership) + step-up estrito;
+ *   <li>{@code POST /api/v1/contratos/{id}/cancelar} — FINANCEIRO/ADMIN + step-up estrito.
  * </ul>
  *
  * <p>Controller depende apenas dos use cases da camada {@code application} — nao acessa
  * repository JPA diretamente (preserva fronteira Hexagonal/DDD do PRD §11).
  *
- * <p><b>Limitacao conhecida do step-up:</b> {@code StepUpEnforcementAspect} (Sprint 5 Task 5.6)
- * libera operacoes anotadas com {@code @RequireStepUp} quando o usuario autenticado tem
- * {@code mfaHabilitado=false} — bypass deliberado para suportar migracao pre-MFA. Como aceite e
- * cancelamento sao operacoes legais sobre documento contratual (CMN 4.656/2018 Art. 11), esse
- * bypass enfraquece a garantia. Mitigacao operacional: <i>todo usuario com role CLIENTE,
- * FINANCEIRO ou ADMIN em producao deve ter MFA habilitado antes de liberar formalizacao</i>. Fix
- * arquitetural com {@code @RequireStepUpEstrita} (sem bypass) fica em sprint futura de hardening
- * do modulo {@code identity}; este controller ganhara a annotation forte quando ela existir.
+ * <p>Aceite, cancelamento e envio para assinatura sao atos legais sobre documento contratual
+ * (CMN 4.656/2018 Art. 11) e usam {@code @RequireStepUpEstrito} (Sprint 27): exigem MFA ativo e
+ * step-up token valido, sem o bypass de migracao pre-MFA do {@code @RequireStepUp} legado.
  */
 @RestController
 @RequestMapping("/api/v1/contratos")
@@ -192,11 +187,11 @@ public class ContratoController {
 
     @PatchMapping("/{id}/aceite")
     @PreAuthorize("hasRole('CLIENTE')")
-    @RequireStepUp
+    @RequireStepUpEstrito
     @Operation(
             summary = "Registrar aceite do tomador",
             description = "CLIENTE titular do contrato registra aceite sobre a versao vigente. Exige step-up"
-                    + " (X-Step-Up-Token).")
+                    + " estrito (X-Step-Up-Token + MFA ativo, sem bypass).")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Aceite registrado"),
         @ApiResponse(
@@ -205,7 +200,7 @@ public class ContratoController {
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "403",
-                description = "Sem role CLIENTE, sem step-up ou contrato de outro tomador",
+                description = "Sem role CLIENTE, sem step-up, sem MFA ativo ou contrato de outro tomador",
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "404",
@@ -230,11 +225,11 @@ public class ContratoController {
 
     @PostMapping("/{id}/cancelar")
     @PreAuthorize("hasAnyRole('FINANCEIRO','ADMIN')")
-    @RequireStepUp
+    @RequireStepUpEstrito
     @Operation(
             summary = "Cancelar contrato pre-aceite",
             description = "FINANCEIRO ou ADMIN cancela contrato em GERADO/AGUARDANDO_ACEITE. Exige step-up"
-                    + " e justificativa (10-500 chars).")
+                    + " estrito (X-Step-Up-Token + MFA ativo, sem bypass) e justificativa (10-500 chars).")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Contrato cancelado"),
         @ApiResponse(
@@ -247,7 +242,7 @@ public class ContratoController {
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "403",
-                description = "Sem role FINANCEIRO/ADMIN ou sem step-up",
+                description = "Sem role FINANCEIRO/ADMIN, sem step-up ou sem MFA ativo",
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "404",
@@ -271,7 +266,7 @@ public class ContratoController {
 
     @PostMapping("/{id}/assinar")
     @PreAuthorize("hasAnyRole('FINANCEIRO','ADMIN')")
-    @RequireStepUp
+    @RequireStepUpEstrito
     @Operation(
             summary = "Enviar contrato para assinatura digital",
             description = "FINANCEIRO/ADMIN dispara envio manual ao provider (Clicksign). Idempotente:"
@@ -293,7 +288,7 @@ public class ContratoController {
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "403",
-                description = "Sem role FINANCEIRO/ADMIN ou sem step-up",
+                description = "Sem role FINANCEIRO/ADMIN, sem step-up ou sem MFA ativo",
                 content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "404",
