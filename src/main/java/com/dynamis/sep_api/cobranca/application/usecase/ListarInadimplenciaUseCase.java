@@ -1,9 +1,9 @@
 package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.port.out.ContratoCobrancaQueryPort;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,13 +34,13 @@ public class ListarInadimplenciaUseCase {
     private static final Set<StatusParcela> STATUS_INADIMPLENCIA =
             EnumSet.of(StatusParcela.ATRASADA, StatusParcela.INADIMPLENTE);
 
-    private final ParcelaCobrancaRepository parcelaRepository;
+    private final ParcelaCobrancaPort parcelaPort;
     private final ContratoCobrancaQueryPort contratoQuery;
     private final Clock clock;
 
     public ListarInadimplenciaUseCase(
-            ParcelaCobrancaRepository parcelaRepository, ContratoCobrancaQueryPort contratoQuery, Clock clock) {
-        this.parcelaRepository = parcelaRepository;
+            ParcelaCobrancaPort parcelaPort, ContratoCobrancaQueryPort contratoQuery, Clock clock) {
+        this.parcelaPort = parcelaPort;
         this.contratoQuery = contratoQuery;
         this.clock = clock;
     }
@@ -62,7 +62,7 @@ public class ListarInadimplenciaUseCase {
         if (filtros.isEmpty()) {
             return List.of();
         }
-        List<ParcelaCobranca> parcelas = parcelaRepository.findByStatusInOrderByDataVencimentoAsc(filtros);
+        List<ParcelaCobranca> parcelas = parcelaPort.listarPorStatusOrdenadoPorVencimento(filtros);
 
         // Sprint 15 Task 15.4 (15F-002): coleta contratoIds dos itens que passam pelo filtro de
         // dias e resolve tomadores em UMA query (em vez de uma por iteracao). Cacheia (parcela,

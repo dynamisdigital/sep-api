@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.ParcelaAtualizadaResult;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
 import com.dynamis.sep_api.cobranca.application.service.calculo.CalculadoraJurosMora;
 import com.dynamis.sep_api.cobranca.application.service.calculo.CalculadoraMulta;
 import com.dynamis.sep_api.cobranca.application.service.calculo.ParametrosCobrancaProperties;
@@ -8,7 +9,6 @@ import com.dynamis.sep_api.cobranca.domain.exception.ParcelaCobrancaNaoEncontrad
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,19 +33,19 @@ public class CalcularValorAtualizadoParcelaUseCase {
 
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
-    private final ParcelaCobrancaRepository parcelaRepository;
+    private final ParcelaCobrancaPort parcelaPort;
     private final CalculadoraJurosMora calculadoraJurosMora;
     private final CalculadoraMulta calculadoraMulta;
     private final ParametrosCobrancaProperties properties;
     private final Clock clock;
 
     public CalcularValorAtualizadoParcelaUseCase(
-            ParcelaCobrancaRepository parcelaRepository,
+            ParcelaCobrancaPort parcelaPort,
             CalculadoraJurosMora calculadoraJurosMora,
             CalculadoraMulta calculadoraMulta,
             ParametrosCobrancaProperties properties,
             Clock clock) {
-        this.parcelaRepository = parcelaRepository;
+        this.parcelaPort = parcelaPort;
         this.calculadoraJurosMora = calculadoraJurosMora;
         this.calculadoraMulta = calculadoraMulta;
         this.properties = properties;
@@ -53,8 +53,8 @@ public class CalcularValorAtualizadoParcelaUseCase {
     }
 
     public ParcelaAtualizadaResult executar(UUID parcelaId) {
-        ParcelaCobranca parcela = parcelaRepository
-                .findById(parcelaId)
+        ParcelaCobranca parcela = parcelaPort
+                .buscarPorId(parcelaId)
                 .orElseThrow(() -> ParcelaCobrancaNaoEncontradaException.porId(parcelaId));
         return calcular(parcela);
     }
@@ -65,7 +65,7 @@ public class CalcularValorAtualizadoParcelaUseCase {
      * carregar/calcular — evita enumeracao 404 vs 403.
      */
     public java.util.Optional<UUID> resolverContratoId(UUID parcelaId) {
-        return parcelaRepository.findById(parcelaId).map(p -> p.getAgenda().getContratoId());
+        return parcelaPort.buscarPorId(parcelaId).map(p -> p.getAgenda().getContratoId());
     }
 
     /**

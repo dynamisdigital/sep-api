@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.ParcelaAtualizadaResult;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
 import com.dynamis.sep_api.cobranca.application.service.calculo.CalculadoraJurosMora;
 import com.dynamis.sep_api.cobranca.application.service.calculo.CalculadoraMulta;
 import com.dynamis.sep_api.cobranca.application.service.calculo.ParametrosCobrancaProperties;
@@ -10,7 +11,6 @@ import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento.ParcelaPlanejad
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -33,22 +33,22 @@ class CalcularValorAtualizadoParcelaUseCaseTest {
 
     private static final ZoneId SP = ZoneId.of("America/Sao_Paulo");
 
-    private ParcelaCobrancaRepository parcelaRepository;
+    private ParcelaCobrancaPort parcelaPort;
     private CalcularValorAtualizadoParcelaUseCase useCase;
 
     @BeforeEach
     void setup() {
-        parcelaRepository = mock(ParcelaCobrancaRepository.class);
+        parcelaPort = mock(ParcelaCobrancaPort.class);
         Clock clock = Clock.fixed(LocalDate.of(2026, 7, 15).atStartOfDay(SP).toInstant(), SP);
         ParametrosCobrancaProperties props = new ParametrosCobrancaProperties();
         useCase = new CalcularValorAtualizadoParcelaUseCase(
-                parcelaRepository, new CalculadoraJurosMora(), new CalculadoraMulta(), props, clock);
+                parcelaPort, new CalculadoraJurosMora(), new CalculadoraMulta(), props, clock);
     }
 
     @Test
     void pendenteSemAtraso_jurosEmultaZero() {
         ParcelaCobranca p = novaParcela("1000.00", LocalDate.of(2026, 8, 1));
-        when(parcelaRepository.findById(p.getId())).thenReturn(Optional.of(p));
+        when(parcelaPort.buscarPorId(p.getId())).thenReturn(Optional.of(p));
 
         ParcelaAtualizadaResult r = useCase.executar(p.getId());
 
@@ -61,7 +61,7 @@ class CalcularValorAtualizadoParcelaUseCaseTest {
     @Test
     void atrasada30Dias_aplicaJuros1PctEMulta2Pct() {
         ParcelaCobranca p = novaParcela("1000.00", LocalDate.of(2026, 6, 15)); // 30 dias atraso
-        when(parcelaRepository.findById(p.getId())).thenReturn(Optional.of(p));
+        when(parcelaPort.buscarPorId(p.getId())).thenReturn(Optional.of(p));
 
         ParcelaAtualizadaResult r = useCase.executar(p.getId());
 
@@ -86,7 +86,7 @@ class CalcularValorAtualizadoParcelaUseCaseTest {
                 "key-x",
                 null,
                 UUID.randomUUID());
-        when(parcelaRepository.findById(p.getId())).thenReturn(Optional.of(p));
+        when(parcelaPort.buscarPorId(p.getId())).thenReturn(Optional.of(p));
 
         ParcelaAtualizadaResult r = useCase.executar(p.getId());
 
@@ -109,7 +109,7 @@ class CalcularValorAtualizadoParcelaUseCaseTest {
                 "key-a",
                 null,
                 UUID.randomUUID());
-        when(parcelaRepository.findById(p.getId())).thenReturn(Optional.of(p));
+        when(parcelaPort.buscarPorId(p.getId())).thenReturn(Optional.of(p));
 
         ParcelaAtualizadaResult r = useCase.executar(p.getId());
 
@@ -125,7 +125,7 @@ class CalcularValorAtualizadoParcelaUseCaseTest {
     @Test
     void parcelaInexistente_lancaExcecao() {
         UUID id = UUID.randomUUID();
-        when(parcelaRepository.findById(id)).thenReturn(Optional.empty());
+        when(parcelaPort.buscarPorId(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.executar(id)).isInstanceOf(ParcelaCobrancaNaoEncontradaException.class);
     }

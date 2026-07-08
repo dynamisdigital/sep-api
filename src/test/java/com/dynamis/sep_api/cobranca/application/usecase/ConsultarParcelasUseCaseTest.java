@@ -1,12 +1,12 @@
 package com.dynamis.sep_api.cobranca.application.usecase;
 
 import com.dynamis.sep_api.cobranca.application.dto.ConsultarParcelasQuery;
+import com.dynamis.sep_api.cobranca.application.port.out.ParcelaCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento.ParcelaPlanejada;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.domain.vo.ComposicaoValor;
 import com.dynamis.sep_api.cobranca.domain.vo.StatusParcela;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -21,13 +21,13 @@ import static org.mockito.Mockito.when;
 
 class ConsultarParcelasUseCaseTest {
 
-    private ParcelaCobrancaRepository parcelaRepository;
+    private ParcelaCobrancaPort parcelaPort;
     private ConsultarParcelasUseCase useCase;
 
     @BeforeEach
     void setup() {
-        parcelaRepository = mock(ParcelaCobrancaRepository.class);
-        useCase = new ConsultarParcelasUseCase(parcelaRepository);
+        parcelaPort = mock(ParcelaCobrancaPort.class);
+        useCase = new ConsultarParcelasUseCase(parcelaPort);
     }
 
     @Test
@@ -37,8 +37,7 @@ class ConsultarParcelasUseCaseTest {
         ParcelaCobranca p2 = novaParcela(contratoId, 2, LocalDate.of(2026, 2, 1));
         p2.marcarAtrasada();
         ParcelaCobranca p3 = novaParcela(contratoId, 3, LocalDate.of(2026, 3, 1));
-        when(parcelaRepository.findByAgenda_ContratoIdOrderByNumeroAsc(contratoId))
-                .thenReturn(List.of(p1, p2, p3));
+        when(parcelaPort.listarPorContratoOrdenadoPorNumero(contratoId)).thenReturn(List.of(p1, p2, p3));
 
         List<ParcelaCobranca> r =
                 useCase.executar(new ConsultarParcelasQuery(contratoId, StatusParcela.PENDENTE, null, null));
@@ -52,8 +51,7 @@ class ConsultarParcelasUseCaseTest {
         ParcelaCobranca p1 = novaParcela(contratoId, 1, LocalDate.of(2026, 1, 1));
         ParcelaCobranca p2 = novaParcela(contratoId, 2, LocalDate.of(2026, 2, 15));
         ParcelaCobranca p3 = novaParcela(contratoId, 3, LocalDate.of(2026, 3, 31));
-        when(parcelaRepository.findByAgenda_ContratoIdOrderByNumeroAsc(contratoId))
-                .thenReturn(List.of(p1, p2, p3));
+        when(parcelaPort.listarPorContratoOrdenadoPorNumero(contratoId)).thenReturn(List.of(p1, p2, p3));
 
         List<ParcelaCobranca> r = useCase.executar(
                 new ConsultarParcelasQuery(contratoId, null, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 3, 1)));
@@ -65,7 +63,7 @@ class ConsultarParcelasUseCaseTest {
     void semContratoId_usaFindAll() {
         ParcelaCobranca p1 = novaParcela(UUID.randomUUID(), 1, LocalDate.of(2026, 1, 1));
         ParcelaCobranca p2 = novaParcela(UUID.randomUUID(), 1, LocalDate.of(2026, 2, 1));
-        when(parcelaRepository.findAll()).thenReturn(List.of(p1, p2));
+        when(parcelaPort.listarTodas()).thenReturn(List.of(p1, p2));
 
         List<ParcelaCobranca> r = useCase.executar(new ConsultarParcelasQuery(null, null, null, null));
 
@@ -78,8 +76,7 @@ class ConsultarParcelasUseCaseTest {
         ParcelaCobranca p3 = novaParcela(contratoId, 3, LocalDate.of(2026, 3, 1));
         ParcelaCobranca p1 = novaParcela(contratoId, 1, LocalDate.of(2026, 1, 1));
         ParcelaCobranca p2 = novaParcela(contratoId, 2, LocalDate.of(2026, 2, 1));
-        when(parcelaRepository.findByAgenda_ContratoIdOrderByNumeroAsc(contratoId))
-                .thenReturn(List.of(p3, p1, p2));
+        when(parcelaPort.listarPorContratoOrdenadoPorNumero(contratoId)).thenReturn(List.of(p3, p1, p2));
 
         List<ParcelaCobranca> r = useCase.executar(new ConsultarParcelasQuery(contratoId, null, null, null));
 

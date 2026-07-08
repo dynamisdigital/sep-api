@@ -1,8 +1,8 @@
 package com.dynamis.sep_api.cobranca.application.usecase;
 
+import com.dynamis.sep_api.cobranca.application.port.out.AgendaPagamentoCobrancaPort;
 import com.dynamis.sep_api.cobranca.domain.exception.AgendaPagamentoNaoEncontradaException;
 import com.dynamis.sep_api.cobranca.domain.model.AgendaPagamento;
-import com.dynamis.sep_api.cobranca.infrastructure.persistence.AgendaPagamentoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,15 +17,15 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class ConsultarAgendaPorContratoUseCase {
 
-    private final AgendaPagamentoRepository agendaRepository;
+    private final AgendaPagamentoCobrancaPort agendaPort;
 
-    public ConsultarAgendaPorContratoUseCase(AgendaPagamentoRepository agendaRepository) {
-        this.agendaRepository = agendaRepository;
+    public ConsultarAgendaPorContratoUseCase(AgendaPagamentoCobrancaPort agendaPort) {
+        this.agendaPort = agendaPort;
     }
 
     public AgendaPagamento executar(UUID contratoId) {
-        return agendaRepository
-                .findByContratoIdAndAtivaTrue(contratoId)
+        return agendaPort
+                .buscarAtivaPorContrato(contratoId)
                 .orElseThrow(() -> AgendaPagamentoNaoEncontradaException.porContrato(contratoId));
     }
 }
