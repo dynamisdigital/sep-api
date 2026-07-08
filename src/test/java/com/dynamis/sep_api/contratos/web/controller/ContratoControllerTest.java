@@ -265,15 +265,15 @@ class ContratoControllerTest {
 
     @Test
     void patchAceiteClienteSemMfa403SemBypass() throws Exception {
-        // Sprint 27: @RequireStepUpEstrito bloqueia usuario sem MFA mesmo com token — sem bypass.
-        UUID tomadorId = UUID.randomUUID();
-        autenticar(tomadorId, Role.CLIENTE, false);
-        when(stepUpTokenService.validarEConsumir(any())).thenReturn(Optional.of(tomadorId));
+        // Sprint 27: @RequireStepUpEstrito bloqueia usuario sem MFA mesmo enviando token — sem
+        // bypass; nega antes de sequer validar o token.
+        autenticar(UUID.randomUUID(), Role.CLIENTE, false);
 
         mockMvc.perform(patch("/api/v1/contratos/{id}/aceite", UUID.randomUUID())
                         .header("X-Step-Up-Token", "token-qualquer"))
                 .andExpect(status().isForbidden());
         verify(registrarAceiteUseCase, never()).executar(any());
+        verify(stepUpTokenService, never()).validarEConsumir(any());
     }
 
     @Test
