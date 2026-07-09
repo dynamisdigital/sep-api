@@ -93,9 +93,10 @@ public class RegistrarAporteCredoraUseCase {
 
         ContratoCarteiraView contrato = validarElegibilidade(operacao);
 
-        AporteCredora aporte = AporteCredora.registrar(
-                operacao.getId(), operacao.getEmpresaCredoraId(), cmd.valor(), cmd.idempotencyKey());
-        aporteRepository.save(aporte);
+        // Usa a instancia retornada pelo save (managed): com id UUID atribuido na factory, o save
+        // faz merge e mutacoes na instancia original (detached) nao persistiriam.
+        AporteCredora aporte = aporteRepository.save(AporteCredora.registrar(
+                operacao.getId(), operacao.getEmpresaCredoraId(), cmd.valor(), cmd.idempotencyKey()));
 
         AporteEscrowRegistrado registro = aporteEscrowPort.registrar(
                 new RegistrarAporteEscrowCommand(aporte.getId(), contrato.propostaId(), aporte.getValor()));
