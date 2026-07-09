@@ -2,12 +2,14 @@ package com.dynamis.sep_api.credores.web.controller;
 
 import com.dynamis.sep_api.credores.application.dto.RegistrarAporteCredoraCommand;
 import com.dynamis.sep_api.credores.application.dto.RegistrarAporteCredoraResult;
+import com.dynamis.sep_api.credores.application.usecase.ConsultarAportesOperacaoUseCase;
 import com.dynamis.sep_api.credores.application.usecase.RegistrarAporteCredoraUseCase;
 import com.dynamis.sep_api.credores.web.dto.AporteCredoraResponse;
 import com.dynamis.sep_api.credores.web.dto.RegistrarAporteRequest;
 import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUpEstrito;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
+import com.dynamis.sep_api.usuarios.domain.model.Role;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -20,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -41,9 +45,12 @@ import java.util.UUID;
 public class AporteCredoraController {
 
     private final RegistrarAporteCredoraUseCase registrarUseCase;
+    private final ConsultarAportesOperacaoUseCase consultarUseCase;
 
-    public AporteCredoraController(RegistrarAporteCredoraUseCase registrarUseCase) {
+    public AporteCredoraController(
+            RegistrarAporteCredoraUseCase registrarUseCase, ConsultarAportesOperacaoUseCase consultarUseCase) {
         this.registrarUseCase = registrarUseCase;
+        this.consultarUseCase = consultarUseCase;
     }
 
     @PostMapping
@@ -95,5 +102,40 @@ public class AporteCredoraController {
 
         HttpStatus status = resultado.novo() ? HttpStatus.CREATED : HttpStatus.OK;
         return ResponseEntity.status(status).body(AporteCredoraResponse.de(resultado.aporte()));
+    }
+
+    @GetMapping
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Listar aportes da operacao (owner-scoped)",
+            description = "Financeiro/admin listam aportes de qualquer operacao existente; a credora dona"
+                    + " lista somente os da propria operacao (sem role CREDORA — acesso por presenca de"
+                    + " credora). Read-only, sem step-up. Usuario sem credora, operacao de outra credora e"
+                    + " operacao inexistente retornam 404 neutro indistinguivel, sem identificador. Lista"
+                    + " vazia e resposta valida. Nao expoe idempotency key, referencia de escrow, provider"
+                    + " ou motivo tecnico de falha.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Aportes da operacao (criacao decrescente)"),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Token ausente ou invalido",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Autenticado sem permissao para a rota",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Operacao nao encontrada para aporte",
+                content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<List<AporteCredoraResponse>> listar(
+            @PathVariable UUID operacaoId, @AuthenticationPrincipal UsuarioAutenticado principal) {
+        boolean visaoOperacional = principal.temRole(Role.FINANCEIRO) || principal.temRole(Role.ADMIN);
+        List<AporteCredoraResponse> resposta =
+                consultarUseCase.executar(principal.id(), operacaoId, visaoOperacional).stream()
+                        .map(AporteCredoraResponse::de)
+                        .toList();
+        return ResponseEntity.ok(resposta);
     }
 }

@@ -3,6 +3,7 @@ package com.dynamis.sep_api.credores.web.controller;
 import com.dynamis.sep_api.credores.application.dto.AporteCredoraView;
 import com.dynamis.sep_api.credores.application.dto.RegistrarAporteCredoraCommand;
 import com.dynamis.sep_api.credores.application.dto.RegistrarAporteCredoraResult;
+import com.dynamis.sep_api.credores.application.usecase.ConsultarAportesOperacaoUseCase;
 import com.dynamis.sep_api.credores.application.usecase.RegistrarAporteCredoraUseCase;
 import com.dynamis.sep_api.credores.domain.exception.AporteConflitanteException;
 import com.dynamis.sep_api.credores.domain.exception.AporteNaoElegivelException;
@@ -44,6 +45,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -71,6 +73,9 @@ class AporteCredoraControllerTest {
 
     @MockBean
     private RegistrarAporteCredoraUseCase registrarUseCase;
+
+    @MockBean
+    private ConsultarAportesOperacaoUseCase consultarUseCase;
 
     @MockBean
     private StepUpTokenService stepUpTokenService;
@@ -290,6 +295,59 @@ class AporteCredoraControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"valor\":2500.00}"))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void financeiroListaAportes_200_semStepUp() throws Exception {
+        autenticar(Role.FINANCEIRO);
+        when(consultarUseCase.executar(operadorId, operacaoId, true))
+                .thenReturn(java.util.List.of(resultado(true).aporte()));
+
+        mockMvc.perform(get("/api/v1/credores/operacoes/{operacaoId}/aportes", operacaoId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(aporteId.toString()))
+                .andExpect(jsonPath("$[0].status").value("EM_PROCESSAMENTO"))
+                .andExpect(jsonPath("$[0].idempotencyKey").doesNotExist())
+                .andExpect(jsonPath("$[0].referenciaEscrow").doesNotExist());
+
+        verifyNoInteractions(stepUpTokenService);
+    }
+
+    @Test
+    void credoraDonaListaAportes_200_visaoNaoOperacional() throws Exception {
+        autenticar(Role.CLIENTE);
+        when(consultarUseCase.executar(operadorId, operacaoId, false))
+                .thenReturn(java.util.List.of(resultado(true).aporte()));
+
+        mockMvc.perform(get("/api/v1/credores/operacoes/{operacaoId}/aportes", operacaoId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].operacaoId").value(operacaoId.toString()));
+
+        verify(consultarUseCase).executar(operadorId, operacaoId, false);
+        verifyNoInteractions(stepUpTokenService);
+    }
+
+    @Test
+    void listaVazia_200() throws Exception {
+        autenticar(Role.ADMIN);
+        when(consultarUseCase.executar(operadorId, operacaoId, true)).thenReturn(java.util.List.of());
+
+        mockMvc.perform(get("/api/v1/credores/operacoes/{operacaoId}/aportes", operacaoId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    void operacaoForaDoEscopo_404NeutroNoGet() throws Exception {
+        autenticar(Role.CLIENTE);
+        when(consultarUseCase.executar(operadorId, operacaoId, false))
+                .thenThrow(new AporteOperacaoNaoEncontradaException());
+
+        mockMvc.perform(get("/api/v1/credores/operacoes/{operacaoId}/aportes", operacaoId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath(
+                        "$.message",
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(operacaoId.toString()))));
     }
 
     @Test
