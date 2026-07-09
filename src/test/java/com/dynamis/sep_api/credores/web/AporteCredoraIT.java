@@ -342,6 +342,13 @@ class AporteCredoraIT {
                 .extract()
                 .path("id");
 
+        // Estado persistido consistente com a resposta (regressao do bug de mutacao detached:
+        // POST respondia EM_PROCESSAMENTO mas o banco guardava PENDENTE sem referencia).
+        AporteCredora persistido =
+                aporteRepository.findById(UUID.fromString(aporteId)).orElseThrow();
+        assertThat(persistido.getStatus()).isEqualTo(StatusAporteCredora.EM_PROCESSAMENTO);
+        assertThat(persistido.getReferenciaEscrow()).isNotBlank();
+
         // replay com mesma Idempotency-Key retorna o mesmo aporte — 200
         RestAssured.given()
                 .header("Authorization", "Bearer " + financeiro.token())
@@ -498,6 +505,6 @@ class AporteCredoraIT {
                 .get(PATH, operacaoId)
                 .then()
                 .statusCode(404)
-                .body("message", not(equalTo(operacaoId)));
+                .body("message", not(org.hamcrest.Matchers.containsString(operacaoId)));
     }
 }
