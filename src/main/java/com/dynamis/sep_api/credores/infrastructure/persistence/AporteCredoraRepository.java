@@ -14,4 +14,6 @@ public interface AporteCredoraRepository extends JpaRepository<AporteCredora, UU
     Optional<AporteCredora> findByOperacaoIdAndIdempotencyKey(UUID operacaoId, String idempotencyKey);
 
     List<AporteCredora> findByOperacaoIdOrderByDataCriacaoDesc(UUID operacaoId);
+
+    Optional<AporteCredora> findByReferenciaEscrow(String referenciaEscrow);
 }

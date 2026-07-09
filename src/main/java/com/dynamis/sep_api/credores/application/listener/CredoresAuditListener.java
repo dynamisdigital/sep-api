@@ -1,5 +1,7 @@
 package com.dynamis.sep_api.credores.application.listener;
 
+import com.dynamis.sep_api.credores.domain.event.AporteCredoraFalhouEvent;
+import com.dynamis.sep_api.credores.domain.event.AporteCredoraLiquidadoEvent;
 import com.dynamis.sep_api.credores.domain.event.AporteCredoraRegistradoEvent;
 import com.dynamis.sep_api.credores.domain.event.EmpresaCredoraCadastradaEvent;
 import com.dynamis.sep_api.credores.domain.event.EmpresaCredoraElegibilidadeDefinidaEvent;
@@ -108,6 +110,28 @@ public class CredoresAuditListener {
         payload.put("empresaCredoraId", event.empresaCredoraId().toString());
         payload.put("valor", event.valor().toPlainString());
         auditLogService.gravar(TipoEventoSeguranca.CREDORA_APORTE_REGISTRADO, event.usuarioId(), serializar(payload));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoLiquidarAporte(AporteCredoraLiquidadoEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("aporteId", event.aporteId().toString());
+        payload.put("operacaoId", event.operacaoId().toString());
+        payload.put("empresaCredoraId", event.empresaCredoraId().toString());
+        payload.put("valor", event.valor().toPlainString());
+        auditLogService.gravar(TipoEventoSeguranca.CREDORA_APORTE_LIQUIDADO, null, serializar(payload));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoFalharAporte(AporteCredoraFalhouEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("aporteId", event.aporteId().toString());
+        payload.put("operacaoId", event.operacaoId().toString());
+        payload.put("empresaCredoraId", event.empresaCredoraId().toString());
+        payload.put("motivo", event.motivoSanitizado());
+        auditLogService.gravar(TipoEventoSeguranca.CREDORA_APORTE_FALHOU, null, serializar(payload));
     }
 
     private String serializar(Map<String, Object> payload) {

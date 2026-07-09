@@ -138,6 +138,28 @@ public class MovimentacaoEscrow extends EntidadeAuditavel {
         return tipo.getClass().getSimpleName();
     }
 
+    /** Liquida a movimentacao apos reconciliacao (Sprint 29 Task 29.5). Estado terminal. */
+    public void marcarLiquidada() {
+        exigirEstado(StatusMovimentacao.EM_PROCESSAMENTO);
+        this.status = StatusMovimentacao.LIQUIDADA;
+    }
+
+    /** Marca falha terminal da movimentacao apos reconciliacao (Sprint 29 Task 29.5). */
+    public void marcarFalhou() {
+        exigirEstado(StatusMovimentacao.EM_PROCESSAMENTO);
+        this.status = StatusMovimentacao.FALHOU;
+    }
+
+    private void exigirEstado(StatusMovimentacao... permitidos) {
+        for (StatusMovimentacao permitido : permitidos) {
+            if (this.status == permitido) {
+                return;
+            }
+        }
+        // Mensagem carrega apenas o status atual — sem id, chave ou referencia externa.
+        throw new IllegalStateException("transicao invalida a partir de " + this.status);
+    }
+
     public UUID getId() {
         return id;
     }

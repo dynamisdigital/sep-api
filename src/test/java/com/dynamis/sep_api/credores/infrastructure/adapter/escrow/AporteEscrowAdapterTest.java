@@ -4,6 +4,7 @@ import com.dynamis.sep_api.credores.application.port.out.AporteEscrowRegistrado;
 import com.dynamis.sep_api.credores.application.port.out.RegistrarAporteEscrowCommand;
 import com.dynamis.sep_api.credores.domain.exception.AporteEscrowException;
 import com.dynamis.sep_api.escrow.application.dto.RegistrarMovimentacaoEscrowCommand;
+import com.dynamis.sep_api.escrow.application.usecase.ReconciliarAporteEscrowUseCase;
 import com.dynamis.sep_api.escrow.application.usecase.RegistrarMovimentacaoEscrowUseCase;
 import com.dynamis.sep_api.escrow.domain.model.ContaEscrow;
 import com.dynamis.sep_api.escrow.domain.model.MovimentacaoEscrow;
@@ -38,12 +39,14 @@ class AporteEscrowAdapterTest {
     private static final Instant AGORA = Instant.parse("2026-07-09T12:00:00Z");
 
     private RegistrarMovimentacaoEscrowUseCase escrowUseCase;
+    private ReconciliarAporteEscrowUseCase reconciliarEscrowUseCase;
     private AporteEscrowAdapter adapter;
 
     @BeforeEach
     void setup() {
         escrowUseCase = mock(RegistrarMovimentacaoEscrowUseCase.class);
-        adapter = new AporteEscrowAdapter(escrowUseCase, Clock.fixed(AGORA, ZoneOffset.UTC));
+        reconciliarEscrowUseCase = mock(ReconciliarAporteEscrowUseCase.class);
+        adapter = new AporteEscrowAdapter(escrowUseCase, reconciliarEscrowUseCase, Clock.fixed(AGORA, ZoneOffset.UTC));
     }
 
     @Test
@@ -107,6 +110,43 @@ class AporteEscrowAdapterTest {
                 .hasMessageNotContaining("constraint")
                 .hasMessageNotContaining("wallet")
                 .hasCause(erroBruto);
+    }
+
+    @Test
+    void liquidarDelegaComReferenciaConvertida() {
+        UUID movimentacaoId = UUID.randomUUID();
+
+        adapter.liquidar(movimentacaoId.toString());
+
+        verify(reconciliarEscrowUseCase).liquidar(movimentacaoId);
+    }
+
+    @Test
+    void falharDelegaComReferenciaConvertida() {
+        UUID movimentacaoId = UUID.randomUUID();
+
+        adapter.falhar(movimentacaoId.toString());
+
+        verify(reconciliarEscrowUseCase).falhar(movimentacaoId);
+    }
+
+    @Test
+    void reconciliacaoComErroBrutoOuReferenciaInvalidaViraExcecaoSanitizada() {
+        UUID movimentacaoId = UUID.randomUUID();
+        IllegalStateException erroBruto = new IllegalStateException("transicao invalida a partir de FALHOU");
+        when(reconciliarEscrowUseCase.liquidar(movimentacaoId)).thenThrow(erroBruto);
+
+        Throwable daFalhaBruta = catchThrowable(() -> adapter.liquidar(movimentacaoId.toString()));
+        assertThat(daFalhaBruta)
+                .isInstanceOf(AporteEscrowException.class)
+                .hasMessage(AporteEscrowException.MOTIVO_SANITIZADO)
+                .hasCause(erroBruto);
+
+        Throwable daReferenciaInvalida = catchThrowable(() -> adapter.falhar("nao-e-uuid"));
+        assertThat(daReferenciaInvalida)
+                .isInstanceOf(AporteEscrowException.class)
+                .hasMessage(AporteEscrowException.MOTIVO_SANITIZADO)
+                .hasMessageNotContaining("nao-e-uuid");
     }
 
     private static MovimentacaoEscrow movimentacaoDeAporte(UUID propostaId, String key, UUID aporteId) {
