@@ -153,6 +153,8 @@ class ReconciliarAporteCredoraUseCaseTest {
         assertThatThrownBy(() ->
                         useCase.executar(new ReconciliarAporteCredoraCommand(" ", StatusAporteCredora.LIQUIDADO, null)))
                 .isInstanceOf(ValidacaoException.class);
+        assertThatThrownBy(() -> useCase.executar(new ReconciliarAporteCredoraCommand(REFERENCIA, null, null)))
+                .isInstanceOf(ValidacaoException.class);
         assertThatThrownBy(() -> useCase.executar(
                         new ReconciliarAporteCredoraCommand(REFERENCIA, StatusAporteCredora.PENDENTE, null)))
                 .isInstanceOf(ValidacaoException.class);

@@ -103,7 +103,9 @@ public class ReconciliarAporteCredoraUseCase {
         if (cmd.referenciaEscrow() == null || cmd.referenciaEscrow().isBlank()) {
             throw new ValidacaoException("CRD-400-007", "referenciaEscrow obrigatoria.");
         }
-        if (cmd.resultado() != StatusAporteCredora.LIQUIDADO && cmd.resultado() != StatusAporteCredora.FALHOU) {
+        if (cmd.resultado() == null
+                || (cmd.resultado() != StatusAporteCredora.LIQUIDADO
+                        && cmd.resultado() != StatusAporteCredora.FALHOU)) {
             throw new ValidacaoException("CRD-400-008", "resultado deve ser terminal (LIQUIDADO ou FALHOU).");
         }
         if (cmd.resultado() == StatusAporteCredora.FALHOU) {

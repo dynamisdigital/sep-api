@@ -7,6 +7,7 @@ import com.dynamis.sep_api.escrow.domain.vo.StatusContaEscrow;
 import com.dynamis.sep_api.escrow.domain.vo.StatusMovimentacao;
 import com.dynamis.sep_api.escrow.domain.vo.TipoWallet;
 import com.dynamis.sep_api.escrow.infrastructure.persistence.MovimentacaoEscrowRepository;
+import com.dynamis.sep_api.escrow.infrastructure.persistence.WalletRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -27,6 +28,7 @@ import static org.mockito.Mockito.when;
 class ReconciliarAporteEscrowUseCaseTest {
 
     private MovimentacaoEscrowRepository movimentacaoRepository;
+    private WalletRepository walletRepository;
     private ReconciliarAporteEscrowUseCase useCase;
 
     private Wallet wallet;
@@ -36,13 +38,16 @@ class ReconciliarAporteEscrowUseCaseTest {
     @BeforeEach
     void setup() {
         movimentacaoRepository = mock(MovimentacaoEscrowRepository.class);
-        useCase = new ReconciliarAporteEscrowUseCase(movimentacaoRepository);
+        walletRepository = mock(WalletRepository.class);
+        useCase = new ReconciliarAporteEscrowUseCase(movimentacaoRepository, walletRepository);
 
         ContaEscrow conta = ContaEscrow.criar("SEP-COBRANCA", StatusContaEscrow.ATIVA);
-        wallet = Wallet.criar(conta, UUID.randomUUID(), TipoWallet.PROPOSTA);
+        UUID propostaId = UUID.randomUUID();
+        wallet = Wallet.criar(conta, propostaId, TipoWallet.PROPOSTA);
         aporte = MovimentacaoEscrow.criarAporte(
                 wallet, new BigDecimal("2500.00"), "aporte:key-1", OffsetDateTime.now(), UUID.randomUUID());
-        when(movimentacaoRepository.findById(movimentacaoId)).thenReturn(Optional.of(aporte));
+        when(movimentacaoRepository.findByIdForUpdate(movimentacaoId)).thenReturn(Optional.of(aporte));
+        when(walletRepository.findByPropostaIdForUpdate(propostaId)).thenReturn(Optional.of(wallet));
     }
 
     @Test
@@ -83,7 +88,7 @@ class ReconciliarAporteEscrowUseCaseTest {
         MovimentacaoEscrow recebimento = MovimentacaoEscrow.criarRecebimento(
                 wallet, new BigDecimal("100.00"), "rec-key-1", OffsetDateTime.now(), UUID.randomUUID());
         UUID recebimentoId = UUID.randomUUID();
-        when(movimentacaoRepository.findById(recebimentoId)).thenReturn(Optional.of(recebimento));
+        when(movimentacaoRepository.findByIdForUpdate(recebimentoId)).thenReturn(Optional.of(recebimento));
 
         assertThatIllegalStateException().isThrownBy(() -> useCase.liquidar(recebimentoId));
         assertThatIllegalStateException().isThrownBy(() -> useCase.falhar(recebimentoId));
@@ -92,7 +97,7 @@ class ReconciliarAporteEscrowUseCaseTest {
     @Test
     void movimentacaoInexistenteFalha() {
         UUID desconhecida = UUID.randomUUID();
-        when(movimentacaoRepository.findById(desconhecida)).thenReturn(Optional.empty());
+        when(movimentacaoRepository.findByIdForUpdate(desconhecida)).thenReturn(Optional.empty());
 
         assertThatIllegalStateException().isThrownBy(() -> useCase.liquidar(desconhecida));
     }
