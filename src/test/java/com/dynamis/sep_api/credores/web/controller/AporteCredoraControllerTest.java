@@ -139,6 +139,8 @@ class AporteCredoraControllerTest {
                 .andExpect(jsonPath("$.operacaoId").value(operacaoId.toString()))
                 .andExpect(jsonPath("$.status").value("EM_PROCESSAMENTO"))
                 .andExpect(jsonPath("$.valor").value(2500.00))
+                .andExpect(jsonPath("$.dataCriacao").exists())
+                .andExpect(jsonPath("$.dataAtualizacao").exists())
                 .andExpect(jsonPath("$.idempotencyKey").doesNotExist())
                 .andExpect(jsonPath("$.referenciaEscrow").doesNotExist())
                 .andExpect(jsonPath("$.motivoFalhaSanitizado").doesNotExist());
