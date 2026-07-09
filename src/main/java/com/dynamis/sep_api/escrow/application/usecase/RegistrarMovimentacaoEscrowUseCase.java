@@ -68,6 +68,33 @@ public class RegistrarMovimentacaoEscrowUseCase {
                 .orElseGet(() -> criarNovaMovimentacao(cmd));
     }
 
+    /**
+     * Registra a movimentacao de aporte da credora (Sprint 29 Task 29.2). Mesmo contrato de
+     * idempotencia do recebimento: {@code idempotencyKey} unica, replay retorna a movimentacao
+     * existente. Diferenca: o aporte nasce {@code EM_PROCESSAMENTO} e NAO credita o saldo da
+     * wallet — o credito ocorre somente na liquidacao (Task 29.5).
+     */
+    @Transactional
+    public MovimentacaoEscrow registrarAporte(RegistrarMovimentacaoEscrowCommand cmd) {
+        return movimentacaoRepository.findByIdempotencyKey(cmd.idempotencyKey()).orElseGet(() -> criarNovoAporte(cmd));
+    }
+
+    private MovimentacaoEscrow criarNovoAporte(RegistrarMovimentacaoEscrowCommand cmd) {
+        Wallet wallet = obterOuCriarWallet(cmd.propostaId());
+        MovimentacaoEscrow movimentacao = MovimentacaoEscrow.criarAporte(
+                wallet, cmd.valor(), cmd.idempotencyKey(), cmd.dataMovimentacao(), cmd.externalReferenceId());
+        MovimentacaoEscrow salva = movimentacaoRepository.save(movimentacao);
+        eventPublisher.publishEvent(new MovimentacaoEscrowCriadaEvent(
+                salva.getId(),
+                wallet.getId(),
+                cmd.propostaId(),
+                salva.getValor(),
+                salva.getTipo(),
+                salva.getDataMovimentacao(),
+                salva.getExternalReferenceId()));
+        return salva;
+    }
+
     private MovimentacaoEscrow criarNovaMovimentacao(RegistrarMovimentacaoEscrowCommand cmd) {
         Wallet wallet = obterOuCriarWallet(cmd.propostaId());
         wallet.creditar(cmd.valor());

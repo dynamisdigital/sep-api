@@ -83,16 +83,7 @@ public class MovimentacaoEscrow extends EntidadeAuditavel {
             String idempotencyKey,
             OffsetDateTime dataMovimentacao,
             UUID externalReferenceId) {
-        Objects.requireNonNull(wallet, "wallet obrigatoria");
-        Objects.requireNonNull(valor, "valor obrigatorio");
-        if (valor.signum() <= 0) {
-            throw new IllegalArgumentException("valor deve ser positivo");
-        }
-        Objects.requireNonNull(idempotencyKey, "idempotencyKey obrigatoria");
-        if (idempotencyKey.isBlank()) {
-            throw new IllegalArgumentException("idempotencyKey nao pode ser vazia");
-        }
-        Objects.requireNonNull(dataMovimentacao, "dataMovimentacao obrigatoria");
+        validarCriacao(wallet, valor, idempotencyKey, dataMovimentacao);
         UUID id = Generators.timeBasedReorderedGenerator().generate();
         return new MovimentacaoEscrow(
                 id,
@@ -105,8 +96,68 @@ public class MovimentacaoEscrow extends EntidadeAuditavel {
                 externalReferenceId);
     }
 
+    /**
+     * Cria movimentacao de {@link TipoMovimentacao.Aporte} (Sprint 29 Task 29.2). O aporte
+     * assistido nasce em {@link StatusMovimentacao#EM_PROCESSAMENTO}: o credito do saldo da wallet
+     * ocorre somente na liquidacao (reconciliacao, Task 29.5).
+     */
+    public static MovimentacaoEscrow criarAporte(
+            Wallet wallet,
+            BigDecimal valor,
+            String idempotencyKey,
+            OffsetDateTime dataMovimentacao,
+            UUID externalReferenceId) {
+        validarCriacao(wallet, valor, idempotencyKey, dataMovimentacao);
+        UUID id = Generators.timeBasedReorderedGenerator().generate();
+        return new MovimentacaoEscrow(
+                id,
+                wallet,
+                tipoLabel(new TipoMovimentacao.Aporte()),
+                valor.setScale(2, RoundingMode.HALF_UP),
+                idempotencyKey,
+                StatusMovimentacao.EM_PROCESSAMENTO,
+                dataMovimentacao,
+                externalReferenceId);
+    }
+
+    private static void validarCriacao(
+            Wallet wallet, BigDecimal valor, String idempotencyKey, OffsetDateTime dataMovimentacao) {
+        Objects.requireNonNull(wallet, "wallet obrigatoria");
+        Objects.requireNonNull(valor, "valor obrigatorio");
+        if (valor.signum() <= 0) {
+            throw new IllegalArgumentException("valor deve ser positivo");
+        }
+        Objects.requireNonNull(idempotencyKey, "idempotencyKey obrigatoria");
+        if (idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException("idempotencyKey nao pode ser vazia");
+        }
+        Objects.requireNonNull(dataMovimentacao, "dataMovimentacao obrigatoria");
+    }
+
     private static String tipoLabel(TipoMovimentacao tipo) {
         return tipo.getClass().getSimpleName();
+    }
+
+    /** Liquida a movimentacao apos reconciliacao (Sprint 29 Task 29.5). Estado terminal. */
+    public void marcarLiquidada() {
+        exigirEstado(StatusMovimentacao.EM_PROCESSAMENTO);
+        this.status = StatusMovimentacao.LIQUIDADA;
+    }
+
+    /** Marca falha terminal da movimentacao apos reconciliacao (Sprint 29 Task 29.5). */
+    public void marcarFalhou() {
+        exigirEstado(StatusMovimentacao.EM_PROCESSAMENTO);
+        this.status = StatusMovimentacao.FALHOU;
+    }
+
+    private void exigirEstado(StatusMovimentacao... permitidos) {
+        for (StatusMovimentacao permitido : permitidos) {
+            if (this.status == permitido) {
+                return;
+            }
+        }
+        // Mensagem carrega apenas o status atual — sem id, chave ou referencia externa.
+        throw new IllegalStateException("transicao invalida a partir de " + this.status);
     }
 
     public UUID getId() {
