@@ -38,6 +38,9 @@ import java.util.Optional;
  *       replay com mesmo valor retorna o aporte existente sem novo registro no escrow e sem nova
  *       auditoria; valor divergente -> 409. Checada ANTES da elegibilidade para que replay continue
  *       estavel mesmo se a operacao mudar de estado depois do registro original (padrao Sprint 20).
+ *       Requisicoes concorrentes com a mesma chave serializam no {@code SELECT FOR UPDATE} da
+ *       operacao — a segunda enxerga o aporte criado e recebe replay 200; o UNIQUE V54 fica como
+ *       defesa final, nao como caminho de erro.
  *   <li><strong>Elegibilidade</strong>: operacao ativa na carteira (ASSOCIADA) e contrato {@code
  *       ASSINADO} via porta; caso contrario 409.
  *   <li><strong>Atomicidade local</strong>: escrow desta fase e local (fake) e participa da mesma
@@ -76,8 +79,11 @@ public class RegistrarAporteCredoraUseCase {
     public RegistrarAporteCredoraResult executar(RegistrarAporteCredoraCommand cmd) {
         validarComando(cmd);
 
-        OperacaoFinanciada operacao =
-                operacaoRepository.findById(cmd.operacaoId()).orElseThrow(AporteOperacaoNaoEncontradaException::new);
+        // FOR UPDATE serializa registros concorrentes na mesma operacao: o check de idempotencia
+        // abaixo roda sob o lock e a requisicao paralela recebe replay 200, nao violacao do UNIQUE.
+        OperacaoFinanciada operacao = operacaoRepository
+                .findByIdForUpdate(cmd.operacaoId())
+                .orElseThrow(AporteOperacaoNaoEncontradaException::new);
 
         Optional<AporteCredora> existente =
                 aporteRepository.findByOperacaoIdAndIdempotencyKey(operacao.getId(), cmd.idempotencyKey());

@@ -57,8 +57,10 @@ public class ReconciliarAporteCredoraUseCase {
     public AporteCredoraView executar(ReconciliarAporteCredoraCommand cmd) {
         validarComando(cmd);
 
+        // FOR UPDATE serializa reconciliacoes concorrentes do mesmo aporte: a segunda re-le o
+        // estado terminal e cai no replay no-op, sem transicao nem auditoria duplicada.
         AporteCredora aporte = aporteRepository
-                .findByReferenciaEscrow(cmd.referenciaEscrow())
+                .findByReferenciaEscrowForUpdate(cmd.referenciaEscrow())
                 .orElseThrow(AporteNaoEncontradoException::new);
 
         return switch (cmd.resultado()) {

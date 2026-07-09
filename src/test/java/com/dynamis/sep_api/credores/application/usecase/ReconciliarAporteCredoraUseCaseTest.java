@@ -54,7 +54,7 @@ class ReconciliarAporteCredoraUseCaseTest {
 
         aporte = AporteCredora.registrar(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("2500.00"), "idem-key-1");
         aporte.marcarEmProcessamento(REFERENCIA);
-        when(aporteRepository.findByReferenciaEscrow(REFERENCIA)).thenReturn(Optional.of(aporte));
+        when(aporteRepository.findByReferenciaEscrowForUpdate(REFERENCIA)).thenReturn(Optional.of(aporte));
     }
 
     private ReconciliarAporteCredoraCommand liquidado() {
@@ -128,7 +128,7 @@ class ReconciliarAporteCredoraUseCaseTest {
                 AporteCredora.registrar(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("100.00"), "idem-key-2");
         falhado.marcarEmProcessamento("ref-2");
         falhado.marcarFalhou("Aporte recusado");
-        when(aporteRepository.findByReferenciaEscrow("ref-2")).thenReturn(Optional.of(falhado));
+        when(aporteRepository.findByReferenciaEscrowForUpdate("ref-2")).thenReturn(Optional.of(falhado));
 
         assertThatThrownBy(() -> useCase.executar(
                         new ReconciliarAporteCredoraCommand("ref-2", StatusAporteCredora.LIQUIDADO, null)))
@@ -139,7 +139,7 @@ class ReconciliarAporteCredoraUseCaseTest {
 
     @Test
     void referenciaDesconhecidaRetorna404NeutroSemEcoarReferencia() {
-        when(aporteRepository.findByReferenciaEscrow("ref-fantasma")).thenReturn(Optional.empty());
+        when(aporteRepository.findByReferenciaEscrowForUpdate("ref-fantasma")).thenReturn(Optional.empty());
 
         Throwable erro = catchThrowable(() -> useCase.executar(
                 new ReconciliarAporteCredoraCommand("ref-fantasma", StatusAporteCredora.LIQUIDADO, null)));

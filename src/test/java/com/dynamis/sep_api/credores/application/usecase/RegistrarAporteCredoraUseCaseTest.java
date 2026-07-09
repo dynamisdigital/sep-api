@@ -68,7 +68,7 @@ class RegistrarAporteCredoraUseCaseTest {
         operacao = OperacaoFinanciada.associar(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "Associacao assistida");
         propostaId = UUID.randomUUID();
-        when(operacaoRepository.findById(operacao.getId())).thenReturn(Optional.of(operacao));
+        when(operacaoRepository.findByIdForUpdate(operacao.getId())).thenReturn(Optional.of(operacao));
         when(aporteRepository.findByOperacaoIdAndIdempotencyKey(operacao.getId(), KEY))
                 .thenReturn(Optional.empty());
         when(contratoPort.consultarPorId(operacao.getContratoId())).thenReturn(Optional.of(contratoView("ASSINADO")));
@@ -107,7 +107,7 @@ class RegistrarAporteCredoraUseCaseTest {
     @Test
     void operacaoInexistenteRetornaErroNeutroSemConsultarNada() {
         UUID inexistente = UUID.randomUUID();
-        when(operacaoRepository.findById(inexistente)).thenReturn(Optional.empty());
+        when(operacaoRepository.findByIdForUpdate(inexistente)).thenReturn(Optional.empty());
 
         Throwable erro = catchThrowable(() ->
                 useCase.executar(new RegistrarAporteCredoraCommand(inexistente, new BigDecimal("100.00"), KEY, ATOR)));
@@ -218,7 +218,7 @@ class RegistrarAporteCredoraUseCaseTest {
         assertThatThrownBy(() ->
                         useCase.executar(new RegistrarAporteCredoraCommand(null, new BigDecimal("100.00"), KEY, ATOR)))
                 .isInstanceOf(ValidacaoException.class);
-        verify(operacaoRepository, never()).findById(any());
+        verify(operacaoRepository, never()).findByIdForUpdate(any());
     }
 
     private RegistrarAporteCredoraCommand comando(String valor) {
