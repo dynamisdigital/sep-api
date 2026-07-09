@@ -116,6 +116,10 @@ public enum TipoEventoSeguranca {
     CREDORA_INTERESSE_REGISTRADO,
     CREDORA_INTERESSE_CANCELADO,
     CREDORA_OPERACAO_ASSOCIADA,
+    // Sprint 29: aporte assistido da credora (Epic 15).
+    CREDORA_APORTE_REGISTRADO,
+    CREDORA_APORTE_LIQUIDADO,
+    CREDORA_APORTE_FALHOU,
     // Sprint 18 Task 18.6: governanca avancada (RBAC cumulativo + parametros).
     USUARIO_ROLES_ALTERADAS,
     PARAMETRO_OPERACIONAL_ALTERADO,
