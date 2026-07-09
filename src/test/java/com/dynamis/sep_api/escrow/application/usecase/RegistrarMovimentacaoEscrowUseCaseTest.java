@@ -5,6 +5,7 @@ import com.dynamis.sep_api.escrow.domain.model.ContaEscrow;
 import com.dynamis.sep_api.escrow.domain.model.MovimentacaoEscrow;
 import com.dynamis.sep_api.escrow.domain.model.Wallet;
 import com.dynamis.sep_api.escrow.domain.vo.StatusContaEscrow;
+import com.dynamis.sep_api.escrow.domain.vo.StatusMovimentacao;
 import com.dynamis.sep_api.escrow.domain.vo.TipoWallet;
 import com.dynamis.sep_api.escrow.infrastructure.persistence.ContaEscrowRepository;
 import com.dynamis.sep_api.escrow.infrastructure.persistence.MovimentacaoEscrowRepository;
@@ -102,6 +103,45 @@ class RegistrarMovimentacaoEscrowUseCaseTest {
         assertThat(mov).isSameAs(existente);
         verify(walletRepository, never()).findByPropostaIdForUpdate(any());
         verify(movimentacaoRepository, never()).save(any());
+    }
+
+    @Test
+    void registrarAporte_criaMovimentacaoEmProcessamentoSemCreditarSaldo() {
+        UUID propostaId = UUID.randomUUID();
+        String key = "aporte:" + UUID.randomUUID();
+        ContaEscrow conta =
+                ContaEscrow.criar(RegistrarMovimentacaoEscrowUseCase.TITULAR_PADRAO, StatusContaEscrow.ATIVA);
+        Wallet wallet = Wallet.criar(conta, propostaId, TipoWallet.PROPOSTA);
+        when(movimentacaoRepository.findByIdempotencyKey(key)).thenReturn(Optional.empty());
+        when(walletRepository.findByPropostaIdForUpdate(propostaId)).thenReturn(Optional.of(wallet));
+        when(movimentacaoRepository.save(any(MovimentacaoEscrow.class))).thenAnswer(i -> i.getArgument(0));
+
+        MovimentacaoEscrow mov = useCase.registrarAporte(novoCmd(propostaId, key, "2500.00"));
+
+        assertThat(mov.getTipo()).isEqualTo("Aporte");
+        assertThat(mov.getStatus()).isEqualTo(StatusMovimentacao.EM_PROCESSAMENTO);
+        assertThat(mov.getValor()).isEqualByComparingTo("2500.00");
+        assertThat(mov.getIdempotencyKey()).isEqualTo(key);
+        // Aporte nao credita saldo no registro — credito ocorre somente na liquidacao (Task 29.5).
+        assertThat(wallet.getSaldo()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void registrarAporte_idempotente_retornaExistenteSemNovoSave() {
+        String key = "aporte:existente";
+        ContaEscrow conta =
+                ContaEscrow.criar(RegistrarMovimentacaoEscrowUseCase.TITULAR_PADRAO, StatusContaEscrow.ATIVA);
+        Wallet wallet = Wallet.criar(conta, UUID.randomUUID(), TipoWallet.PROPOSTA);
+        MovimentacaoEscrow existente = MovimentacaoEscrow.criarAporte(
+                wallet, new BigDecimal("100.00"), key, OffsetDateTime.now(), UUID.randomUUID());
+        when(movimentacaoRepository.findByIdempotencyKey(key)).thenReturn(Optional.of(existente));
+
+        MovimentacaoEscrow mov = useCase.registrarAporte(novoCmd(UUID.randomUUID(), key, "100.00"));
+
+        assertThat(mov).isSameAs(existente);
+        verify(walletRepository, never()).findByPropostaIdForUpdate(any());
+        verify(movimentacaoRepository, never()).save(any());
+        assertThat(wallet.getSaldo()).isEqualByComparingTo("0.00");
     }
 
     private static RegistrarMovimentacaoEscrowCommand novoCmd(UUID propostaId, String key, String valor) {
