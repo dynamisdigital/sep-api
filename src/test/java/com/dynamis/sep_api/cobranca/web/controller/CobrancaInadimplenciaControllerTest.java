@@ -262,6 +262,11 @@ class CobrancaInadimplenciaControllerTest {
 
     // ============== POST /parcelas/{id}/renegociacao ==============
 
+    // Vencimento dinamico: o DTO valida @FutureOrPresent — data hardcoded vira bomba-relogio
+    // (payload passa a responder 400 quando a data fica no passado e os asserts de 201/403/409
+    // quebram).
+    private static final LocalDate NOVO_VENCIMENTO_FUTURO = LocalDate.now().plusDays(30);
+
     @Test
     void proporRenegociacao_financeiro201() throws Exception {
         UUID financeiroId = UUID.randomUUID();
@@ -271,8 +276,9 @@ class CobrancaInadimplenciaControllerTest {
 
         String body =
                 """
-                {"novoValorParcela":110.00,"novoVencimento":"2026-07-10","numeroParcelas":3,"desconto":0.00,"justificativa":"acordo"}
-                """;
+                {"novoValorParcela":110.00,"novoVencimento":"%s","numeroParcelas":3,"desconto":0.00,"justificativa":"acordo"}
+                """
+                        .formatted(NOVO_VENCIMENTO_FUTURO);
         mockMvc.perform(post("/api/v1/cobranca/parcelas/{id}/renegociacao", parcelaId)
                         .header(StepUpEnforcementAspect.HEADER, stepUp)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -286,8 +292,9 @@ class CobrancaInadimplenciaControllerTest {
         autenticar(UUID.randomUUID(), Role.CLIENTE);
         String body =
                 """
-                {"novoValorParcela":110.00,"novoVencimento":"2026-07-10","numeroParcelas":3,"desconto":0.00,"justificativa":"x"}
-                """;
+                {"novoValorParcela":110.00,"novoVencimento":"%s","numeroParcelas":3,"desconto":0.00,"justificativa":"x"}
+                """
+                        .formatted(NOVO_VENCIMENTO_FUTURO);
         mockMvc.perform(post("/api/v1/cobranca/parcelas/{id}/renegociacao", UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -297,8 +304,8 @@ class CobrancaInadimplenciaControllerTest {
     @Test
     void proporRenegociacao_payloadInvalido_400() throws Exception {
         autenticar(UUID.randomUUID(), Role.FINANCEIRO);
-        String body =
-                "{\"novoValorParcela\":-5,\"novoVencimento\":\"2026-07-10\",\"numeroParcelas\":0,\"desconto\":-1}";
+        String body = "{\"novoValorParcela\":-5,\"novoVencimento\":\"" + NOVO_VENCIMENTO_FUTURO
+                + "\",\"numeroParcelas\":0,\"desconto\":-1}";
         mockMvc.perform(post("/api/v1/cobranca/parcelas/{id}/renegociacao", UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -313,8 +320,9 @@ class CobrancaInadimplenciaControllerTest {
                 .thenThrow(new RenegociacaoConflitanteException(UUID.randomUUID()));
         String body =
                 """
-                {"novoValorParcela":110.00,"novoVencimento":"2026-07-10","numeroParcelas":3,"desconto":0.00,"justificativa":"x"}
-                """;
+                {"novoValorParcela":110.00,"novoVencimento":"%s","numeroParcelas":3,"desconto":0.00,"justificativa":"x"}
+                """
+                        .formatted(NOVO_VENCIMENTO_FUTURO);
         mockMvc.perform(post("/api/v1/cobranca/parcelas/{id}/renegociacao", UUID.randomUUID())
                         .header(StepUpEnforcementAspect.HEADER, stepUp)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -421,8 +429,9 @@ class CobrancaInadimplenciaControllerTest {
         autenticar(UUID.randomUUID(), Role.FINANCEIRO, true);
         String body =
                 """
-                {"novoValorParcela":110.00,"novoVencimento":"2026-07-10","numeroParcelas":3,"desconto":0.00,"justificativa":"x"}
-                """;
+                {"novoValorParcela":110.00,"novoVencimento":"%s","numeroParcelas":3,"desconto":0.00,"justificativa":"x"}
+                """
+                        .formatted(NOVO_VENCIMENTO_FUTURO);
         mockMvc.perform(post("/api/v1/cobranca/parcelas/{id}/renegociacao", UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
