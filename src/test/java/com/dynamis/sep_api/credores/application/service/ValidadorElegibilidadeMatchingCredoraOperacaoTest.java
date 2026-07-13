@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Regras de elegibilidade do matching credora-operacao (Sprint 30 Task 30.1). O par avaliado e
@@ -231,6 +232,13 @@ class ValidadorElegibilidadeMatchingCredoraOperacaoTest {
 
         assertThat(resultado.elegivel()).isFalse();
         assertThat(resultado.criterioViolado()).isEqualTo(CriterioMatchingCredoraOperacao.PAR_SEM_MATCHING_PREVIO);
+    }
+
+    @Test
+    void candidatoNulo_falhaComMensagemIntencional() {
+        assertThatThrownBy(() -> validador.avaliar(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("candidato obrigatorio");
     }
 
     @Test

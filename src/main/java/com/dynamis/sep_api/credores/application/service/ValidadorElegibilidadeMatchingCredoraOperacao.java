@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Avalia se um par (credora dona, operacao da propria carteira) e elegivel para sugestao de
@@ -36,6 +37,7 @@ public class ValidadorElegibilidadeMatchingCredoraOperacao {
     static final String STATUS_CONTRATO_ELEGIVEL = "ASSINADO";
 
     public ResultadoElegibilidadeMatching avaliar(CandidatoMatchingCredoraOperacao candidato) {
+        Objects.requireNonNull(candidato, "candidato obrigatorio");
         List<CriterioMatchingCredoraOperacao> atendidos = new ArrayList<>();
 
         if (candidato.statusCredora() != StatusCredora.ATIVA) {
