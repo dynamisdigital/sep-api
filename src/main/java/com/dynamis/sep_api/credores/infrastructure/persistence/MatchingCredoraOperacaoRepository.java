@@ -2,11 +2,15 @@ package com.dynamis.sep_api.credores.infrastructure.persistence;
 
 import com.dynamis.sep_api.credores.domain.model.MatchingCredoraOperacao;
 import com.dynamis.sep_api.credores.domain.vo.StatusMatchingCredoraOperacao;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -27,4 +31,13 @@ public interface MatchingCredoraOperacaoRepository extends JpaRepository<Matchin
     /** Listagem operacional deterministica: maior valor primeiro, empate pela sugestao mais antiga. */
     List<MatchingCredoraOperacao> findAllByStatusOrderByValorElegivelDescDataCriacaoAsc(
             StatusMatchingCredoraOperacao status);
+
+    /**
+     * Leitura com {@code SELECT FOR UPDATE} para serializar decisoes concorrentes sobre a mesma
+     * sugestao (Sprint 30 Task 30.4): a segunda decisao bloqueia, re-le o status terminal e recebe
+     * 409 — sem decisao dupla nem auditoria duplicada.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from MatchingCredoraOperacao m where m.id = :id")
+    Optional<MatchingCredoraOperacao> findByIdForUpdate(UUID id);
 }

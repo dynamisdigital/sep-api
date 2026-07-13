@@ -7,6 +7,8 @@ import com.dynamis.sep_api.credores.domain.event.EmpresaCredoraCadastradaEvent;
 import com.dynamis.sep_api.credores.domain.event.EmpresaCredoraElegibilidadeDefinidaEvent;
 import com.dynamis.sep_api.credores.domain.event.InteresseCredoraCanceladoEvent;
 import com.dynamis.sep_api.credores.domain.event.InteresseCredoraRegistradoEvent;
+import com.dynamis.sep_api.credores.domain.event.MatchingCredoraConfirmadoEvent;
+import com.dynamis.sep_api.credores.domain.event.MatchingCredoraRejeitadoEvent;
 import com.dynamis.sep_api.credores.domain.event.MatchingCredoraSugeridoEvent;
 import com.dynamis.sep_api.credores.domain.event.OperacaoFinanciadaAssociadaEvent;
 import com.dynamis.sep_api.credores.domain.vo.StatusElegibilidade;
@@ -24,6 +26,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Liga eventos de dominio do modulo {@code credores} ao {@code audit_log_seguranca} (Sprint 16).
@@ -111,6 +114,47 @@ public class CredoresAuditListener {
         payload.put("empresaCredoraId", event.empresaCredoraId().toString());
         payload.put("valorElegivel", event.valorElegivel().toPlainString());
         auditLogService.gravar(TipoEventoSeguranca.CREDORA_MATCHING_SUGERIDA, event.usuarioId(), serializar(payload));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoConfirmarMatching(MatchingCredoraConfirmadoEvent event) {
+        auditarDecisaoMatching(
+                TipoEventoSeguranca.CREDORA_MATCHING_CONFIRMADA,
+                event.matchingId(),
+                event.operacaoId(),
+                event.empresaCredoraId(),
+                event.motivoSanitizado(),
+                event.usuarioId());
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void aoRejeitarMatching(MatchingCredoraRejeitadoEvent event) {
+        auditarDecisaoMatching(
+                TipoEventoSeguranca.CREDORA_MATCHING_REJEITADA,
+                event.matchingId(),
+                event.operacaoId(),
+                event.empresaCredoraId(),
+                event.motivoSanitizado(),
+                event.usuarioId());
+    }
+
+    private void auditarDecisaoMatching(
+            TipoEventoSeguranca tipo,
+            UUID matchingId,
+            UUID operacaoId,
+            UUID empresaCredoraId,
+            String motivoSanitizado,
+            UUID usuarioId) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("matchingId", matchingId.toString());
+        payload.put("operacaoId", operacaoId.toString());
+        payload.put("empresaCredoraId", empresaCredoraId.toString());
+        if (motivoSanitizado != null) {
+            payload.put("motivo", motivoSanitizado);
+        }
+        auditLogService.gravar(tipo, usuarioId, serializar(payload));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
