@@ -275,8 +275,8 @@ class MatchingCredoraIT {
         UUID contratoId = criarContrato(contratoAssinado, propostaIdOut);
         OportunidadeInvestimento oportunidade = oportunidadeRepository.saveAndFlush(OportunidadeInvestimento.criar(
                 propostaIdOut[0], contratoId, new BigDecimal("10000.00"), 12, new BigDecimal("1.50")));
-        OperacaoFinanciada operacao = OperacaoFinanciada.associar(
-                credoraId, contratoId, oportunidade.getId(), "Seed IT matching");
+        OperacaoFinanciada operacao =
+                OperacaoFinanciada.associar(credoraId, contratoId, oportunidade.getId(), "Seed IT matching");
         return operacaoRepository.saveAndFlush(operacao).getId();
     }
 
