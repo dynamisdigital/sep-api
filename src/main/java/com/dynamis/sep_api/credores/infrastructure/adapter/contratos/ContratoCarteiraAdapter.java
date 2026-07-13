@@ -6,6 +6,8 @@ import com.dynamis.sep_api.credores.application.port.out.ContratoCarteiraView;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,5 +28,14 @@ public class ContratoCarteiraAdapter implements ConsultarContratoParaCarteiraCre
                 .findById(contratoId)
                 .map(c -> new ContratoCarteiraView(
                         c.getId(), c.getPropostaId(), c.getStatus().name()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ContratoCarteiraView> consultarPorIds(Collection<UUID> contratoIds) {
+        return contratoRepository.findAllById(contratoIds).stream()
+                .map(c -> new ContratoCarteiraView(
+                        c.getId(), c.getPropostaId(), c.getStatus().name()))
+                .toList();
     }
 }
