@@ -120,6 +120,10 @@ public enum TipoEventoSeguranca {
     CREDORA_APORTE_REGISTRADO,
     CREDORA_APORTE_LIQUIDADO,
     CREDORA_APORTE_FALHOU,
+    // Sprint 30 Task 30.2: matching assistido credora-operacao (Epic 15).
+    CREDORA_MATCHING_SUGERIDA,
+    CREDORA_MATCHING_CONFIRMADA,
+    CREDORA_MATCHING_REJEITADA,
     // Sprint 18 Task 18.6: governanca avancada (RBAC cumulativo + parametros).
     USUARIO_ROLES_ALTERADAS,
     PARAMETRO_OPERACIONAL_ALTERADO,

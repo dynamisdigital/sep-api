@@ -1,7 +1,9 @@
 package com.dynamis.sep_api.credores.infrastructure.persistence;
 
 import com.dynamis.sep_api.credores.domain.model.OperacaoFinanciada;
+import com.dynamis.sep_api.credores.domain.vo.StatusOperacaoFinanciada;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -28,4 +30,21 @@ public interface OperacaoFinanciadaRepository extends JpaRepository<OperacaoFina
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from OperacaoFinanciada o where o.id = :id")
     Optional<OperacaoFinanciada> findByIdForUpdate(UUID id);
+
+    /**
+     * Operacoes candidatas ao matching com {@code SELECT FOR UPDATE} em ordem deterministica
+     * (Sprint 30): refreshes concorrentes serializam nas mesmas linhas — o segundo enxerga as
+     * sugestoes ja criadas pelo primeiro em vez de violar o UNIQUE parcial da V56. Limite de
+     * candidatas por refresh via {@code pageable} (sem sort, preservando o order by da query).
+     *
+     * <p>O {@code not exists} tira da janela (e do lock) operacoes que ja possuem matching em
+     * qualquer status: sem ele, 200+ pares decididos monopolizariam o limite e operacoes novas
+     * nunca seriam avaliadas. O use case re-checa a existencia em lote sob o lock — este filtro e
+     * escala/contencao, nao a defesa de duplicidade.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from OperacaoFinanciada o where o.status = :status"
+            + " and not exists (select 1 from MatchingCredoraOperacao m where m.operacaoId = o.id)"
+            + " order by o.dataCriacao asc, o.id asc")
+    List<OperacaoFinanciada> buscarAssociadasParaMatchingForUpdate(StatusOperacaoFinanciada status, Pageable pageable);
 }
