@@ -61,10 +61,10 @@ public class MatchingCredoraController {
     @PreAuthorize("hasAnyRole('FINANCEIRO','ADMIN')")
     @Operation(
             summary = "Listar sugestoes de matching (refresh assistido)",
-            description = "Gera sugestoes novas para pares elegiveis (refresh-on-read idempotente: par ja"
-                    + " sugerido, confirmado ou rejeitado nao duplica) e lista as sugestoes SUGERIDA em"
-                    + " ordem deterministica (maior valor elegivel primeiro). Read-only na pratica"
-                    + " operacional, sem step-up. Nao existe job automatico; nada e confirmado"
+            description = "Gera sugestoes novas para pares elegiveis (refresh-on-read: persiste sugestao e"
+                    + " auditoria por par novo; idempotente — par ja sugerido, confirmado ou rejeitado nao"
+                    + " duplica) e lista as sugestoes SUGERIDA em ordem deterministica (maior valor"
+                    + " elegivel primeiro). Sem step-up. Nao existe job automatico; nada e confirmado"
                     + " automaticamente. Auditoria CREDORA_MATCHING_SUGERIDA por sugestao nova.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Sugestoes pendentes de decisao"),
