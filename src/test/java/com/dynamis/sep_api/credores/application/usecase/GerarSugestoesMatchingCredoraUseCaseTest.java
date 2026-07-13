@@ -10,6 +10,7 @@ import com.dynamis.sep_api.credores.domain.model.MatchingCredoraOperacao;
 import com.dynamis.sep_api.credores.domain.model.OperacaoFinanciada;
 import com.dynamis.sep_api.credores.domain.model.OportunidadeInvestimento;
 import com.dynamis.sep_api.credores.domain.model.PerfilCredora;
+import com.dynamis.sep_api.credores.domain.vo.CriterioMatchingCredoraOperacao;
 import com.dynamis.sep_api.credores.domain.vo.StatusMatchingCredoraOperacao;
 import com.dynamis.sep_api.credores.domain.vo.TipoCredora;
 import com.dynamis.sep_api.credores.infrastructure.persistence.EmpresaCredoraRepository;
@@ -295,6 +296,6 @@ class GerarSugestoesMatchingCredoraUseCaseTest {
                 credora.getId(),
                 operacao.getId(),
                 new BigDecimal("10000.00"),
-                List.of(com.dynamis.sep_api.credores.domain.vo.CriterioMatchingCredoraOperacao.CREDORA_ATIVA));
+                List.of(CriterioMatchingCredoraOperacao.CREDORA_ATIVA));
     }
 }

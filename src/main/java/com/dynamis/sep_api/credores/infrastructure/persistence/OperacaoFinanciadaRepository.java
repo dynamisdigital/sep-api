@@ -36,8 +36,15 @@ public interface OperacaoFinanciadaRepository extends JpaRepository<OperacaoFina
      * (Sprint 30): refreshes concorrentes serializam nas mesmas linhas — o segundo enxerga as
      * sugestoes ja criadas pelo primeiro em vez de violar o UNIQUE parcial da V56. Limite de
      * candidatas por refresh via {@code pageable} (sem sort, preservando o order by da query).
+     *
+     * <p>O {@code not exists} tira da janela (e do lock) operacoes que ja possuem matching em
+     * qualquer status: sem ele, 200+ pares decididos monopolizariam o limite e operacoes novas
+     * nunca seriam avaliadas. O use case re-checa a existencia em lote sob o lock — este filtro e
+     * escala/contencao, nao a defesa de duplicidade.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select o from OperacaoFinanciada o where o.status = :status order by o.dataCriacao asc, o.id asc")
+    @Query("select o from OperacaoFinanciada o where o.status = :status"
+            + " and not exists (select 1 from MatchingCredoraOperacao m where m.operacaoId = o.id)"
+            + " order by o.dataCriacao asc, o.id asc")
     List<OperacaoFinanciada> buscarAssociadasParaMatchingForUpdate(StatusOperacaoFinanciada status, Pageable pageable);
 }
