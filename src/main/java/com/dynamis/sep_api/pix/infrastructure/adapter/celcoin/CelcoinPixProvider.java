@@ -1,9 +1,11 @@
 package com.dynamis.sep_api.pix.infrastructure.adapter.celcoin;
 
 import com.dynamis.sep_api.pix.application.port.out.PixProvider;
+import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCadastrarChavePix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCriarCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
+import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCadastroChavePix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
@@ -133,6 +135,19 @@ public class CelcoinPixProvider implements PixProvider {
     @Override
     public EventoWebhookPixNormalizado normalizarWebhook(String payloadBruto) {
         return webhookNormalizer.normalizar(payloadBruto);
+    }
+
+    @Override
+    public RespostaCadastroChavePix cadastrarChave(
+            ComandoCadastrarChavePix comando, String idempotencyKey, String correlationId) {
+        // Skeleton HTTP de chaves implementado na Task 31.4 (Sprint 31).
+        throw new UnsupportedOperationException("cadastro de chave Celcoin pendente (Sprint 31 Task 31.4)");
+    }
+
+    @Override
+    public void removerChave(String providerKeyId, String correlationId) {
+        // Skeleton HTTP de chaves implementado na Task 31.4 (Sprint 31).
+        throw new UnsupportedOperationException("remocao de chave Celcoin pendente (Sprint 31 Task 31.4)");
     }
 
     private CelcoinPixCobrancaResponse exigirCobranca(CelcoinPixCobrancaResponse response) {
