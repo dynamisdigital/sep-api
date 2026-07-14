@@ -2,7 +2,12 @@
   "priority": 1,
   "request": {
     "method": "GET",
-    "urlPath": "/escrow/accounts/acc-timeout"
+    "urlPathPattern": "/escrow/accounts/[^/]+",
+    "headers": {
+      "X-Simular": {
+        "equalTo": "timeout"
+      }
+    }
   },
   "response": {
     "status": 200,
@@ -10,7 +15,7 @@
       "Content-Type": "application/json"
     },
     "jsonBody": {
-      "account_id": "acc-timeout",
+      "account_id": "acc-local-0001",
       "status": "ACTIVE"
     },
     "fixedDelayMilliseconds": 35000

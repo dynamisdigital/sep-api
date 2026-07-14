@@ -2,7 +2,12 @@
   "priority": 1,
   "request": {
     "method": "GET",
-    "urlPath": "/pix/transfers/tx-timeout"
+    "urlPathPattern": "/pix/transfers/[^/]+",
+    "headers": {
+      "X-Simular": {
+        "equalTo": "timeout"
+      }
+    }
   },
   "response": {
     "status": 200,
@@ -10,7 +15,7 @@
       "Content-Type": "application/json"
     },
     "jsonBody": {
-      "transfer_id": "tx-timeout",
+      "transfer_id": "pix-local-0001",
       "status": "PENDING"
     },
     "fixedDelayMilliseconds": 35000

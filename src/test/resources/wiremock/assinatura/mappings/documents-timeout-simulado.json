@@ -2,7 +2,12 @@
   "priority": 1,
   "request": {
     "method": "GET",
-    "urlPath": "/api/v1/documents/doc-timeout"
+    "urlPathPattern": "/api/v1/documents/[^/]+",
+    "headers": {
+      "X-Simular": {
+        "equalTo": "timeout"
+      }
+    }
   },
   "response": {
     "status": 200,
@@ -11,7 +16,7 @@
     },
     "jsonBody": {
       "document": {
-        "key": "doc-timeout",
+        "key": "doc-local-0001",
         "status": "running"
       }
     },

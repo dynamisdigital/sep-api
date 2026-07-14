@@ -22,9 +22,10 @@ wiremock/
   escrow/mappings/       # /escrow/accounts, /escrow/wallets + /token
 ```
 
-Cenarios por capacidade: sucesso, erro de negocio (`422`, ativado pelo header
-`X-Simular: erro-negocio`) e timeout simulado (`fixedDelayMilliseconds: 35000` em rota/header
-dedicado — acima do read-timeout default de 30s).
+Cenarios por capacidade: sucesso, erro de negocio (`422`) e timeout simulado
+(`fixedDelayMilliseconds: 35000`, acima do read-timeout default de 30s). Os cenarios de falha sao
+opt-in pelo header `X-Simular: erro-negocio` ou `X-Simular: timeout` — sem o header, vale o
+mapping de sucesso.
 
 ## Smoke local (uma instancia por capacidade)
 

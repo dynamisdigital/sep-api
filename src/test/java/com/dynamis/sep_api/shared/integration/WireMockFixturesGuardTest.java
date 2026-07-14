@@ -23,6 +23,8 @@ class WireMockFixturesGuardTest {
     private static final List<String> PROIBIDOS = List.of(
             "https://", "sandbox.", "celcoin.dev", "celcoin.com", "clicksign.com", "change-me", "amazonaws.com");
 
+    private static final java.util.regex.Pattern URL_HTTP = java.util.regex.Pattern.compile("http://[^\"\\s/]+");
+
     @Test
     void fixtures_saoJsonValidoSemHostOuSegredoReal() throws IOException {
         ObjectMapper mapper = new ObjectMapper();
@@ -37,11 +39,21 @@ class WireMockFixturesGuardTest {
                             .as(json + " nao pode conter '" + proibido + "'")
                             .doesNotContain(proibido);
                 }
-                // http:// so e aceito se apontar para localhost.
-                assertThat(conteudo.contains("http://") && !conteudo.contains("http://localhost"))
-                        .as(json + " nao pode apontar para host http externo")
-                        .isFalse();
-                mapper.readTree(conteudo); // JSON invalido falha aqui.
+                // TODA ocorrencia de http:// deve apontar para localhost (nao basta uma).
+                java.util.regex.Matcher urls = URL_HTTP.matcher(conteudo);
+                while (urls.find()) {
+                    assertThat(urls.group())
+                            .as(json + " so pode apontar para localhost")
+                            .startsWith("http://localhost");
+                }
+                // Schema minimo de mapping WireMock: request + response presentes.
+                var arvore = mapper.readTree(conteudo);
+                assertThat(arvore.has("request"))
+                        .as(json + " deve ter 'request'")
+                        .isTrue();
+                assertThat(arvore.has("response"))
+                        .as(json + " deve ter 'response'")
+                        .isTrue();
             }
         }
     }
