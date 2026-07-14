@@ -63,6 +63,14 @@ class ProviderRetryConfigTest {
 
         assertThat(ProviderRetryConfig.transiente(erro5xx)).isTrue();
         assertThat(ProviderRetryConfig.transiente(erro4xx)).isFalse();
+        assertThat(ProviderRetryConfig.transiente(
+                        new com.dynamis.sep_api.pix.application.port.out.exception.PixProviderHttpException(
+                                503, "Celcoin Pix HTTP 503", null)))
+                .isTrue();
+        assertThat(ProviderRetryConfig.transiente(
+                        new com.dynamis.sep_api.escrow.application.port.out.exception.EscrowProviderHttpException(
+                                409, "Celcoin Escrow HTTP 409", null)))
+                .isFalse();
     }
 
     @Test

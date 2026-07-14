@@ -313,19 +313,17 @@ resilience4j:
         waitDuration: 500ms
         retryExceptions:
           - org.springframework.web.client.ResourceAccessException
-          - com.dynamis.sep_api.pix.application.port.out.exception.PixProviderHttpException
           - java.io.IOException
-        # PixProviderHttpException eh a traducao de 4xx/5xx do adapter. Como Resilience4j nao tem
-        # predicate via YAML, retry dispara tambem em 4xx — aceito pra skeleton da Sprint 19
-        # (idempotency-key protege reenvios); ajuste com predicate Java fica como follow-up.
+        # Sprint 32 Task 32.5: follow-up fechado — PixProviderHttpException saiu da lista; o
+        # predicate compartilhado (ProviderRetryConfig) reentra somente em 5xx traduzido
+        # (ProviderHttpFault) e timeout/IO; 4xx e parsing nao reentram.
       celcoin-escrow:
         maxAttempts: 3
         waitDuration: 500ms
         retryExceptions:
           - org.springframework.web.client.ResourceAccessException
-          - com.dynamis.sep_api.escrow.application.port.out.exception.EscrowProviderHttpException
           - java.io.IOException
-        # EscrowProviderHttpException: mesma observacao de retry 4xx do celcoin-pix.
+        # Sprint 32 Task 32.5: mesmo predicate do celcoin-pix (4xx nao reentra).
       clicksign-assinatura:
         maxAttempts: 3
         waitDuration: 500ms

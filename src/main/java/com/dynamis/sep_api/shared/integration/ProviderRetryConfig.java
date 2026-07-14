@@ -42,6 +42,16 @@ public class ProviderRetryConfig {
         return customizer("clicksign-assinatura");
     }
 
+    @Bean
+    public RetryConfigCustomizer celcoinPixRetryCustomizer() {
+        return customizer("celcoin-pix");
+    }
+
+    @Bean
+    public RetryConfigCustomizer celcoinEscrowRetryCustomizer() {
+        return customizer("celcoin-escrow");
+    }
+
     private static RetryConfigCustomizer customizer(String instancia) {
         return RetryConfigCustomizer.of(
                 instancia, builder -> builder.retryOnException(falha -> transiente((Throwable) falha)));
