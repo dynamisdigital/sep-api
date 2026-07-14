@@ -46,7 +46,7 @@ class ProviderWiringTest {
                 .withBean(RestClientFactory.class, () -> mock(RestClientFactory.class))
                 .withBean(CelcoinPixOAuthTokenProvider.class, () -> mock(CelcoinPixOAuthTokenProvider.class))
                 .withBean(CelcoinPixProperties.class, () -> props)
-                .withUserConfiguration(FakePixProvider.class, CelcoinPixProvider.class);
+                .withUserConfiguration(ProviderFlagsValidator.class, FakePixProvider.class, CelcoinPixProvider.class);
     }
 
     private ApplicationContextRunner escrowRunner(CelcoinEscrowProperties props) {
@@ -54,7 +54,8 @@ class ProviderWiringTest {
                 .withBean(RestClientFactory.class, () -> mock(RestClientFactory.class))
                 .withBean(CelcoinEscrowOAuthTokenProvider.class, () -> mock(CelcoinEscrowOAuthTokenProvider.class))
                 .withBean(CelcoinEscrowProperties.class, () -> props)
-                .withUserConfiguration(FakeEscrowProvider.class, CelcoinEscrowProvider.class);
+                .withUserConfiguration(
+                        ProviderFlagsValidator.class, FakeEscrowProvider.class, CelcoinEscrowProvider.class);
     }
 
     private ApplicationContextRunner assinaturaRunner(ClicksignAssinaturaProperties props) {
@@ -62,7 +63,10 @@ class ProviderWiringTest {
                 .withBean(RestClientFactory.class, () -> mock(RestClientFactory.class))
                 .withBean(ClicksignAssinaturaMapper.class, () -> mock(ClicksignAssinaturaMapper.class))
                 .withBean(ClicksignAssinaturaProperties.class, () -> props)
-                .withUserConfiguration(FakeAssinaturaDigitalProvider.class, ClicksignAssinaturaDigitalProvider.class);
+                .withUserConfiguration(
+                        ProviderFlagsValidator.class,
+                        FakeAssinaturaDigitalProvider.class,
+                        ClicksignAssinaturaDigitalProvider.class);
     }
 
     private ApplicationContextRunner kycRunner() {
@@ -72,7 +76,7 @@ class ProviderWiringTest {
                 .withBean(CelcoinOAuthTokenProvider.class, () -> mock(CelcoinOAuthTokenProvider.class))
                 .withBean(CelcoinKycProperties.class, () -> new CelcoinKycProperties("http://localhost:9", "id", "s"))
                 .withBean(ObjectMapper.class, ObjectMapper::new)
-                .withUserConfiguration(FakeKycProvider.class, CelcoinKycProvider.class);
+                .withUserConfiguration(ProviderFlagsValidator.class, FakeKycProvider.class, CelcoinKycProvider.class);
     }
 
     // ------------------------------------------------------------------ fake default
@@ -148,8 +152,8 @@ class ProviderWiringTest {
                 .withPropertyValues("app.pix.provider=celocin")
                 .run(ctx -> {
                     assertThat(ctx).hasFailed();
+                    // BeanFactoryPostProcessor lanca a IllegalStateException sem wrap de bean.
                     assertThat(ctx.getStartupFailure())
-                            .rootCause()
                             .hasMessageContaining("app.pix.provider")
                             .hasMessageContaining("celocin")
                             .hasMessageContaining("celcoin");
@@ -164,7 +168,6 @@ class ProviderWiringTest {
                 .run(ctx -> {
                     assertThat(ctx).hasFailed();
                     assertThat(ctx.getStartupFailure())
-                            .rootCause()
                             .hasMessageContaining("app.assinatura.provider")
                             .hasMessageContaining("clicksign");
                 });

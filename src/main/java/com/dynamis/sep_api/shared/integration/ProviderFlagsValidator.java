@@ -1,5 +1,8 @@
 package com.dynamis.sep_api.shared.integration;
 
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
+import org.springframework.context.EnvironmentAware;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
@@ -12,13 +15,19 @@ import java.util.TreeSet;
  * flag derruba o boot com mensagem clara (property, valor recebido, valores aceitos) em vez de
  * deixar o port sem bean e falhar como {@code NoSuchBeanDefinitionException} no consumidor.
  *
- * <p>A validacao roda na construcao do bean (context refresh). Defaults sao {@code fake} — a
- * ausencia da property nunca falha. {@code app.assinatura.provider} aceita {@code clicksign} e
- * <strong>nao</strong> aceita {@code celcoin} (ADR 0013). A mensagem cita apenas nomes de
- * property e valores de flag — nunca credenciais.
+ * <p>Implementado como {@link BeanFactoryPostProcessor}: roda <strong>antes</strong> da
+ * instanciacao de qualquer singleton (adapters e consumidores), garantindo que a mensagem clara
+ * vence a corrida contra o erro confuso de bean ausente, independente da ordem de criacao.
+ *
+ * <p>Defaults sao {@code fake} — a ausencia da property nunca falha. {@code
+ * app.assinatura.provider} aceita {@code clicksign} e <strong>nao</strong> aceita {@code celcoin}
+ * (ADR 0013). Flags adjacentes ({@code app.open-finance.provider}, {@code
+ * app.notificacoes.provider}) ficam fora do escopo do ADR 0017 e seguem apenas a selecao por
+ * {@code @ConditionalOnProperty}. A mensagem cita apenas nomes de property e valores de flag —
+ * nunca credenciais.
  */
 @Component
-public class ProviderFlagsValidator {
+public class ProviderFlagsValidator implements BeanFactoryPostProcessor, EnvironmentAware {
 
     private static final Set<String> FAKE_OU_CELCOIN = Set.of("fake", "celcoin");
 
@@ -30,7 +39,15 @@ public class ProviderFlagsValidator {
             "app.pix.provider", FAKE_OU_CELCOIN,
             "app.escrow.provider", FAKE_OU_CELCOIN);
 
-    public ProviderFlagsValidator(Environment environment) {
+    private Environment environment;
+
+    @Override
+    public void setEnvironment(Environment environment) {
+        this.environment = environment;
+    }
+
+    @Override
+    public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) {
         validar(environment);
     }
 
