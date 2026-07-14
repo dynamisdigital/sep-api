@@ -37,13 +37,24 @@ public class ProviderRetryConfig {
         return customizer("celcoin-background-check");
     }
 
+    @Bean
+    public RetryConfigCustomizer clicksignAssinaturaRetryCustomizer() {
+        return customizer("clicksign-assinatura");
+    }
+
     private static RetryConfigCustomizer customizer(String instancia) {
         return RetryConfigCustomizer.of(
                 instancia, builder -> builder.retryOnException(falha -> transiente((Throwable) falha)));
     }
 
-    /** Visivel para teste: timeout/IO reentra; resposta HTTP traduzida e parsing invalido nao. */
+    /**
+     * Visivel para teste: timeout/IO e 5xx traduzido ({@link ProviderHttpFault}) reentram; 4xx
+     * traduzido, resposta HTTP crua e parsing invalido nao.
+     */
     static boolean transiente(Throwable falha) {
+        if (falha instanceof ProviderHttpFault fault) {
+            return fault.isServerError();
+        }
         if (falha instanceof RestClientResponseException) {
             return false;
         }

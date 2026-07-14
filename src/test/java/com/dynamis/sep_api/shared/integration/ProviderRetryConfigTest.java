@@ -53,6 +53,19 @@ class ProviderRetryConfigTest {
     }
 
     @Test
+    void faultHttpTraduzido_reentraApenasEm5xx() {
+        com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderHttpException erro5xx =
+                new com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderHttpException(
+                        502, "Clicksign HTTP 502", null);
+        com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderHttpException erro4xx =
+                new com.dynamis.sep_api.contratos.application.port.out.exception.AssinaturaProviderHttpException(
+                        422, "Clicksign HTTP 422", null);
+
+        assertThat(ProviderRetryConfig.transiente(erro5xx)).isTrue();
+        assertThat(ProviderRetryConfig.transiente(erro4xx)).isFalse();
+    }
+
+    @Test
     void cadeiaDeCausaCircular_naoEntraEmLoopInfinito() {
         RuntimeException a = new RuntimeException("a");
         RuntimeException b = new RuntimeException("b", a);
