@@ -53,14 +53,16 @@ public class ProviderRetryConfig {
         return temCausa(falha, IOException.class);
     }
 
+    /** Limite defensivo contra cadeias de causa circulares (A -> B -> A). */
+    private static final int PROFUNDIDADE_MAXIMA_CAUSA = 20;
+
     private static boolean temCausa(Throwable falha, Class<? extends Throwable> tipo) {
-        for (Throwable atual = falha; atual != null; atual = atual.getCause()) {
+        Throwable atual = falha;
+        for (int i = 0; atual != null && i < PROFUNDIDADE_MAXIMA_CAUSA; i++) {
             if (tipo.isInstance(atual)) {
                 return true;
             }
-            if (atual.getCause() == atual) {
-                break;
-            }
+            atual = atual.getCause() == atual ? null : atual.getCause();
         }
         return false;
     }

@@ -53,6 +53,15 @@ class ProviderRetryConfigTest {
     }
 
     @Test
+    void cadeiaDeCausaCircular_naoEntraEmLoopInfinito() {
+        RuntimeException a = new RuntimeException("a");
+        RuntimeException b = new RuntimeException("b", a);
+        a.initCause(b); // ciclo a -> b -> a
+
+        assertThat(ProviderRetryConfig.transiente(a)).isFalse();
+    }
+
+    @Test
     void excecaoSemCausaIo_naoReentra() {
         assertThat(ProviderRetryConfig.transiente(new IllegalStateException("resposta invalida")))
                 .isFalse();
