@@ -12,7 +12,8 @@ import java.util.regex.Pattern;
  * ValidacaoException} <strong>sem ecoar o valor bruto</strong> na mensagem.
  *
  * <ul>
- *   <li>CPF/CNPJ: remove pontuacao ({@code . - /} e espacos); exige 11/14 digitos.
+ *   <li>CPF/CNPJ: remove pontuacao ({@code . - /} e espacos); exige 11/14 digitos com digitos
+ *       verificadores validos (mod-11) e rejeita sequencias de digito repetido.
  *   <li>TELEFONE: remove formatacao ({@code ( ) - .} e espacos); canonico E.164 Brasil
  *       ({@code +55DDDNUMERO}, DDD com ambos os digitos 1-9); sem DDI assume {@code +55}.
  *   <li>EMAIL: trim + lowercase; formato basico; limite DICT de 77 caracteres.
@@ -54,10 +55,53 @@ public final class NormalizadorChavePix {
     private static String normalizarDocumento(String valor, int digitos, TipoChavePix tipo) {
         String semPontuacao = PONTUACAO_DOCUMENTO.matcher(valor).replaceAll("");
         if (semPontuacao.length() != digitos
-                || !SO_DIGITOS.matcher(semPontuacao).matches()) {
+                || !SO_DIGITOS.matcher(semPontuacao).matches()
+                || sequenciaRepetida(semPontuacao)
+                || !digitosVerificadoresValidos(semPontuacao, tipo)) {
             throw chaveInvalida(tipo);
         }
         return semPontuacao;
+    }
+
+    private static boolean sequenciaRepetida(String documento) {
+        return documento.chars().distinct().count() == 1;
+    }
+
+    private static boolean digitosVerificadoresValidos(String documento, TipoChavePix tipo) {
+        return tipo == TipoChavePix.CPF ? dvCpfValido(documento) : dvCnpjValido(documento);
+    }
+
+    /** DV mod-11 do CPF: pesos 10..2 (1o digito) e 11..2 (2o digito). */
+    private static boolean dvCpfValido(String cpf) {
+        return digito(cpf, 9, 10) == cpf.charAt(9) - '0' && digito(cpf, 10, 11) == cpf.charAt(10) - '0';
+    }
+
+    private static int digito(String documento, int tamanho, int pesoInicial) {
+        int soma = 0;
+        for (int i = 0; i < tamanho; i++) {
+            soma += (documento.charAt(i) - '0') * (pesoInicial - i);
+        }
+        return dvMod11(soma);
+    }
+
+    /** DV mod-11 do CNPJ: pesos 5,4,3,2,9..2 (1o digito) e 6,5,4,3,2,9..2 (2o digito). */
+    private static boolean dvCnpjValido(String cnpj) {
+        int[] pesos1 = {5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2};
+        int[] pesos2 = {6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2};
+        return digitoCnpj(cnpj, pesos1) == cnpj.charAt(12) - '0' && digitoCnpj(cnpj, pesos2) == cnpj.charAt(13) - '0';
+    }
+
+    private static int digitoCnpj(String cnpj, int[] pesos) {
+        int soma = 0;
+        for (int i = 0; i < pesos.length; i++) {
+            soma += (cnpj.charAt(i) - '0') * pesos[i];
+        }
+        return dvMod11(soma);
+    }
+
+    private static int dvMod11(int soma) {
+        int resto = soma % 11;
+        return resto < 2 ? 0 : 11 - resto;
     }
 
     private static String normalizarTelefone(String valor) {

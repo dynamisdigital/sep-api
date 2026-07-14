@@ -42,8 +42,10 @@ import java.util.UUID;
  * <ul>
  *   <li><strong>Idempotencia</strong>: replay com mesmo tipo/valor/conta retorna a chave existente
  *       ({@code novo=false}), sem provider nem auditoria adicionais; payload divergente -> 409.
- *   <li><strong>Unicidade ativa</strong>: chave equivalente ja ATIVA na conta -> 409; corrida cai
- *       nas UNIQUEs da V58 e converge para replay ou 409, nunca 500.
+ *   <li><strong>Unicidade ativa</strong>: chave equivalente ja ATIVA na conta -> 409; requisicoes
+ *       concorrentes serializam por advisory lock em (conta, tipo, hash) antes da chamada externa
+ *       — o perdedor nao chama o provider (sem chave externa orfa); as UNIQUEs da V58 seguem como
+ *       defesa residual, convergidas para replay ou 409, nunca 500.
  *   <li><strong>Minimizacao</strong>: o valor em claro existe apenas no comando em memoria ate a
  *       chamada ao provider; persistem-se hash + mascara.
  *   <li><strong>Auditoria</strong>: {@link PixChaveCadastradaEvent} publicado dentro da transacao
@@ -76,15 +78,30 @@ public class CadastrarChavePixUseCase {
     }
 
     /**
-     * Orquestra SEM transacao ambiente: a chamada externa ao provider fica fora de transacao; a
-     * persistencia + evento rodam em transacao curta via {@link TransactionTemplate}, permitindo
-     * convergir corridas de constraint fora da transacao abortada.
+     * Orquestra em transacao unica serializada por advisory lock transacional em (conta, tipo,
+     * hash) — review manual Sprint 31 (P1): o lock e adquirido ANTES das verificacoes e da chamada
+     * externa, entao a segunda requisicao concorrente com o mesmo valor so re-checa apos o commit
+     * da vencedora e leva 409/replay <strong>sem chamar o provider</strong> (nenhuma chave externa
+     * orfa). A chamada HTTP dentro da transacao e o mesmo tradeoff documentado da remocao
+     * (operacao assistida de baixo volume). A convergencia por constraint permanece apenas como
+     * defesa residual.
      */
     public CadastrarChavePixResult executar(CadastrarChavePixCommand cmd) {
         validarIdempotencyKey(cmd.idempotencyKey());
         String valorNormalizado = NormalizadorChavePix.normalizar(cmd.tipo(), cmd.valor());
         ContaOperacionalEscrowView conta = resolverContaOperacional();
         String valorHash = ChavePixSeguranca.hashHex(valorNormalizado);
+
+        try {
+            return transacao.execute(status -> cadastrarSerializado(cmd, conta, valorNormalizado, valorHash));
+        } catch (DataIntegrityViolationException ex) {
+            return convergirCorrida(cmd, conta, valorHash, ex);
+        }
+    }
+
+    private CadastrarChavePixResult cadastrarSerializado(
+            CadastrarChavePixCommand cmd, ContaOperacionalEscrowView conta, String valorNormalizado, String valorHash) {
+        repository.travarCadastroChave(chaveDeTrava(conta.contaEscrowId(), cmd, valorHash));
 
         Optional<ChavePix> replay =
                 repository.findByContaEscrowIdAndIdempotencyKey(conta.contaEscrowId(), cmd.idempotencyKey());
@@ -108,22 +125,26 @@ public class CadastrarChavePixUseCase {
                 cmd.operadorId(),
                 OffsetDateTime.now(clock));
 
-        try {
-            ChavePix salva = transacao.execute(status -> {
-                ChavePix persistida = repository.saveAndFlush(chave);
-                eventPublisher.publishEvent(new PixChaveCadastradaEvent(
-                        persistida.getId(), persistida.getContaEscrowId(), persistida.getTipo(), cmd.operadorId()));
-                return persistida;
-            });
-            return resultado(salva, true);
-        } catch (DataIntegrityViolationException ex) {
-            return convergirCorrida(cmd, conta, valorHash, ex);
-        }
+        ChavePix persistida = repository.saveAndFlush(chave);
+        eventPublisher.publishEvent(new PixChaveCadastradaEvent(
+                persistida.getId(), persistida.getContaEscrowId(), persistida.getTipo(), cmd.operadorId()));
+        return resultado(persistida, true);
     }
 
     /**
-     * Corrida perdida nas UNIQUEs da V58: re-le o vencedor e converge para replay idempotente
-     * (mesma key) ou conflito funcional (chave ativa equivalente). Constraint desconhecida propaga.
+     * Deriva a chave do advisory lock de (conta, tipo, hash do valor normalizado) — deterministico:
+     * requisicoes concorrentes da mesma chave Pix disputam o mesmo lock. Colisao de 64 bits apenas
+     * serializa a mais; nunca afeta correcao.
+     */
+    private static long chaveDeTrava(UUID contaEscrowId, CadastrarChavePixCommand cmd, String valorHash) {
+        String hex = ChavePixSeguranca.hashHex(contaEscrowId + "|" + cmd.tipo() + "|" + valorHash);
+        return Long.parseUnsignedLong(hex.substring(0, 16), 16);
+    }
+
+    /**
+     * Defesa residual: corrida que ainda escape do advisory lock cai nas UNIQUEs da V58; re-le o
+     * vencedor e converge para replay idempotente (mesma key) ou conflito funcional (chave ativa
+     * equivalente). Constraint desconhecida propaga.
      */
     private CadastrarChavePixResult convergirCorrida(
             CadastrarChavePixCommand cmd,

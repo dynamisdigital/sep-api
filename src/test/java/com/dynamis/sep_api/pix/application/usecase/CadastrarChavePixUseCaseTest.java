@@ -20,6 +20,7 @@ import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -34,7 +35,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -238,5 +241,42 @@ class CadastrarChavePixUseCaseTest {
     @Test
     void comando_toStringNaoVazaValor() {
         assertThat(comando(VALOR_BRUTO, KEY).toString()).doesNotContain(VALOR_NORMALIZADO);
+    }
+
+    @Test
+    void serializaPorAdvisoryLock_antesDasVerificacoesEDoProvider() {
+        useCase.executar(comando(VALOR_BRUTO, KEY));
+
+        // O lock por (conta, tipo, hash) precisa vir ANTES do re-check e da chamada externa:
+        // e ele que impede duas requisicoes concorrentes de cadastrarem duas chaves no provider.
+        InOrder ordem = inOrder(repository, pixProvider);
+        ordem.verify(repository).travarCadastroChave(anyLong());
+        ordem.verify(repository)
+                .findByContaEscrowIdAndTipoAndValorHashAndStatus(
+                        contaEscrowId, TipoChavePix.EMAIL, HASH, StatusChavePix.ATIVA);
+        ordem.verify(pixProvider).cadastrarChave(any(), any(), any());
+    }
+
+    @Test
+    void advisoryLock_deterministicoParaMesmoContaTipoValor() {
+        useCase.executar(comando(VALOR_BRUTO, "idem-a"));
+        useCase.executar(comando("  usuario@EMPRESA.com ", "idem-b"));
+
+        ArgumentCaptor<Long> chaves = ArgumentCaptor.forClass(Long.class);
+        verify(repository, org.mockito.Mockito.times(2)).travarCadastroChave(chaves.capture());
+        assertThat(chaves.getAllValues().get(0)).isEqualTo(chaves.getAllValues().get(1));
+    }
+
+    @Test
+    void perdedorDaCorridaDeValorIgualComKeyDiferente_leva409SemChamarProvider() {
+        // Simula o perdedor: ao re-checar SOB o lock, a chave equivalente ja esta ATIVA
+        // (persistida pelo vencedor) — 409 sem segunda chamada externa (sem chave orfa).
+        when(repository.findByContaEscrowIdAndTipoAndValorHashAndStatus(
+                        contaEscrowId, TipoChavePix.EMAIL, HASH, StatusChavePix.ATIVA))
+                .thenReturn(Optional.of(chaveExistente(VALOR_NORMALIZADO, "idem-vencedora")));
+
+        assertThatThrownBy(() -> useCase.executar(comando(VALOR_BRUTO, "idem-perdedora")))
+                .isInstanceOf(ConflitoException.class);
+        verify(pixProvider, never()).cadastrarChave(any(), any(), any());
     }
 }

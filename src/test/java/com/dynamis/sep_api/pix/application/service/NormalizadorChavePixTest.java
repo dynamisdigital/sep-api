@@ -33,6 +33,20 @@ class NormalizadorChavePixTest {
                 .satisfies(ex -> assertThat(ex.getMessage()).doesNotContain(valor));
     }
 
+    @ParameterizedTest
+    @CsvSource({"12345678901", "52998224726", "00000000000", "11111111111", "99999999999"})
+    void cpf_digitoVerificadorInvalidoOuSequenciaRepetida_rejeita(String valor) {
+        assertThatThrownBy(() -> NormalizadorChavePix.normalizar(TipoChavePix.CPF, valor))
+                .isInstanceOf(ValidacaoException.class)
+                .satisfies(ex -> assertThat(ex.getMessage()).doesNotContain(valor));
+    }
+
+    @Test
+    void cpf_comDigitoVerificadorValido_aceita() {
+        assertThat(NormalizadorChavePix.normalizar(TipoChavePix.CPF, "529.982.247-25"))
+                .isEqualTo("52998224725");
+    }
+
     // --- CNPJ ---
 
     @Test
@@ -46,6 +60,20 @@ class NormalizadorChavePixTest {
         assertThatThrownBy(() -> NormalizadorChavePix.normalizar(TipoChavePix.CNPJ, "12345678000"))
                 .isInstanceOf(ValidacaoException.class)
                 .satisfies(ex -> assertThat(ex.getMessage()).doesNotContain("12345678000"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"12345678000190", "11222333000182", "00000000000000", "11111111111111"})
+    void cnpj_digitoVerificadorInvalidoOuSequenciaRepetida_rejeita(String valor) {
+        assertThatThrownBy(() -> NormalizadorChavePix.normalizar(TipoChavePix.CNPJ, valor))
+                .isInstanceOf(ValidacaoException.class)
+                .satisfies(ex -> assertThat(ex.getMessage()).doesNotContain(valor));
+    }
+
+    @Test
+    void cnpj_comDigitoVerificadorValido_aceita() {
+        assertThat(NormalizadorChavePix.normalizar(TipoChavePix.CNPJ, "11.222.333/0001-81"))
+                .isEqualTo("11222333000181");
     }
 
     // --- TELEFONE ---

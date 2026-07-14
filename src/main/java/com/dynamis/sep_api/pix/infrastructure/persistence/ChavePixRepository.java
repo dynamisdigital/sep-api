@@ -40,4 +40,14 @@ public interface ChavePixRepository extends JpaRepository<ChavePix, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from ChavePix c where c.id = :id and c.contaEscrowId = :contaEscrowId")
     Optional<ChavePix> findByIdAndContaEscrowIdForUpdate(UUID id, UUID contaEscrowId);
+
+    /**
+     * Advisory lock transacional que serializa o cadastro por (conta, tipo, hash) ANTES da chamada
+     * externa (review manual Sprint 31 — P1): sem ele, duas requisicoes concorrentes com o mesmo
+     * valor e Idempotency-Keys diferentes cadastrariam duas chaves no provider e a perdedora da
+     * UNIQUE local deixaria a segunda chave externa orfa. Liberado automaticamente no fim da
+     * transacao ({@code pg_advisory_xact_lock}).
+     */
+    @Query(value = "select pg_advisory_xact_lock(:chave)", nativeQuery = true)
+    void travarCadastroChave(long chave);
 }

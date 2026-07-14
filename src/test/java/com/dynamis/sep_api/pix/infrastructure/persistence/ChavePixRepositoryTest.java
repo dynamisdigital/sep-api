@@ -237,6 +237,41 @@ class ChavePixRepositoryTest {
         assertThat(segundaMudou.get()).isFalse();
     }
 
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void advisoryLock_serializaCadastrosConcorrentesPelaMesmaChave() throws Exception {
+        TransactionTemplate tx = new TransactionTemplate(txManager);
+        tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        long chaveDeTrava = 987654321L;
+
+        CountDownLatch primeiraSegurouLock = new CountDownLatch(1);
+        CountDownLatch podeCommitar = new CountDownLatch(1);
+        AtomicReference<Boolean> primeiraCommitouAntesDaSegundaEntrar = new AtomicReference<>(false);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            var primeira = executor.submit(() -> tx.executeWithoutResult(status -> {
+                repository.travarCadastroChave(chaveDeTrava);
+                primeiraSegurouLock.countDown();
+                aguardar(podeCommitar);
+                // Ultima instrucao antes do commit: o advisory xact lock so solta no fim da tx.
+                primeiraCommitouAntesDaSegundaEntrar.set(true);
+            }));
+            var segunda = executor.submit(() -> {
+                aguardar(primeiraSegurouLock);
+                podeCommitar.countDown();
+                tx.executeWithoutResult(status -> {
+                    repository.travarCadastroChave(chaveDeTrava);
+                    // So entra aqui depois que a primeira tx terminou (lock transacional).
+                    assertThat(primeiraCommitouAntesDaSegundaEntrar.get()).isTrue();
+                });
+            });
+            primeira.get(30, TimeUnit.SECONDS);
+            segunda.get(30, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     private static void aguardar(CountDownLatch latch) {
         try {
             if (!latch.await(30, TimeUnit.SECONDS)) {
