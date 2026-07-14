@@ -1,10 +1,13 @@
 package com.dynamis.sep_api.pix.application.port.out.exception;
 
+import com.dynamis.sep_api.shared.integration.ProviderHttpFault;
+
 /**
  * Falha HTTP retornada pelo provider Pix (Sprint 19). Carrega {@code statusCode} pra use cases
- * decidirem tratamento (4xx -> bug de contrato/permissao; 5xx -> retry/retry-later).
+ * decidirem tratamento (4xx -> bug de contrato/permissao; 5xx -> retry/retry-later). Implementa
+ * {@link ProviderHttpFault} (Sprint 32): o retry compartilhado reentra somente em 5xx.
  */
-public class PixProviderHttpException extends PixProviderException {
+public class PixProviderHttpException extends PixProviderException implements ProviderHttpFault {
 
     private final int statusCode;
 

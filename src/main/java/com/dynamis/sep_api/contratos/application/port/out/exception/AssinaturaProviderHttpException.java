@@ -1,10 +1,13 @@
 package com.dynamis.sep_api.contratos.application.port.out.exception;
 
+import com.dynamis.sep_api.shared.integration.ProviderHttpFault;
+
 /**
  * Falha HTTP retornada pelo provider de assinatura (Sprint 11). Carrega {@code statusCode} pra
  * use cases decidirem tratamento (4xx -> bug de contrato/permissao; 5xx -> retry/retry-later).
+ * Implementa {@link ProviderHttpFault} (Sprint 32): o retry compartilhado reentra somente em 5xx.
  */
-public class AssinaturaProviderHttpException extends AssinaturaProviderException {
+public class AssinaturaProviderHttpException extends AssinaturaProviderException implements ProviderHttpFault {
 
     private final int statusCode;
 

@@ -1,0 +1,50 @@
+# =============================================================================
+# Profile OPT-IN `local-wiremock` (Sprint 32 Task 32.6, ADR 0017)
+# =============================================================================
+# Smoke local dos adapters HTTP contra WireMock STANDALONE (fixtures em
+# src/test/resources/wiremock/ — ver README de la para subir as instancias).
+#
+# - Nunca herdado por dev/test/prod; ative com SPRING_PROFILES_ACTIVE=dev,local-wiremock.
+# - Base-urls apontam SOMENTE para localhost.
+# - Credenciais sao ficticias (aceitas pelos stubs). Nenhum segredo real aqui.
+# - O guard LocalWiremockProfileTest falha o build se este arquivo apontar para
+#   host externo ou deixar de selecionar os adapters explicitamente.
+# =============================================================================
+
+app:
+  kyc:
+    provider: celcoin
+  kyb:
+    provider: celcoin
+  pld:
+    provider: celcoin
+  assinatura:
+    provider: clicksign
+    clicksign:
+      base-url: http://localhost:9092
+      access-token: local-wiremock-token-ficticio
+  pix:
+    provider: celcoin
+  escrow:
+    provider: celcoin
+  celcoin:
+    kyc:
+      base-url: http://localhost:9091
+      client-id: local-wiremock
+      client-secret: local-wiremock-secret-ficticio
+    kyb:
+      base-url: http://localhost:9091
+      client-id: local-wiremock
+      client-secret: local-wiremock-secret-ficticio
+    background-check:
+      base-url: http://localhost:9091
+      client-id: local-wiremock
+      client-secret: local-wiremock-secret-ficticio
+    pix:
+      base-url: http://localhost:9093
+      client-id: local-wiremock
+      client-secret: local-wiremock-secret-ficticio
+    escrow:
+      base-url: http://localhost:9094
+      client-id: local-wiremock
+      client-secret: local-wiremock-secret-ficticio

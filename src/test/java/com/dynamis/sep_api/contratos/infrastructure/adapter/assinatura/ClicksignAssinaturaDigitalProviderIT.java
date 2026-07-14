@@ -17,6 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.client.RestClientException;
 
 import java.util.UUID;
 
@@ -59,6 +60,8 @@ class ClicksignAssinaturaDigitalProviderIT {
         registry.add("app.assinatura.clicksign.webhook.hmac-secret", () -> "secret");
         // Acelerar retry no teste de 5xx
         registry.add("resilience4j.retry.instances.clicksign-assinatura.waitDuration", () -> "10ms");
+        // Read-timeout curto para o teste de timeout (Sprint 32 Task 32.4).
+        registry.add("app.integration.read-timeout-seconds", () -> "1");
         // Evitar abertura do CB durante varios 5xx propositais
         registry.add("resilience4j.circuitbreaker.instances.clicksign-assinatura.slidingWindowSize", () -> "100");
         registry.add("resilience4j.circuitbreaker.instances.clicksign-assinatura.minimumNumberOfCalls", () -> "100");
@@ -256,5 +259,68 @@ class ClicksignAssinaturaDigitalProviderIT {
     private RequisicaoEnvioAssinatura req(String idempotencyKey) {
         return new RequisicaoEnvioAssinatura(
                 UUID.randomUUID(), UUID.randomUUID(), "tomador@example.com", "Tomador Teste", idempotencyKey);
+    }
+
+    @Test
+    void erro4xxDeNegocio_naoReentraENaoVazaTokenNemPdf() {
+        // Follow-up fechado (Sprint 32 Task 32.4): 4xx traduzido nao aciona retry.
+        wireMock.stubFor(get(urlEqualTo("/api/v1/documents/doc-4xx"))
+                .willReturn(aResponse().withStatus(422).withBody("{\"errors\":[\"invalid\"]}")));
+
+        assertThatThrownBy(() -> provider.consultarStatus("doc-4xx"))
+                .isInstanceOf(AssinaturaProviderHttpException.class)
+                .matches(e -> ((AssinaturaProviderHttpException) e).isClientError())
+                .satisfies(e -> assertThat(e.getMessage())
+                        .doesNotContain("test-token-xyz")
+                        .doesNotContain("%PDF"));
+
+        wireMock.verify(1, getRequestedFor(urlEqualTo("/api/v1/documents/doc-4xx")));
+    }
+
+    @Test
+    void timeoutDeLeitura_acionaRetryEPropagaFalhaTecnica() {
+        wireMock.stubFor(get(urlEqualTo("/api/v1/documents/doc-timeout"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"document\":{\"key\":\"doc-timeout\",\"status\":\"running\"}}")
+                        .withFixedDelay(1500)));
+
+        assertThatThrownBy(() -> provider.consultarStatus("doc-timeout"))
+                .isInstanceOf(RestClientException.class)
+                .satisfies(ex -> assertThat(ex).hasRootCauseInstanceOf(java.net.SocketTimeoutException.class));
+
+        // Timeout e falha transiente (predicate compartilhado): reentra ate maxAttempts (3).
+        wireMock.verify(3, getRequestedFor(urlEqualTo("/api/v1/documents/doc-timeout")));
+    }
+
+    @Test
+    void statusDesconhecido_mapeiaParaEnviadoSemFalhar() {
+        // Fallback defensivo existente do mapper (skeleton local): status novo nao derruba polling.
+        wireMock.stubFor(get(urlEqualTo("/api/v1/documents/doc-wat"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"document\":{\"key\":\"doc-wat\",\"status\":\"WAT\"}}")));
+
+        assertThat(provider.consultarStatus("doc-wat").status())
+                .isEqualTo(com.dynamis.sep_api.contratos.domain.vo.StatusEnvelope.ENVIADO);
+    }
+
+    @Test
+    void correlationIdPropagadoNoEnvio() {
+        wireMock.stubFor(post(urlEqualTo("/api/v1/documents"))
+                .withHeader("X-Correlation-Id", equalTo("corr-hdr-1"))
+                .willReturn(aResponse()
+                        .withStatus(201)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"document\":{\"key\":\"doc-corr\",\"status\":\"running\"}}")));
+        wireMock.stubFor(
+                post(urlEqualTo("/api/v1/lists")).willReturn(aResponse().withStatus(201)));
+
+        RespostaEnvioAssinatura resp =
+                provider.enviarParaAssinatura("%PDF-1.4 fake".getBytes(), req("idemp-corr"), "corr-hdr-1");
+
+        assertThat(resp.idEnvelopeExterno()).isEqualTo("doc-corr");
     }
 }

@@ -26,6 +26,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.serverError;
@@ -55,6 +56,8 @@ class CelcoinEscrowProviderIT {
         registry.add("app.celcoin.escrow.client-id", () -> "test-client");
         registry.add("app.celcoin.escrow.client-secret", () -> "test-secret");
         registry.add("resilience4j.retry.instances.celcoin-escrow.waitDuration", () -> "10ms");
+        // Read-timeout curto para o teste de timeout (Sprint 32 Task 32.5).
+        registry.add("app.integration.read-timeout-seconds", () -> "1");
         registry.add("resilience4j.circuitbreaker.instances.celcoin-escrow.slidingWindowSize", () -> "100");
         registry.add("resilience4j.circuitbreaker.instances.celcoin-escrow.minimumNumberOfCalls", () -> "100");
     }
@@ -175,5 +178,60 @@ class CelcoinEscrowProviderIT {
         provider.criarContaEscrow(new ComandoCriarContaEscrow("SEP"), "idem-b", "corr-7b");
 
         wireMock.verify(1, postRequestedFor(urlPathEqualTo("/token")));
+    }
+
+    @Test
+    void erro4xx_naoReentraENaoVazaDadosDeConta() {
+        // Follow-up fechado (Sprint 32 Task 32.5): 4xx traduzido nao aciona retry.
+        wireMock.stubFor(post(urlEqualTo("/escrow/accounts"))
+                .willReturn(aResponse().withStatus(422).withBody("{\"error\":\"invalid\"}")));
+
+        assertThatThrownBy(() -> provider.criarContaEscrow(new ComandoCriarContaEscrow("SEP"), "idem-4xx", "corr-4xx"))
+                .isInstanceOf(EscrowProviderHttpException.class)
+                .matches(e -> ((EscrowProviderHttpException) e).getStatusCode() == 422)
+                .satisfies(e -> assertThat(e.getMessage()).doesNotContain("SEP").doesNotContain("acc-"));
+
+        wireMock.verify(1, postRequestedFor(urlEqualTo("/escrow/accounts")));
+    }
+
+    @Test
+    void timeoutDeLeitura_acionaRetryEPropagaFalhaTecnica() {
+        wireMock.stubFor(get(urlEqualTo("/escrow/accounts/acc-timeout"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"account_id\":\"acc-timeout\",\"status\":\"ACTIVE\"}")
+                        .withFixedDelay(1500)));
+
+        assertThatThrownBy(() -> provider.consultarContaEscrow("acc-timeout", "corr-timeout"))
+                .isInstanceOf(org.springframework.web.client.RestClientException.class)
+                .satisfies(ex -> assertThat(ex).hasRootCauseInstanceOf(java.net.SocketTimeoutException.class));
+
+        // Timeout e falha transiente (predicate compartilhado): reentra ate maxAttempts (3).
+        wireMock.verify(3, getRequestedFor(urlEqualTo("/escrow/accounts/acc-timeout")));
+    }
+
+    @Test
+    void respostaSemAccountId_falhaClaraSemRetry() {
+        wireMock.stubFor(post(urlEqualTo("/escrow/accounts"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")));
+
+        assertThatThrownBy(() -> provider.criarContaEscrow(new ComandoCriarContaEscrow("SEP"), "idem-mal", "corr-mal"))
+                .isInstanceOf(EscrowProviderException.class);
+
+        wireMock.verify(1, postRequestedFor(urlEqualTo("/escrow/accounts")));
+    }
+
+    @Test
+    void correlationIdPropagadoNoHeader() {
+        wireMock.stubFor(get(urlEqualTo("/escrow/accounts/acc-corr"))
+                .withHeader("X-Correlation-Id", equalTo("corr-hdr-7"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"account_id\":\"acc-corr\",\"status\":\"ACTIVE\"}")));
+
+        assertThat(provider.consultarContaEscrow("acc-corr", "corr-hdr-7").externalId())
+                .isEqualTo("acc-corr");
     }
 }

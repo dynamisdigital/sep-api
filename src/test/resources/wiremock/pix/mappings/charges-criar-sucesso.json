@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/pix/charges"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "txid": "txid-local-0001",
+      "charge_id": "chg-local-0001",
+      "emv": "00020101021226-local-ficticio-5204000053039865802BR"
+    }
+  }
+}

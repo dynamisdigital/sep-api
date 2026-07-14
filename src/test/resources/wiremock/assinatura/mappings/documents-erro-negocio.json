@@ -1,0 +1,23 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "POST",
+    "urlPath": "/api/v1/documents",
+    "headers": {
+      "X-Simular": {
+        "equalTo": "erro-negocio"
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "errors": [
+        "invalid"
+      ]
+    }
+  }
+}

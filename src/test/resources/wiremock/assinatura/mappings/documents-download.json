@@ -1,0 +1,13 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/api/v1/documents/[^/]+/download"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/pdf"
+    },
+    "body": "%PDF-1.4 conteudo ficticio local-wiremock"
+  }
+}

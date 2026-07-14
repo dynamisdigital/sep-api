@@ -1,10 +1,12 @@
 package com.dynamis.sep_api.escrow.application.port.out.exception;
 
+import com.dynamis.sep_api.shared.integration.ProviderHttpFault;
+
 /**
  * Falha HTTP retornada pelo provider de escrow (Sprint 19). Carrega {@code statusCode} pra use
  * cases decidirem tratamento (4xx -> bug de contrato/permissao; 5xx -> retry/retry-later).
  */
-public class EscrowProviderHttpException extends EscrowProviderException {
+public class EscrowProviderHttpException extends EscrowProviderException implements ProviderHttpFault {
 
     private final int statusCode;
 
