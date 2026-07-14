@@ -133,5 +133,8 @@ public enum TipoEventoSeguranca {
     PIX_WEBHOOK_FALHOU,
     PIX_TRANSFERENCIA_SOLICITADA,
     PIX_TRANSFERENCIA_CONCLUIDA,
-    PIX_TRANSFERENCIA_FALHOU
+    PIX_TRANSFERENCIA_FALHOU,
+    // Sprint 31 Task 31.5: gestao assistida de chaves Pix da conta operacional (Epic 15).
+    PIX_CHAVE_CADASTRADA,
+    PIX_CHAVE_REMOVIDA
 }
