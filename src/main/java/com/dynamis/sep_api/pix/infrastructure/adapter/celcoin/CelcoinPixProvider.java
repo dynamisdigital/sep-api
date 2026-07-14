@@ -14,6 +14,8 @@ import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderHttpExc
 import com.dynamis.sep_api.pix.infrastructure.adapter.PixWebhookNormalizer;
 import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixCobrancaRequest;
 import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixCobrancaResponse;
+import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixKeyRequest;
+import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixKeyResponse;
 import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixTransferRequest;
 import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixTransferResponse;
 import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
@@ -137,17 +139,65 @@ public class CelcoinPixProvider implements PixProvider {
         return webhookNormalizer.normalizar(payloadBruto);
     }
 
+    /**
+     * Cadastro de chave (Sprint 31). Contrato {@code POST /pix/keys} e <strong>skeleton local da
+     * Fase 4</strong> — validar contra a documentacao real na Fase 5. A chave em claro trafega
+     * apenas no body HTTP em memoria; logs levam somente {@code key_id}.
+     */
     @Override
+    @CircuitBreaker(name = RESILIENCE_INSTANCE)
+    @Retry(name = RESILIENCE_INSTANCE)
     public RespostaCadastroChavePix cadastrarChave(
             ComandoCadastrarChavePix comando, String idempotencyKey, String correlationId) {
-        // Skeleton HTTP de chaves implementado na Task 31.4 (Sprint 31).
-        throw new UnsupportedOperationException("cadastro de chave Celcoin pendente (Sprint 31 Task 31.4)");
+        CelcoinPixKeyRequest payload =
+                new CelcoinPixKeyRequest(comando.tipo().name(), comando.valorNormalizado(), comando.contaTecnicaId());
+        try (MDCBridge ignored = MDCBridge.set(correlationId, idempotencyKey)) {
+            CelcoinPixKeyResponse response = restClient
+                    .post()
+                    .uri("/pix/keys")
+                    .headers(this::headersAutenticacao)
+                    .body(payload)
+                    .retrieve()
+                    .body(CelcoinPixKeyResponse.class);
+            CelcoinPixKeyResponse validada = exigirChave(response);
+            log.info("Celcoin Pix cadastrarChave key_id={}", validada.keyId());
+            return new RespostaCadastroChavePix(validada.keyId());
+        } catch (RestClientResponseException ex) {
+            throw traduzirHttp("cadastrarChave", ex, correlationId);
+        }
     }
 
+    /**
+     * Remocao de chave pelo identificador tecnico (Sprint 31). {@code 404} do provider e tratado
+     * como sucesso idempotente (contrato skeleton) e nao reentra em retry; demais erros seguem a
+     * traducao sanitizada padrao.
+     */
     @Override
+    @CircuitBreaker(name = RESILIENCE_INSTANCE)
+    @Retry(name = RESILIENCE_INSTANCE)
     public void removerChave(String providerKeyId, String correlationId) {
-        // Skeleton HTTP de chaves implementado na Task 31.4 (Sprint 31).
-        throw new UnsupportedOperationException("remocao de chave Celcoin pendente (Sprint 31 Task 31.4)");
+        try (MDCBridge ignored = MDCBridge.set(correlationId, null)) {
+            restClient
+                    .delete()
+                    .uri("/pix/keys/{id}", providerKeyId)
+                    .headers(this::headersAutenticacao)
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("Celcoin Pix removerChave key_id={} removida", providerKeyId);
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().value() == 404) {
+                log.info("Celcoin Pix removerChave key_id={} inexistente no provider (idempotente)", providerKeyId);
+                return;
+            }
+            throw traduzirHttp("removerChave", ex, correlationId);
+        }
+    }
+
+    private CelcoinPixKeyResponse exigirChave(CelcoinPixKeyResponse response) {
+        if (response == null || response.keyId() == null || response.keyId().isBlank()) {
+            throw new PixProviderException("Celcoin Pix sem key_id na resposta de cadastro de chave");
+        }
+        return response;
     }
 
     private CelcoinPixCobrancaResponse exigirCobranca(CelcoinPixCobrancaResponse response) {
