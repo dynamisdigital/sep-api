@@ -11,6 +11,12 @@ import com.dynamis.sep_api.escrow.infrastructure.adapter.celcoin.CelcoinEscrowPr
 import com.dynamis.sep_api.escrow.infrastructure.adapter.celcoin.CelcoinEscrowProvider;
 import com.dynamis.sep_api.escrow.infrastructure.adapter.fake.FakeEscrowProvider;
 import com.dynamis.sep_api.onboarding.application.port.out.KycProvider;
+import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.CelcoinBackgroundCheckMapper;
+import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.CelcoinBackgroundCheckProperties;
+import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.CelcoinBackgroundCheckProvider;
+import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.CelcoinKybMapper;
+import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.CelcoinKybProperties;
+import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.CelcoinKybProvider;
 import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.CelcoinKycMapper;
 import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.CelcoinKycProperties;
 import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.CelcoinKycProvider;
@@ -223,5 +229,37 @@ class ProviderWiringTest {
 
     private static ClicksignAssinaturaProperties clicksignProps(String baseUrl, String token) {
         return new ClicksignAssinaturaProperties(baseUrl, token, null);
+    }
+
+    @Test
+    void adaptersDeOnboardingSemBaseUrl_falhamCitandoAPropertySemExporSegredo() {
+        // Fail-fast de ctor (Sprint 32 Task 32.3) — mesmo padrao de Pix/Escrow/Clicksign.
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new CelcoinKycProvider(
+                        mock(RestClientFactory.class),
+                        mock(CelcoinKycMapper.class),
+                        new CelcoinKycProperties(" ", "client-ficticio", SEGREDO),
+                        mock(CelcoinOAuthTokenProvider.class),
+                        new ObjectMapper()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("app.celcoin.kyc.base-url")
+                .satisfies(ex -> assertThat(ex.getMessage()).doesNotContain(SEGREDO));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new CelcoinKybProvider(
+                        mock(RestClientFactory.class),
+                        mock(CelcoinKybMapper.class),
+                        new CelcoinKybProperties(" ", "client-ficticio", SEGREDO),
+                        mock(CelcoinOAuthTokenProvider.class),
+                        new ObjectMapper()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("app.celcoin.kyb.base-url")
+                .satisfies(ex -> assertThat(ex.getMessage()).doesNotContain(SEGREDO));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new CelcoinBackgroundCheckProvider(
+                        mock(RestClientFactory.class),
+                        mock(CelcoinBackgroundCheckMapper.class),
+                        new CelcoinBackgroundCheckProperties(" ", "client-ficticio", SEGREDO),
+                        mock(CelcoinOAuthTokenProvider.class),
+                        new ObjectMapper()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("app.celcoin.background-check.base-url")
+                .satisfies(ex -> assertThat(ex.getMessage()).doesNotContain(SEGREDO));
     }
 }

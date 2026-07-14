@@ -15,6 +15,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.RestClientException;
 
 import java.util.List;
 import java.util.UUID;
@@ -55,6 +56,8 @@ class CelcoinKybProviderIT {
         // KYC permanece fake: OAuth provider deve fazer fallback pra credenciais KYB.
         // Acelerar retry e evitar abrir CB durante a suite
         registry.add("resilience4j.retry.instances.celcoin-kyb.waitDuration", () -> "10ms");
+        // Read-timeout curto para o teste de timeout (Sprint 32 Task 32.3).
+        registry.add("app.integration.read-timeout-seconds", () -> "1");
         registry.add("resilience4j.circuitbreaker.instances.celcoin-kyb.slidingWindowSize", () -> "100");
         registry.add("resilience4j.circuitbreaker.instances.celcoin-kyb.minimumNumberOfCalls", () -> "100");
     }
@@ -202,5 +205,50 @@ class CelcoinKybProviderIT {
                 .isInstanceOf(HttpServerErrorException.class);
 
         wireMock.verify(3, postRequestedFor(urlEqualTo("/companies")));
+    }
+
+    @Test
+    void timeoutDeLeitura_acionaRetryEPropagaFalhaTecnica() {
+        wireMock.stubFor(post(urlEqualTo("/companies"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"registration_status\":\"ACTIVE\",\"legal_representatives\":[]}")
+                        .withFixedDelay(1500)));
+
+        assertThatThrownBy(() -> provider.consultarCnpj(novaRequisicao(), "corr-timeout"))
+                .isInstanceOf(RestClientException.class)
+                .satisfies(ex -> assertThat(ex).hasRootCauseInstanceOf(java.net.SocketTimeoutException.class));
+
+        // Timeout e falha transiente (predicate compartilhado): reentra ate maxAttempts (3).
+        wireMock.verify(3, postRequestedFor(urlEqualTo("/companies")));
+    }
+
+    @Test
+    void respostaComCorpoVazio_falhaClaraSemRetryNemDadosDaEmpresa() {
+        wireMock.stubFor(post(urlEqualTo("/companies"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")));
+
+        assertThatThrownBy(() -> provider.consultarCnpj(novaRequisicao(), "corr-mal"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Celcoin KYB")
+                .satisfies(ex -> assertThat(ex.getMessage())
+                        .doesNotContain("11222333000181")
+                        .doesNotContain("ACME"));
+
+        // Resposta invalida nao e falha transiente: nao reentra.
+        wireMock.verify(1, postRequestedFor(urlEqualTo("/companies")));
+    }
+
+    @Test
+    void erro4xx_naoVazaCnpjNemRazaoSocialNaExcecao() {
+        wireMock.stubFor(post(urlEqualTo("/companies"))
+                .willReturn(aResponse().withStatus(422).withBody("{\"error\":\"unprocessable\"}")));
+
+        assertThatThrownBy(() -> provider.consultarCnpj(novaRequisicao(), "corr-pii"))
+                .isInstanceOf(HttpClientErrorException.class)
+                .satisfies(ex -> assertThat(ex.getMessage())
+                        .doesNotContain("11222333000181")
+                        .doesNotContain("ACME"));
     }
 }
