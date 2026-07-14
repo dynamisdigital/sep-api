@@ -103,8 +103,10 @@ class PixChaveIT {
     }
 
     private void limpar() {
+        // Guard estrito (code review 31.7): exige database exatamente "sep_test" no fim da URL,
+        // nao apenas substring — evita deleteAll em datasource mal configurado.
         String url = environment.getProperty("spring.datasource.url", "");
-        if (!url.contains("sep_test")) {
+        if (!url.matches("jdbc:postgresql://[^/]+/sep_test(\\?.*)?")) {
             throw new IllegalStateException("PixChaveIT deve rodar apenas no banco sep_test; URL: " + url);
         }
         chavePixRepository.deleteAll();
