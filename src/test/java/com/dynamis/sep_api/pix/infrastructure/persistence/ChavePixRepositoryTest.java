@@ -9,6 +9,7 @@ import com.dynamis.sep_api.pix.domain.vo.TipoChavePix;
 import com.dynamis.sep_api.shared.audit.AuditorAwareImpl;
 import com.dynamis.sep_api.shared.audit.JpaAuditingConfig;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -178,7 +179,9 @@ class ChavePixRepositoryTest {
                             .executeUpdate();
                     entityManager.flush();
                 })
-                .hasStackTraceContaining("chk_chave_pix_remocao_coerente");
+                .isInstanceOf(PersistenceException.class)
+                .rootCause()
+                .hasMessageContaining("chk_chave_pix_remocao_coerente");
     }
 
     @Test
