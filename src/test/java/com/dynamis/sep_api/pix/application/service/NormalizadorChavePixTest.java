@@ -69,7 +69,7 @@ class NormalizadorChavePixTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"123", "+5511abc998888", "+1 555 0100"})
+    @CsvSource({"123", "+5511abc998888", "+1 555 0100", "0099998888", "+55 (00) 9999-8888", "1099998888"})
     void telefone_invalido_rejeitaSemEcoarValor(String valor) {
         assertThatThrownBy(() -> NormalizadorChavePix.normalizar(TipoChavePix.TELEFONE, valor))
                 .isInstanceOf(ValidacaoException.class)
@@ -85,7 +85,15 @@ class NormalizadorChavePixTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"sem-arroba", "dois@@empresa.com", "@empresa.com", "usuario@"})
+    @CsvSource({
+        "sem-arroba",
+        "dois@@empresa.com",
+        "@empresa.com",
+        "usuario@",
+        "usuario@empresa..com",
+        "usuario@.com",
+        "usuario..nome@empresa.com"
+    })
     void email_invalido_rejeitaSemEcoarValor(String valor) {
         assertThatThrownBy(() -> NormalizadorChavePix.normalizar(TipoChavePix.EMAIL, valor))
                 .isInstanceOf(ValidacaoException.class)

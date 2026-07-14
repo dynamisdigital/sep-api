@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
  * <ul>
  *   <li>CPF/CNPJ: remove pontuacao ({@code . - /} e espacos); exige 11/14 digitos.
  *   <li>TELEFONE: remove formatacao ({@code ( ) - .} e espacos); canonico E.164 Brasil
- *       ({@code +55DDDNUMERO}); sem DDI assume {@code +55}.
+ *       ({@code +55DDDNUMERO}, DDD com ambos os digitos 1-9); sem DDI assume {@code +55}.
  *   <li>EMAIL: trim + lowercase; formato basico; limite DICT de 77 caracteres.
  *   <li>EVP: UUID canonico lowercase.
  * </ul>
@@ -27,7 +27,8 @@ public final class NormalizadorChavePix {
     private static final Pattern PONTUACAO_DOCUMENTO = Pattern.compile("[.\\-/\\s]");
     private static final Pattern FORMATACAO_TELEFONE = Pattern.compile("[().\\-\\s]");
     private static final Pattern SO_DIGITOS = Pattern.compile("\\d+");
-    private static final Pattern EMAIL_BASICO = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+    private static final Pattern EMAIL_BASICO = Pattern.compile("^[a-z0-9._%+-]+@[a-z0-9-]+(\\.[a-z0-9-]+)+$");
+    private static final Pattern DDD_VALIDO = Pattern.compile("[1-9][1-9]");
     private static final int LIMITE_EMAIL_DICT = 77;
 
     private NormalizadorChavePix() {}
@@ -67,7 +68,8 @@ public final class NormalizadorChavePix {
         if (digitos == null
                 || !SO_DIGITOS.matcher(digitos).matches()
                 || digitos.length() < 10
-                || digitos.length() > 11) {
+                || digitos.length() > 11
+                || !DDD_VALIDO.matcher(digitos.substring(0, 2)).matches()) {
             throw chaveInvalida(TipoChavePix.TELEFONE);
         }
         return "+55" + digitos;
@@ -76,6 +78,7 @@ public final class NormalizadorChavePix {
     private static String normalizarEmail(String valor) {
         String normalizado = valor.toLowerCase();
         if (normalizado.length() > LIMITE_EMAIL_DICT
+                || normalizado.contains("..")
                 || !EMAIL_BASICO.matcher(normalizado).matches()) {
             throw chaveInvalida(TipoChavePix.EMAIL);
         }
