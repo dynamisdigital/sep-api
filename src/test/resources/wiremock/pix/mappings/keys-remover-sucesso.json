@@ -1,0 +1,9 @@
+{
+  "request": {
+    "method": "DELETE",
+    "urlPathPattern": "/pix/keys/[^/]+"
+  },
+  "response": {
+    "status": 204
+  }
+}

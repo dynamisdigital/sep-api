@@ -1,0 +1,18 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPath": "/pix/transfers/tx-timeout"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "transfer_id": "tx-timeout",
+      "status": "PENDING"
+    },
+    "fixedDelayMilliseconds": 35000
+  }
+}
