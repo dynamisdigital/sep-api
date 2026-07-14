@@ -1,0 +1,25 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/api/v1/documents/[^/]+",
+    "headers": {
+      "X-Simular": {
+        "equalTo": "timeout"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "document": {
+        "key": "doc-local-0001",
+        "status": "running"
+      }
+    },
+    "fixedDelayMilliseconds": 35000
+  }
+}

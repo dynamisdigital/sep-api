@@ -17,6 +17,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.RestClientException;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -60,6 +61,8 @@ class CelcoinKycProviderIT {
         registry.add("app.celcoin.kyc.client-secret", () -> "test-secret");
         // Acelerar retry no teste de 5xx
         registry.add("resilience4j.retry.instances.celcoin-kyc.waitDuration", () -> "10ms");
+        // Read-timeout curto para o teste de timeout (Sprint 32 Task 32.3).
+        registry.add("app.integration.read-timeout-seconds", () -> "1");
         // Evitar que o CB abra durante a suite (teste de 5xx propositalmente falha varias vezes).
         registry.add("resilience4j.circuitbreaker.instances.celcoin-kyc.slidingWindowSize", () -> "100");
         registry.add("resilience4j.circuitbreaker.instances.celcoin-kyc.minimumNumberOfCalls", () -> "100");
@@ -177,6 +180,65 @@ class CelcoinKycProviderIT {
         RespostaInicioVerificacao resp = provider.iniciarVerificacao(novaRequisicao(), "corr-6");
 
         assertThat(resp.idVerificacaoExterna()).isEqualTo("ext-c6");
+    }
+
+    @Test
+    void timeoutDeLeitura_acionaRetryEPropagaFalhaTecnica() {
+        wireMock.stubFor(post(urlEqualTo("/verifications"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"verification_id\":\"ext-slow\",\"status\":\"PROCESSING\"}")
+                        .withFixedDelay(1500)));
+
+        assertThatThrownBy(() -> provider.iniciarVerificacao(novaRequisicao(), "corr-timeout"))
+                .isInstanceOf(RestClientException.class)
+                .satisfies(ex -> assertThat(ex).hasRootCauseInstanceOf(java.net.SocketTimeoutException.class));
+
+        // Timeout e falha transiente (predicate compartilhado): reentra ate maxAttempts (3).
+        wireMock.verify(3, postRequestedFor(urlEqualTo("/verifications")));
+    }
+
+    @Test
+    void iniciarComRespostaSemVerificationId_falhaClaraSemRetryNemDadosPessoais() {
+        wireMock.stubFor(post(urlEqualTo("/verifications"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{}")));
+
+        assertThatThrownBy(() -> provider.iniciarVerificacao(novaRequisicao(), "corr-mal"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("verification_id")
+                .satisfies(ex -> assertThat(ex.getMessage())
+                        .doesNotContain("52998224725")
+                        .doesNotContain("Joao"));
+
+        // Parsing/resposta invalida nao e falha transiente: nao reentra.
+        wireMock.verify(1, postRequestedFor(urlEqualTo("/verifications")));
+    }
+
+    @Test
+    void consultarResultadoComCorpoVazio_ehTratadoComoEmAndamento() {
+        // Semantica defensiva existente: consulta sem status conclusivo segue em polling.
+        wireMock.stubFor(get(urlEqualTo("/verifications/ext-vazio"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")));
+
+        ResultadoKycProvider r = provider.consultarResultado("ext-vazio", "corr-vazio");
+
+        assertThat(r).isInstanceOf(ResultadoKycProvider.EmAndamento.class);
+    }
+
+    @Test
+    void erro4xx_naoVazaCpfNemNomeNaExcecao() {
+        wireMock.stubFor(post(urlEqualTo("/verifications"))
+                .willReturn(aResponse().withStatus(422).withBody("{\"error\":\"unprocessable\"}")));
+
+        assertThatThrownBy(() -> provider.iniciarVerificacao(novaRequisicao(), "corr-pii"))
+                .isInstanceOf(HttpClientErrorException.class)
+                .satisfies(ex -> assertThat(ex.getMessage())
+                        .doesNotContain("52998224725")
+                        .doesNotContain("Joao"));
     }
 
     @Test

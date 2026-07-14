@@ -1,0 +1,23 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/pix/transfers/[^/]+",
+    "headers": {
+      "X-Simular": {
+        "equalTo": "timeout"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "transfer_id": "pix-local-0001",
+      "status": "PENDING"
+    },
+    "fixedDelayMilliseconds": 35000
+  }
+}

@@ -29,6 +29,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.delete;
 import static com.github.tomakehurst.wiremock.client.WireMock.deleteRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.serverError;
@@ -59,6 +60,8 @@ class CelcoinPixProviderIT {
         registry.add("app.celcoin.pix.client-id", () -> "test-client");
         registry.add("app.celcoin.pix.client-secret", () -> "test-secret");
         registry.add("resilience4j.retry.instances.celcoin-pix.waitDuration", () -> "10ms");
+        // Read-timeout curto para o teste de timeout (Sprint 32 Task 32.5).
+        registry.add("app.integration.read-timeout-seconds", () -> "1");
         registry.add("resilience4j.circuitbreaker.instances.celcoin-pix.slidingWindowSize", () -> "100");
         registry.add("resilience4j.circuitbreaker.instances.celcoin-pix.minimumNumberOfCalls", () -> "100");
     }
@@ -127,8 +130,8 @@ class CelcoinPixProviderIT {
                 .isInstanceOf(PixProviderHttpException.class)
                 .extracting("statusCode")
                 .isEqualTo(400);
-        // Tradeoff documentado: sem predicate YAML, 4xx tambem aciona retry ate maxAttempts.
-        wireMock.verify(3, postRequestedFor(urlEqualTo("/pix/transfers")));
+        // Follow-up fechado (Sprint 32 Task 32.5): 4xx traduzido nao reentra (predicate compartilhado).
+        wireMock.verify(1, postRequestedFor(urlEqualTo("/pix/transfers")));
     }
 
     @Test
@@ -306,8 +309,8 @@ class CelcoinPixProviderIT {
                     assertThat(ex.getMessage()).doesNotContain(CHAVE_TESTE);
                     assertThat(ex.getCause().getMessage()).doesNotContain(CHAVE_TESTE);
                 });
-        // Tradeoff documentado (mesmo das transferencias): sem predicate YAML, 4xx tambem reentra.
-        wireMock.verify(3, postRequestedFor(urlEqualTo("/pix/keys")));
+        // Follow-up fechado (Sprint 32 Task 32.5): 4xx traduzido nao reentra (predicate compartilhado).
+        wireMock.verify(1, postRequestedFor(urlEqualTo("/pix/keys")));
     }
 
     @Test
@@ -351,5 +354,35 @@ class CelcoinPixProviderIT {
                 .matches(ex -> ((PixProviderHttpException) ex).isServerError(), "isServerError");
 
         wireMock.verify(3, deleteRequestedFor(urlEqualTo("/pix/keys/key-err")));
+    }
+
+    @Test
+    void timeoutDeLeitura_acionaRetryEPropagaFalhaTecnica() {
+        wireMock.stubFor(get(urlEqualTo("/pix/transfers/tx-timeout"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"transfer_id\":\"tx-timeout\",\"status\":\"PENDING\"}")
+                        .withFixedDelay(1500)));
+
+        assertThatThrownBy(() -> provider.consultarTransferencia("tx-timeout", "corr-timeout"))
+                .isInstanceOf(org.springframework.web.client.RestClientException.class)
+                .satisfies(ex -> assertThat(ex).hasRootCauseInstanceOf(java.net.SocketTimeoutException.class));
+
+        // Timeout e falha transiente (predicate compartilhado): reentra ate maxAttempts (3).
+        wireMock.verify(3, getRequestedFor(urlEqualTo("/pix/transfers/tx-timeout")));
+    }
+
+    @Test
+    void correlationIdPropagadoNoHeader() {
+        wireMock.stubFor(get(urlEqualTo("/pix/transfers/tx-corr"))
+                .withHeader("X-Correlation-Id", equalTo("corr-hdr-9"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"transfer_id\":\"tx-corr\",\"status\":\"PENDING\"}")));
+
+        assertThat(provider.consultarTransferencia("tx-corr", "corr-hdr-9").externalId())
+                .isEqualTo("tx-corr");
     }
 }

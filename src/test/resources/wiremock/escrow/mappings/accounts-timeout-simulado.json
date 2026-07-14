@@ -1,0 +1,23 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/escrow/accounts/[^/]+",
+    "headers": {
+      "X-Simular": {
+        "equalTo": "timeout"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "account_id": "acc-local-0001",
+      "status": "ACTIVE"
+    },
+    "fixedDelayMilliseconds": 35000
+  }
+}

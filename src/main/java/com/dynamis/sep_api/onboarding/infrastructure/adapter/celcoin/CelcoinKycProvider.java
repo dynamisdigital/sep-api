@@ -52,6 +52,9 @@ public class CelcoinKycProvider implements KycProvider {
             CelcoinKycProperties properties,
             CelcoinOAuthTokenProvider tokenProvider,
             ObjectMapper objectMapper) {
+        if (properties.baseUrl() == null || properties.baseUrl().isBlank()) {
+            throw new IllegalStateException("app.celcoin.kyc.base-url obrigatorio quando app.kyc.provider=celcoin");
+        }
         this.restClient = factory.forProvider(RESILIENCE_INSTANCE, properties.baseUrl());
         this.mapper = mapper;
         this.tokenProvider = tokenProvider;
@@ -73,11 +76,12 @@ public class CelcoinKycProvider implements KycProvider {
                     .body(payload)
                     .retrieve()
                     .body(CelcoinKycResponse.class);
+            CelcoinKycResponse validada = exigirInicio(response);
             log.info(
                     "Celcoin KYC iniciada solicitacaoId={} verificationId={}",
                     requisicao.solicitacaoId(),
-                    response != null ? response.idVerificacao() : "null");
-            return mapper.toRespostaInicio(response);
+                    validada.idVerificacao());
+            return mapper.toRespostaInicio(validada);
         } catch (RestClientResponseException ex) {
             log.warn(
                     "Celcoin KYC iniciar falhou status={} correlationId={}",
@@ -107,6 +111,16 @@ public class CelcoinKycProvider implements KycProvider {
                     correlationId);
             throw ex;
         }
+    }
+
+    /** Resposta invalida nao e falha transiente (Sprint 32 Task 32.3): falha clara, sem retry. */
+    private CelcoinKycResponse exigirInicio(CelcoinKycResponse response) {
+        if (response == null
+                || response.idVerificacao() == null
+                || response.idVerificacao().isBlank()) {
+            throw new IllegalStateException("Resposta invalida do Celcoin KYC (esperado verification_id)");
+        }
+        return response;
     }
 
     private void headersAutenticacao(HttpHeaders headers) {

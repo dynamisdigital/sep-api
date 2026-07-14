@@ -49,6 +49,9 @@ public class CelcoinKybProvider implements KybProvider {
             CelcoinKybProperties properties,
             CelcoinOAuthTokenProvider tokenProvider,
             ObjectMapper objectMapper) {
+        if (properties.baseUrl() == null || properties.baseUrl().isBlank()) {
+            throw new IllegalStateException("app.celcoin.kyb.base-url obrigatorio quando app.kyb.provider=celcoin");
+        }
         this.restClient = factory.forProvider(RESILIENCE_INSTANCE, properties.baseUrl());
         this.mapper = mapper;
         this.tokenProvider = tokenProvider;
@@ -68,12 +71,17 @@ public class CelcoinKybProvider implements KybProvider {
                     .body(payload)
                     .retrieve()
                     .body(CelcoinKybResponse.class);
+            // Resposta invalida nao e falha transiente (Sprint 32 Task 32.3): falha clara, sem
+            // retry — corpo vazio nao pode virar situacao cadastral "desconhecida" silenciosa.
+            if (response == null) {
+                throw new IllegalStateException("Resposta invalida do Celcoin KYB (corpo vazio)");
+            }
             String payloadCru = serializar(response);
             log.info(
                     "Celcoin KYB consultarCnpj solicitacaoId={} situacao={} representantes={}",
                     requisicao.solicitacaoId(),
-                    response != null ? response.situacao() : "null",
-                    response != null && response.representantes() != null
+                    response.situacao(),
+                    response.representantes() != null
                             ? response.representantes().size()
                             : 0);
             return mapper.toRespostaKyb(response, payloadCru);

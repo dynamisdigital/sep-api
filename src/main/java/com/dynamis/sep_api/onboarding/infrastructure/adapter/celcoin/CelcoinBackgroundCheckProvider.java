@@ -49,6 +49,10 @@ public class CelcoinBackgroundCheckProvider implements BackgroundCheckProvider {
             CelcoinBackgroundCheckProperties properties,
             CelcoinOAuthTokenProvider tokenProvider,
             ObjectMapper objectMapper) {
+        if (properties.baseUrl() == null || properties.baseUrl().isBlank()) {
+            throw new IllegalStateException(
+                    "app.celcoin.background-check.base-url obrigatorio quando app.pld.provider=celcoin");
+        }
         this.restClient = factory.forProvider(RESILIENCE_INSTANCE, properties.baseUrl());
         this.mapper = mapper;
         this.tokenProvider = tokenProvider;
@@ -79,14 +83,17 @@ public class CelcoinBackgroundCheckProvider implements BackgroundCheckProvider {
                     .body(payload)
                     .retrieve()
                     .body(CelcoinBackgroundCheckResponse.class);
+            // Compliance (CMN 4.656, Sprint 32 Task 32.3): resposta malformada NUNCA vira
+            // "sem hits" (falso limpo). Falha clara, sem retry (nao e transiente).
+            if (response == null || response.resultados() == null) {
+                throw new IllegalStateException("Resposta invalida do Celcoin PLD (esperado results)");
+            }
             String payloadCru = serializar(response);
             log.info(
                     "Celcoin PLD consultar solicitacaoId={} alvo={} resultados={}",
                     requisicao.solicitacaoId(),
                     requisicao.alvoTipo(),
-                    response != null && response.resultados() != null
-                            ? response.resultados().size()
-                            : 0);
+                    response.resultados().size());
             return mapper.toRespostaPld(response, payloadCru);
         } catch (RestClientResponseException ex) {
             log.warn(
