@@ -1,13 +1,16 @@
 package com.dynamis.sep_api.pix.infrastructure.adapter.celcoin;
 
 import com.dynamis.sep_api.pix.application.port.out.PixProvider;
+import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCadastrarChavePix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCriarCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoTransferenciaPix;
+import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCadastroChavePix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
 import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderException;
 import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderHttpException;
+import com.dynamis.sep_api.pix.domain.vo.TipoChavePix;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +25,8 @@ import java.math.BigDecimal;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
+import static com.github.tomakehurst.wiremock.client.WireMock.delete;
+import static com.github.tomakehurst.wiremock.client.WireMock.deleteRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
@@ -31,6 +36,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
@@ -232,5 +238,118 @@ class CelcoinPixProviderIT {
         provider.solicitarTransferencia(novoComando(), "idem-b", "corr-8b");
 
         wireMock.verify(1, postRequestedFor(urlPathEqualTo("/token")));
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // Gestao de chaves (Sprint 31 Task 31.4). ATENCAO: POST/DELETE /pix/keys e um contrato
+    // *skeleton local da Fase 4* — rotas, campos e semantica de erro precisam ser validados contra
+    // a documentacao/credenciais reais da Celcoin na Fase 5, antes de qualquer ativacao.
+    // -------------------------------------------------------------------------------------------
+
+    private static final String CHAVE_TESTE = "usuario@empresa.com";
+
+    private ComandoCadastrarChavePix comandoChave() {
+        return new ComandoCadastrarChavePix(TipoChavePix.EMAIL, CHAVE_TESTE, "conta-tec-1");
+    }
+
+    @Test
+    void cadastrarChaveUsaBearerIdempotencyEMapeiaKeyId() {
+        wireMock.stubFor(post(urlEqualTo("/pix/keys"))
+                .withHeader("Authorization", equalTo("Bearer pix-token-xyz"))
+                .withHeader("Idempotency-Key", equalTo("pix:chave:idem-1"))
+                .withRequestBody(containing("\"key_type\":\"EMAIL\""))
+                .withRequestBody(containing("\"key\":\"" + CHAVE_TESTE + "\""))
+                .withRequestBody(containing("\"account\":\"conta-tec-1\""))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"key_id\":\"key-123\"}")));
+
+        RespostaCadastroChavePix resp = provider.cadastrarChave(comandoChave(), "pix:chave:idem-1", "corr-k1");
+
+        assertThat(resp.providerKeyId()).isEqualTo("key-123");
+    }
+
+    @Test
+    void cadastrarChaveRespostaSemKeyIdLevantaProviderExceptionSemVazarChave() {
+        wireMock.stubFor(post(urlEqualTo("/pix/keys"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{}")));
+
+        assertThatThrownBy(() -> provider.cadastrarChave(comandoChave(), "idem-k2", "corr-k2"))
+                .isInstanceOf(PixProviderException.class)
+                .hasMessageContaining("key_id")
+                .satisfies(ex -> assertThat(ex.getMessage()).doesNotContain(CHAVE_TESTE));
+    }
+
+    @Test
+    void cadastrarChaveRespostaNulaLevantaProviderException() {
+        wireMock.stubFor(post(urlEqualTo("/pix/keys"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")));
+
+        assertThatThrownBy(() -> provider.cadastrarChave(comandoChave(), "idem-k3", "corr-k3"))
+                .isInstanceOf(PixProviderException.class)
+                .hasMessageContaining("key_id");
+    }
+
+    @Test
+    void cadastrarChave4xxTraduzidoSemVazarChave() {
+        wireMock.stubFor(post(urlEqualTo("/pix/keys"))
+                .willReturn(aResponse().withStatus(400).withBody("{\"error\":\"bad\"}")));
+
+        assertThatThrownBy(() -> provider.cadastrarChave(comandoChave(), "idem-k4", "corr-k4"))
+                .isInstanceOf(PixProviderHttpException.class)
+                .satisfies(ex -> {
+                    assertThat(((PixProviderHttpException) ex).getStatusCode()).isEqualTo(400);
+                    assertThat(ex.getMessage()).doesNotContain(CHAVE_TESTE);
+                    assertThat(ex.getCause().getMessage()).doesNotContain(CHAVE_TESTE);
+                });
+        // Tradeoff documentado (mesmo das transferencias): sem predicate YAML, 4xx tambem reentra.
+        wireMock.verify(3, postRequestedFor(urlEqualTo("/pix/keys")));
+    }
+
+    @Test
+    void cadastrarChave5xxAcionaRetryAteMaxAttempts() {
+        wireMock.stubFor(post(urlEqualTo("/pix/keys")).willReturn(serverError()));
+
+        assertThatThrownBy(() -> provider.cadastrarChave(comandoChave(), "idem-k5", "corr-k5"))
+                .isInstanceOf(PixProviderHttpException.class)
+                .matches(ex -> ((PixProviderHttpException) ex).isServerError(), "isServerError");
+
+        wireMock.verify(3, postRequestedFor(urlEqualTo("/pix/keys")));
+    }
+
+    @Test
+    void removerChaveDeletaPeloIdTecnicoComBearer() {
+        wireMock.stubFor(delete(urlEqualTo("/pix/keys/key-9"))
+                .withHeader("Authorization", equalTo("Bearer pix-token-xyz"))
+                .willReturn(aResponse().withStatus(204)));
+
+        assertThatCode(() -> provider.removerChave("key-9", "corr-k6")).doesNotThrowAnyException();
+
+        wireMock.verify(1, deleteRequestedFor(urlEqualTo("/pix/keys/key-9")));
+    }
+
+    @Test
+    void removerChave404EhSucessoIdempotenteSemRetry() {
+        wireMock.stubFor(delete(urlEqualTo("/pix/keys/key-gone"))
+                .willReturn(aResponse().withStatus(404).withBody("{\"error\":\"not found\"}")));
+
+        assertThatCode(() -> provider.removerChave("key-gone", "corr-k7")).doesNotThrowAnyException();
+
+        wireMock.verify(1, deleteRequestedFor(urlEqualTo("/pix/keys/key-gone")));
+    }
+
+    @Test
+    void removerChave5xxAcionaRetryETraduz() {
+        wireMock.stubFor(delete(urlEqualTo("/pix/keys/key-err")).willReturn(serverError()));
+
+        assertThatThrownBy(() -> provider.removerChave("key-err", "corr-k8"))
+                .isInstanceOf(PixProviderHttpException.class)
+                .matches(ex -> ((PixProviderHttpException) ex).isServerError(), "isServerError");
+
+        wireMock.verify(3, deleteRequestedFor(urlEqualTo("/pix/keys/key-err")));
     }
 }

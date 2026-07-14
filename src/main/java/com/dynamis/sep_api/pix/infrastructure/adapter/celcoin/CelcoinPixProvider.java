@@ -1,9 +1,11 @@
 package com.dynamis.sep_api.pix.infrastructure.adapter.celcoin;
 
 import com.dynamis.sep_api.pix.application.port.out.PixProvider;
+import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCadastrarChavePix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCriarCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
+import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCadastroChavePix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.StatusTransferenciaPixProvider;
@@ -12,6 +14,8 @@ import com.dynamis.sep_api.pix.application.port.out.exception.PixProviderHttpExc
 import com.dynamis.sep_api.pix.infrastructure.adapter.PixWebhookNormalizer;
 import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixCobrancaRequest;
 import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixCobrancaResponse;
+import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixKeyRequest;
+import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixKeyResponse;
 import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixTransferRequest;
 import com.dynamis.sep_api.pix.infrastructure.adapter.celcoin.dto.CelcoinPixTransferResponse;
 import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
@@ -133,6 +137,67 @@ public class CelcoinPixProvider implements PixProvider {
     @Override
     public EventoWebhookPixNormalizado normalizarWebhook(String payloadBruto) {
         return webhookNormalizer.normalizar(payloadBruto);
+    }
+
+    /**
+     * Cadastro de chave (Sprint 31). Contrato {@code POST /pix/keys} e <strong>skeleton local da
+     * Fase 4</strong> — validar contra a documentacao real na Fase 5. A chave em claro trafega
+     * apenas no body HTTP em memoria; logs levam somente {@code key_id}.
+     */
+    @Override
+    @CircuitBreaker(name = RESILIENCE_INSTANCE)
+    @Retry(name = RESILIENCE_INSTANCE)
+    public RespostaCadastroChavePix cadastrarChave(
+            ComandoCadastrarChavePix comando, String idempotencyKey, String correlationId) {
+        CelcoinPixKeyRequest payload =
+                new CelcoinPixKeyRequest(comando.tipo().name(), comando.valorNormalizado(), comando.contaTecnicaId());
+        try (MDCBridge ignored = MDCBridge.set(correlationId, idempotencyKey)) {
+            CelcoinPixKeyResponse response = restClient
+                    .post()
+                    .uri("/pix/keys")
+                    .headers(this::headersAutenticacao)
+                    .body(payload)
+                    .retrieve()
+                    .body(CelcoinPixKeyResponse.class);
+            CelcoinPixKeyResponse validada = exigirChave(response);
+            log.info("Celcoin Pix cadastrarChave key_id={}", validada.keyId());
+            return new RespostaCadastroChavePix(validada.keyId());
+        } catch (RestClientResponseException ex) {
+            throw traduzirHttp("cadastrarChave", ex, correlationId);
+        }
+    }
+
+    /**
+     * Remocao de chave pelo identificador tecnico (Sprint 31). {@code 404} do provider e tratado
+     * como sucesso idempotente (contrato skeleton) e nao reentra em retry; demais erros seguem a
+     * traducao sanitizada padrao.
+     */
+    @Override
+    @CircuitBreaker(name = RESILIENCE_INSTANCE)
+    @Retry(name = RESILIENCE_INSTANCE)
+    public void removerChave(String providerKeyId, String correlationId) {
+        try (MDCBridge ignored = MDCBridge.set(correlationId, null)) {
+            restClient
+                    .delete()
+                    .uri("/pix/keys/{id}", providerKeyId)
+                    .headers(this::headersAutenticacao)
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("Celcoin Pix removerChave key_id={} removida", providerKeyId);
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().value() == 404) {
+                log.info("Celcoin Pix removerChave key_id={} inexistente no provider (idempotente)", providerKeyId);
+                return;
+            }
+            throw traduzirHttp("removerChave", ex, correlationId);
+        }
+    }
+
+    private CelcoinPixKeyResponse exigirChave(CelcoinPixKeyResponse response) {
+        if (response == null || response.keyId() == null || response.keyId().isBlank()) {
+            throw new PixProviderException("Celcoin Pix sem key_id na resposta de cadastro de chave");
+        }
+        return response;
     }
 
     private CelcoinPixCobrancaResponse exigirCobranca(CelcoinPixCobrancaResponse response) {

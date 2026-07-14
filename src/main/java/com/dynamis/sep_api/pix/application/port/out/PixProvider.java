@@ -1,8 +1,10 @@
 package com.dynamis.sep_api.pix.application.port.out;
 
+import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCadastrarChavePix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoCriarCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.ComandoTransferenciaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.EventoWebhookPixNormalizado;
+import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCadastroChavePix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCobrancaPix;
 import com.dynamis.sep_api.pix.application.port.out.dto.RespostaTransferenciaPix;
 
@@ -44,4 +46,19 @@ public interface PixProvider {
      * do corpo. Mantem o parsing do formato Celcoin isolado no adapter.
      */
     EventoWebhookPixNormalizado normalizarWebhook(String payloadBruto);
+
+    /**
+     * Cadastra uma chave Pix da conta operacional no provider (Sprint 31). Operacao com efeito
+     * externo: recebe {@code idempotencyKey} explicita — replay com o mesmo comando retorna a mesma
+     * resposta. A chave em claro existe apenas no comando em memoria; a resposta carrega somente o
+     * identificador tecnico da chave no provider.
+     */
+    RespostaCadastroChavePix cadastrarChave(
+            ComandoCadastrarChavePix comando, String idempotencyKey, String correlationId);
+
+    /**
+     * Remove uma chave Pix no provider pelo identificador tecnico (Sprint 31). Idempotente: remover
+     * chave ja removida/inexistente e sucesso. Nunca recebe o valor da chave.
+     */
+    void removerChave(String providerKeyId, String correlationId);
 }
