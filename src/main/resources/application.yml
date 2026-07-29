@@ -239,9 +239,13 @@ app:
       issuer: ${APP_TOTP_ISSUER:SEP}
       window-size: ${APP_TOTP_WINDOW_SIZE:1}
       encryption-key: ${APP_TOTP_ENCRYPTION_KEY:dev-totp-encryption-key-min-32-bytes-please-change}
+    # INVARIANTE: os limites por IP devem ser estritamente MAIORES que lockout.max-attempts.
+    # O RateLimitFilter roda antes do controller; se os dois valessem 5, a 6a tentativa — a unica
+    # capaz de responder 423 — seria barrada com 429 e o usuario legitimo nunca saberia que a conta
+    # esta bloqueada. Quem protege a conta e o lockout; o rate limit protege o servico.
     rate-limit:
-      login-per-minute-per-ip: ${APP_RATE_LIMIT_LOGIN:5}
-      totp-verify-per-minute-per-ip: ${APP_RATE_LIMIT_TOTP_VERIFY:5}
+      login-per-minute-per-ip: ${APP_RATE_LIMIT_LOGIN:10}
+      totp-verify-per-minute-per-ip: ${APP_RATE_LIMIT_TOTP_VERIFY:10}
     lockout:
       max-attempts: ${APP_LOCKOUT_MAX_ATTEMPTS:5}
       window-minutes: ${APP_LOCKOUT_WINDOW_MINUTES:15}

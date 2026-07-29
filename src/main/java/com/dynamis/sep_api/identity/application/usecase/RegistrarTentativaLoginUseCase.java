@@ -7,6 +7,7 @@ import com.dynamis.sep_api.shared.audit.AuditLogSeguranca;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaRepository;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
@@ -27,7 +28,15 @@ public class RegistrarTentativaLoginUseCase {
         this.auditRepository = auditRepository;
     }
 
-    @Transactional
+    /**
+     * Persiste a tentativa em transacao <b>propria</b> (Sprint 33).
+     *
+     * <p>Com a propagacao default a gravacao entrava na transacao do {@code AutenticarUsuarioUseCase}
+     * e era desfeita pelo {@code BadCredentialsException} lancado logo em seguida: nenhuma falha
+     * chegava a {@code login_attempt} (so {@code SUCESSO}, que nao lanca), entao o account lockout
+     * nunca bloqueava e o audit de login falho tambem se perdia.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void registrar(UUID usuarioId, String username, String ip, String userAgent, LoginAttemptStatus status) {
         attemptRepository.save(LoginAttempt.registrar(usuarioId, username, ip, userAgent, status));
         auditRepository.save(AuditLogSeguranca.registrar(
