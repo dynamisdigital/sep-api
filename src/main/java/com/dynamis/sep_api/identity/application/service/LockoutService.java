@@ -2,6 +2,7 @@ package com.dynamis.sep_api.identity.application.service;
 
 import com.dynamis.sep_api.identity.application.exception.ContaBloqueadaException;
 import com.dynamis.sep_api.identity.domain.model.LoginAttemptStatus;
+import com.dynamis.sep_api.identity.domain.model.PoliticaLockout;
 import com.dynamis.sep_api.identity.infrastructure.persistence.LoginAttemptRepository;
 import com.dynamis.sep_api.identity.infrastructure.security.LockoutProperties;
 import com.dynamis.sep_api.shared.audit.AuditLogSeguranca;
@@ -10,23 +11,27 @@ import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import com.dynamis.sep_api.shared.email.EmailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Politica de account lockout (Sprint 5 Task 5.4).
+ * Politica de account lockout (Sprint 5 Task 5.4; conformidade na Sprint 33).
  *
- * <p>Janela de detecao: {@link LockoutProperties#getWindowMinutes()} (default 15 min). Apos {@link
- * LockoutProperties#getMaxAttempts()} (default 5) tentativas falhas, a conta entra em lockout pelo
- * tempo configurado em {@link LockoutProperties#getLockoutMinutes()} (default 30 min).
+ * <p>Apos {@link LockoutProperties#getMaxAttempts()} (default 5) tentativas falhas dentro de {@link
+ * LockoutProperties#getWindowMinutes()} (default 15 min), a conta fica bloqueada por {@link
+ * LockoutProperties#getLockoutMinutes()} (default 30 min) contados a partir da falha que fechou a
+ * janela.
  *
- * <p>Implementacao: lockout ativo quando ha falhas suficientes nos ultimos {@code lockoutMinutes};
- * janela de detecao curta (15 min) acumula falhas e a propria contagem nos ultimos {@code
- * lockoutMinutes} mantem o bloqueio ate expirar.
+ * <p>A decisao vive em {@link PoliticaLockout}; aqui fica so a leitura do historico. Ate a Sprint 33
+ * o bloqueio era aproximado por contagem na janela de 30 min, o que bloqueava 5 falhas espalhadas
+ * por 25 minutos e fazia o desbloqueio depender do envelhecimento das falhas, nao do bloqueio.
  */
 @Service
 public class LockoutService {
@@ -34,6 +39,12 @@ public class LockoutService {
     private static final Logger log = LoggerFactory.getLogger(LockoutService.class);
     private static final List<LoginAttemptStatus> STATUSES_FALHA = List.of(
             LoginAttemptStatus.SENHA_INVALIDA, LoginAttemptStatus.TOTP_INVALIDO, LoginAttemptStatus.CONTA_BLOQUEADA);
+
+    /**
+     * Teto defensivo de falhas lidas por decisao. Nao limita a politica: uma janela que bloqueie
+     * sempre estara entre as falhas mais recentes.
+     */
+    private static final int LIMITE_DE_LEITURA = 100;
 
     private final LoginAttemptRepository attemptRepository;
     private final AuditLogSegurancaRepository auditRepository;
@@ -60,9 +71,23 @@ public class LockoutService {
     }
 
     public boolean estaBloqueada(String username) {
-        OffsetDateTime inicio = OffsetDateTime.now().minusMinutes(properties.getLockoutMinutes());
-        long falhas = attemptRepository.countByUsernameAndStatusInAndJanela(username, STATUSES_FALHA, inicio);
-        return falhas >= properties.getMaxAttempts();
+        return eventoDeBloqueio(username, OffsetDateTime.now()).isPresent();
+    }
+
+    /** Instante da falha que bloqueou a conta, se o bloqueio ainda estiver valendo em {@code agora}. */
+    private Optional<OffsetDateTime> eventoDeBloqueio(String username, OffsetDateTime agora) {
+        PoliticaLockout politica = politica();
+        OffsetDateTime inicioDaLeitura = agora.minus(politica.janelaDeLeitura());
+        List<OffsetDateTime> falhas = attemptRepository.buscarInstantesDeFalha(
+                username, STATUSES_FALHA, inicioDaLeitura, PageRequest.of(0, LIMITE_DE_LEITURA));
+        return politica.eventoDeBloqueio(falhas, agora);
+    }
+
+    private PoliticaLockout politica() {
+        return new PoliticaLockout(
+                properties.getMaxAttempts(),
+                Duration.ofMinutes(properties.getWindowMinutes()),
+                Duration.ofMinutes(properties.getLockoutMinutes()));
     }
 
     /**
