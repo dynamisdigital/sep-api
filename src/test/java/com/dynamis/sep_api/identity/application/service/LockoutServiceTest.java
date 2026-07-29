@@ -15,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -118,10 +119,10 @@ class LockoutServiceTest {
     }
 
     @Test
-    void avaliarPosFalhaEmiteEmailEAuditQuandoAtingeLimite() {
+    void avaliarPosFalhaEmiteEmailEAuditQuandoAFalhaAtualBloqueia() {
         UUID usuarioId = UUID.randomUUID();
-        when(repository.countByUsernameAndStatusInAndJanela(eq("u@sep.test"), anyList(), any()))
-                .thenReturn((long) properties.getMaxAttempts());
+        when(repository.buscarInstantesDeFalha(eq("u@sep.test"), anyList(), any(), any()))
+                .thenReturn(falhasRecentes(properties.getMaxAttempts(), Duration.ofMinutes(2)));
 
         service.avaliarPosFalha(usuarioId, "u@sep.test");
 
@@ -133,8 +134,8 @@ class LockoutServiceTest {
 
     @Test
     void avaliarPosFalhaNaoEmiteQuandoAbaixoDoLimite() {
-        when(repository.countByUsernameAndStatusInAndJanela(any(), anyList(), any()))
-                .thenReturn((long) properties.getMaxAttempts() - 1);
+        when(repository.buscarInstantesDeFalha(any(), anyList(), any(), any()))
+                .thenReturn(falhasRecentes(properties.getMaxAttempts() - 1, Duration.ofMinutes(2)));
 
         service.avaliarPosFalha(UUID.randomUUID(), "u@sep.test");
 
@@ -142,17 +143,55 @@ class LockoutServiceTest {
         verify(emailService, never()).enviar(any(), any(), any());
     }
 
+    /**
+     * Regressao da Sprint 33: a condicao antiga era {@code falhasJanela == maxAttempts}, entao duas
+     * falhas concorrentes que levassem o contador de 4 para 6 pulavam a igualdade e o bloqueio
+     * ficava sem audit e sem email.
+     */
     @Test
-    void avaliarPosFalhaUsaJanelaCurta() {
-        UUID usuarioId = UUID.randomUUID();
-        when(repository.countByUsernameAndStatusInAndJanela(any(), anyList(), any()))
-                .thenReturn((long) properties.getMaxAttempts());
+    void avaliarPosFalhaEmiteQuandoOContadorSaltaAlemDoLimite() {
+        when(repository.buscarInstantesDeFalha(any(), anyList(), any(), any()))
+                .thenReturn(falhasRecentes(properties.getMaxAttempts() + 1, Duration.ofMinutes(2)));
 
-        service.avaliarPosFalha(usuarioId, "u@sep.test");
+        service.avaliarPosFalha(UUID.randomUUID(), "u@sep.test");
 
-        ArgumentCaptor<OffsetDateTime> ts = ArgumentCaptor.forClass(OffsetDateTime.class);
+        verify(auditRepository).save(any());
+        verify(emailService).enviar(eq("u@sep.test"), any(), any());
+    }
+
+    /**
+     * A guarda de transicao nao e vazia: quando o bloqueio vigente vem de um cluster anterior e nao
+     * da falha recem-registrada, nada e reemitido.
+     */
+    @Test
+    void avaliarPosFalhaNaoReemiteQuandoOBloqueioVemDeUmClusterAnterior() {
+        OffsetDateTime agora = OffsetDateTime.now();
+        List<OffsetDateTime> historico = new ArrayList<>();
+        historico.add(agora);
+        IntStream.range(0, properties.getMaxAttempts())
+                .mapToObj(i -> agora.minusMinutes(20).minusMinutes(i))
+                .forEach(historico::add);
+        when(repository.buscarInstantesDeFalha(any(), anyList(), any(), any())).thenReturn(historico);
+
+        service.avaliarPosFalha(UUID.randomUUID(), "u@sep.test");
+
+        verify(auditRepository, never()).save(any());
+        verify(emailService, never()).enviar(any(), any(), any());
+    }
+
+    /**
+     * {@code CONTA_BLOQUEADA} nao pode contar como falha: nenhum caminho de producao o escreve e, se
+     * escrevesse, cada tentativa barrada renovaria o proprio bloqueio.
+     */
+    @Test
+    void contagemDeFalhasIgnoraTentativasBarradasPorBloqueio() {
+        when(repository.buscarInstantesDeFalha(any(), anyList(), any(), any())).thenReturn(List.of());
+
+        service.avaliarPosFalha(UUID.randomUUID(), "u@sep.test");
+
         ArgumentCaptor<List<LoginAttemptStatus>> statuses = ArgumentCaptor.forClass(List.class);
-        verify(repository).countByUsernameAndStatusInAndJanela(eq("u@sep.test"), statuses.capture(), ts.capture());
-        assertThat(statuses.getValue()).contains(LoginAttemptStatus.SENHA_INVALIDA, LoginAttemptStatus.TOTP_INVALIDO);
+        verify(repository).buscarInstantesDeFalha(eq("u@sep.test"), statuses.capture(), any(), any());
+        assertThat(statuses.getValue())
+                .containsExactlyInAnyOrder(LoginAttemptStatus.SENHA_INVALIDA, LoginAttemptStatus.TOTP_INVALIDO);
     }
 }

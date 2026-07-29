@@ -26,8 +26,8 @@ import java.util.UUID;
  *
  * <p>Apos {@link LockoutProperties#getMaxAttempts()} (default 5) tentativas falhas dentro de {@link
  * LockoutProperties#getWindowMinutes()} (default 15 min), a conta fica bloqueada por {@link
- * LockoutProperties#getLockoutMinutes()} (default 30 min) contados a partir da falha que fechou a
- * janela.
+ * LockoutProperties#getLockoutMinutes()} (default 30 min) contados a partir da falha mais recente
+ * que fecha uma janela.
  *
  * <p>A decisao vive em {@link PoliticaLockout}; aqui fica so a leitura do historico. Ate a Sprint 33
  * o bloqueio era aproximado por contagem na janela de 30 min, o que bloqueava 5 falhas espalhadas
@@ -37,8 +37,14 @@ import java.util.UUID;
 public class LockoutService {
 
     private static final Logger log = LoggerFactory.getLogger(LockoutService.class);
-    private static final List<LoginAttemptStatus> STATUSES_FALHA = List.of(
-            LoginAttemptStatus.SENHA_INVALIDA, LoginAttemptStatus.TOTP_INVALIDO, LoginAttemptStatus.CONTA_BLOQUEADA);
+
+    /**
+     * Statuses que contam como falha. {@code CONTA_BLOQUEADA} ficou de fora de proposito: nenhum
+     * caminho de producao o escreve (ambos os use cases lancam antes de registrar) e, se passasse a
+     * escrever, cada tentativa barrada renovaria o proprio bloqueio — bloqueio auto-perpetuante.
+     */
+    private static final List<LoginAttemptStatus> STATUSES_FALHA =
+            List.of(LoginAttemptStatus.SENHA_INVALIDA, LoginAttemptStatus.TOTP_INVALIDO);
 
     /**
      * Teto defensivo de falhas lidas por decisao, para nao varrer uma cauda longa sob ataque.
@@ -76,16 +82,16 @@ public class LockoutService {
     }
 
     public boolean estaBloqueada(String username) {
-        return eventoDeBloqueio(username, OffsetDateTime.now()).isPresent();
+        OffsetDateTime agora = OffsetDateTime.now();
+        PoliticaLockout politica = politica();
+        return politica.eventoDeBloqueio(falhasRecentes(username, agora, politica), agora)
+                .isPresent();
     }
 
-    /** Instante da falha que bloqueou a conta, se o bloqueio ainda estiver valendo em {@code agora}. */
-    private Optional<OffsetDateTime> eventoDeBloqueio(String username, OffsetDateTime agora) {
-        PoliticaLockout politica = politica();
+    private List<OffsetDateTime> falhasRecentes(String username, OffsetDateTime agora, PoliticaLockout politica) {
         OffsetDateTime inicioDaLeitura = agora.minus(politica.janelaDeLeitura());
-        List<OffsetDateTime> falhas = attemptRepository.buscarInstantesDeFalha(
+        return attemptRepository.buscarInstantesDeFalha(
                 username, STATUSES_FALHA, inicioDaLeitura, PageRequest.of(0, LIMITE_DE_LEITURA));
-        return politica.eventoDeBloqueio(falhas, agora);
     }
 
     private PoliticaLockout politica() {
@@ -96,16 +102,25 @@ public class LockoutService {
     }
 
     /**
-     * Avalia se uma falha recem-registrada acabou de cruzar o limite e, em caso afirmativo, emite
+     * Avalia se uma falha recem-registrada acabou de bloquear a conta e, em caso afirmativo, emite
      * email + audit log de LOCKOUT. Deve ser chamado pelo {@code AutenticarUsuarioUseCase} apos
      * persistir a tentativa falha.
+     *
+     * <p>A emissao e por <b>transicao</b>: so dispara quando o evento de bloqueio e a falha mais
+     * recente, ou seja, a que acabou de ser registrada. Ate a Sprint 33 a condicao era
+     * {@code falhasJanela == maxAttempts}, entao duas falhas concorrentes que levassem o contador de
+     * 4 para 6 pulavam a igualdade e o bloqueio ficava <b>sem registro nenhum</b>.
+     *
+     * <p>Sob falhas concorrentes a notificacao pode sair mais de uma vez para o mesmo bloqueio —
+     * trade-off deliberado: duplicar um aviso de seguranca e melhor que perde-lo.
      */
     @Transactional
     public void avaliarPosFalha(UUID usuarioId, String username) {
-        OffsetDateTime inicioJanelaDetecao = OffsetDateTime.now().minusMinutes(properties.getWindowMinutes());
-        long falhasJanela =
-                attemptRepository.countByUsernameAndStatusInAndJanela(username, STATUSES_FALHA, inicioJanelaDetecao);
-        if (falhasJanela == properties.getMaxAttempts()) {
+        OffsetDateTime agora = OffsetDateTime.now();
+        PoliticaLockout politica = politica();
+        List<OffsetDateTime> falhas = falhasRecentes(username, agora, politica);
+        Optional<OffsetDateTime> evento = politica.eventoDeBloqueio(falhas, agora);
+        if (evento.isPresent() && evento.get().equals(falhas.get(0))) {
             log.atWarn()
                     .addKeyValue("event", "account_lockout")
                     .addKeyValue("durationMinutes", properties.getLockoutMinutes())

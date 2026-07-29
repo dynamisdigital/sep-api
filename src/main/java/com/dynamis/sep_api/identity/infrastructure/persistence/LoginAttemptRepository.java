@@ -15,15 +15,6 @@ import java.util.UUID;
 @Repository
 public interface LoginAttemptRepository extends JpaRepository<LoginAttempt, UUID> {
 
-    @Query("SELECT COUNT(l) FROM LoginAttempt l "
-            + "WHERE l.username = :username "
-            + "AND l.status IN :statuses "
-            + "AND l.dataTentativa >= :inicioJanela")
-    long countByUsernameAndStatusInAndJanela(
-            @Param("username") String username,
-            @Param("statuses") List<LoginAttemptStatus> statuses,
-            @Param("inicioJanela") OffsetDateTime inicioJanela);
-
     /**
      * Instantes das falhas de um username, mais recentes primeiro. Alimenta a decisao de lockout
      * ({@code PoliticaLockout}), que precisa saber <b>quando</b> as falhas ocorreram — contar nao
