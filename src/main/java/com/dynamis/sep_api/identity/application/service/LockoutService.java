@@ -41,8 +41,13 @@ public class LockoutService {
             LoginAttemptStatus.SENHA_INVALIDA, LoginAttemptStatus.TOTP_INVALIDO, LoginAttemptStatus.CONTA_BLOQUEADA);
 
     /**
-     * Teto defensivo de falhas lidas por decisao. Nao limita a politica: uma janela que bloqueie
-     * sempre estara entre as falhas mais recentes.
+     * Teto defensivo de falhas lidas por decisao, para nao varrer uma cauda longa sob ataque.
+     *
+     * <p>Nao esconde bloqueio porque {@code verificar} lanca <b>antes</b> de registrar a tentativa
+     * ({@code AutenticarUsuarioUseCase}, {@code VerificarTotpUseCase}): nenhuma falha e gravada
+     * enquanto a conta esta bloqueada, entao o evento de bloqueio fica sempre entre as primeiras
+     * posicoes da lista. Se algum dia tentativas bloqueadas passarem a ser registradas, esta
+     * premissa cai e o limite precisa ser derivado da configuracao.
      */
     private static final int LIMITE_DE_LEITURA = 100;
 

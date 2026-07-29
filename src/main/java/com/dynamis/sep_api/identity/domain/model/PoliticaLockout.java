@@ -9,16 +9,27 @@ import java.util.Optional;
  * Politica de account lockout (Sprint 5 Task 5.4; conformidade na Sprint 33).
  *
  * <p>Regra: {@code maxAttempts} falhas dentro de {@code janelaDeteccao} bloqueiam a conta por
- * {@code duracaoBloqueio}, contados a partir da falha que fechou a janela.
+ * {@code duracaoBloqueio}, contados a partir da falha mais recente que fecha uma janela.
  *
  * <p>Decisao pura de dominio: recebe os instantes das falhas e o instante atual, sem repositorio,
  * relogio ou configuracao. Isso permite testar as fronteiras de 15 e de 30 minutos sem banco.
  */
 public record PoliticaLockout(int maxAttempts, Duration janelaDeteccao, Duration duracaoBloqueio) {
 
+    /**
+     * Rejeita configuracao que desligaria o lockout em silencio: com duracao negativa o limite de
+     * validade cai no futuro e nada bloqueia; com janela negativa nenhuma janela fecha. Um lockout
+     * fail-open sem log e pior que um boot que falha.
+     */
     public PoliticaLockout {
         if (maxAttempts < 1) {
             throw new IllegalArgumentException("maxAttempts deve ser >= 1");
+        }
+        if (janelaDeteccao == null || janelaDeteccao.isNegative()) {
+            throw new IllegalArgumentException("janelaDeteccao deve ser >= 0");
+        }
+        if (duracaoBloqueio == null || duracaoBloqueio.isNegative()) {
+            throw new IllegalArgumentException("duracaoBloqueio deve ser >= 0");
         }
     }
 
@@ -32,8 +43,8 @@ public record PoliticaLockout(int maxAttempts, Duration janelaDeteccao, Duration
     }
 
     /**
-     * Instante da falha que bloqueou a conta, se o bloqueio ainda estiver valendo em {@code agora};
-     * vazio se a conta estiver liberada.
+     * Instante da falha mais recente que fecha uma janela e cujo bloqueio ainda vale em
+     * {@code agora}; vazio se a conta estiver liberada.
      *
      * <p>Haver {@code maxAttempts} falhas em {@code [t - janelaDeteccao, t]} equivale a as
      * {@code maxAttempts} falhas mais recentes ate {@code t} caberem na janela — e por isso que

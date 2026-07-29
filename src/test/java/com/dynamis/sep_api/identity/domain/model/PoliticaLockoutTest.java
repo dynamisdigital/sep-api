@@ -128,4 +128,16 @@ class PoliticaLockoutTest {
         assertThatThrownBy(() -> new PoliticaLockout(0, Duration.ofMinutes(15), Duration.ofMinutes(30)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    /**
+     * Configuracao negativa desligaria o lockout em silencio: duracao negativa joga o limite de
+     * validade no futuro e janela negativa nunca fecha. Falhar no boot e melhor que fail-open mudo.
+     */
+    @Test
+    void duracoesNegativasSaoRejeitadas() {
+        assertThatThrownBy(() -> new PoliticaLockout(5, Duration.ofMinutes(-1), Duration.ofMinutes(30)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new PoliticaLockout(5, Duration.ofMinutes(15), Duration.ofMinutes(-1)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

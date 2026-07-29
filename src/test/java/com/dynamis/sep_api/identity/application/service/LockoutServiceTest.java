@@ -11,6 +11,7 @@ import com.dynamis.sep_api.shared.email.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -87,14 +88,33 @@ class LockoutServiceTest {
     @Test
     void verificarLeAJanelaDeDeteccaoMaisADuracaoDoBloqueio() {
         when(repository.buscarInstantesDeFalha(any(), anyList(), any(), any())).thenReturn(List.of());
+        Duration janelaEsperada = Duration.ofMinutes(properties.getWindowMinutes() + properties.getLockoutMinutes());
 
+        OffsetDateTime antes = OffsetDateTime.now();
         service.verificar("u@sep.test");
+        OffsetDateTime depois = OffsetDateTime.now();
 
         ArgumentCaptor<OffsetDateTime> inicio = ArgumentCaptor.forClass(OffsetDateTime.class);
         verify(repository).buscarInstantesDeFalha(eq("u@sep.test"), anyList(), inicio.capture(), any());
-        long minutosLidos =
-                Duration.between(inicio.getValue(), OffsetDateTime.now()).toMinutes();
-        assertThat(minutosLidos).isEqualTo(properties.getWindowMinutes() + properties.getLockoutMinutes());
+        // Sem relogio injetavel, a unica asserção exata e o intervalo em que `now()` pode ter caido.
+        assertThat(inicio.getValue()).isBetween(antes.minus(janelaEsperada), depois.minus(janelaEsperada));
+    }
+
+    /**
+     * O {@code Pageable} e limite defensivo, nao paginacao. Sem esta asserção um
+     * {@code PageRequest.of(1, ...)} faria a query pular as falhas mais recentes e desligaria o
+     * lockout do sistema inteiro com a suite verde (achado do code review da Task 33.1).
+     */
+    @Test
+    void verificarLeAPrimeiraPaginaLimitadaDeFalhas() {
+        when(repository.buscarInstantesDeFalha(any(), anyList(), any(), any())).thenReturn(List.of());
+
+        service.verificar("u@sep.test");
+
+        ArgumentCaptor<Pageable> limite = ArgumentCaptor.forClass(Pageable.class);
+        verify(repository).buscarInstantesDeFalha(eq("u@sep.test"), anyList(), any(), limite.capture());
+        assertThat(limite.getValue().getPageNumber()).isZero();
+        assertThat(limite.getValue().getPageSize()).isGreaterThanOrEqualTo(properties.getMaxAttempts());
     }
 
     @Test
