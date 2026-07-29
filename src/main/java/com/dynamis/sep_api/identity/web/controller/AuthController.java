@@ -95,6 +95,20 @@ public class AuthController {
                 content =
                         @Content(
                                 mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "423",
+                description = "Conta bloqueada por excesso de tentativas (5 falhas em 15 min; expira em 30 min)",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ErrorResponseDto.class))),
+        @ApiResponse(
+                responseCode = "429",
+                description = "Rate limit por IP excedido",
+                content =
+                        @Content(
+                                mediaType = "application/json",
                                 schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     public ResponseEntity<TokenResponseDto> login(
