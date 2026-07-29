@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
@@ -113,8 +114,12 @@ public class LockoutService {
      *
      * <p>Sob falhas concorrentes a notificacao pode sair mais de uma vez para o mesmo bloqueio —
      * trade-off deliberado: duplicar um aviso de seguranca e melhor que perde-lo.
+     *
+     * <p>Roda em transacao propria pelo mesmo motivo de {@code RegistrarTentativaLoginUseCase}: o
+     * chamador lanca {@code BadCredentialsException} logo depois e o audit de LOCKOUT seria
+     * desfeito junto.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void avaliarPosFalha(UUID usuarioId, String username) {
         OffsetDateTime agora = OffsetDateTime.now();
         PoliticaLockout politica = politica();
