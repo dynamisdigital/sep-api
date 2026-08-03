@@ -2,6 +2,8 @@ package com.dynamis.sep_api.identity.infrastructure.security;
 
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
@@ -47,16 +49,25 @@ public class RateLimitLockoutValidator implements BeanFactoryPostProcessor, Envi
     }
 
     /**
-     * Os defaults precisam ser os dos POJOs, nao os do {@code application.yml}: se a property
-     * estiver ausente e o validador assumir o valor do YAML, ele aprova uma configuracao que o bind
-     * vai montar de outro jeito — validando um mundo diferente do que o runtime recebe.
-     * {@code RateLimitPropertiesTest} trava o par contra deriva.
+     * Le pelo {@link Binder}, e nao por {@code environment.getProperty}, porque so ele aplica o
+     * relaxed binding que o {@code @ConfigurationProperties} usa. {@code getProperty} casa a chave
+     * exata: um {@code loginPerMinutePerIp: 3} — o nome do campo no POJO, e portanto o que da
+     * vontade de escrever — ficaria invisivel para o validador, que aprovaria o 10 do
+     * {@code application.yml} enquanto o bind montaria 3. Validar um mundo diferente do que o
+     * runtime recebe e exatamente a falha silenciosa que esta classe existe para impedir.
+     *
+     * <p>Os defaults precisam ser os dos POJOs, nao os do {@code application.yml}, pelo mesmo
+     * motivo: com a property ausente e no default do POJO que o bind cai.
+     * {@code RateLimitLockoutValidatorTest.defaultsDoValidadorSaoOsDefaultsDosPojos} trava o par
+     * contra deriva.
      */
     static void validar(Environment environment) {
-        int maxAttempts = environment.getProperty(MAX_ATTEMPTS, Integer.class, LockoutProperties.DEFAULT_MAX_ATTEMPTS);
+        Binder binder = Binder.get(environment);
+        int maxAttempts =
+                binder.bind(MAX_ATTEMPTS, Bindable.of(Integer.class)).orElse(LockoutProperties.DEFAULT_MAX_ATTEMPTS);
         for (String limitePorIp : List.of(LOGIN_POR_IP, TOTP_VERIFY_POR_IP)) {
-            int limite =
-                    environment.getProperty(limitePorIp, Integer.class, RateLimitProperties.DEFAULT_POR_MINUTO_POR_IP);
+            int limite = binder.bind(limitePorIp, Bindable.of(Integer.class))
+                    .orElse(RateLimitProperties.DEFAULT_POR_MINUTO_POR_IP);
             if (limite <= maxAttempts) {
                 throw new IllegalStateException(limitePorIp + "=" + limite + " deve ser estritamente maior que "
                         + MAX_ATTEMPTS + "=" + maxAttempts

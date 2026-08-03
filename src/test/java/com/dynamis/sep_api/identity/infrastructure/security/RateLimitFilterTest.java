@@ -118,9 +118,7 @@ class RateLimitFilterTest {
         int excedente = 100;
 
         for (int i = 0; i < RateLimitFilter.MAX_LIMITADORES + excedente; i++) {
-            MockHttpServletRequest r = req("/api/v1/auth/login", "POST", "10.0.0.1");
-            r.addHeader("X-Forwarded-For", "203.0.113." + i);
-            filter.doFilter(r, new MockHttpServletResponse(), chain);
+            encherComIpDistinto(chain, i);
         }
 
         assertThat(filter.limitadoresAtivos())
@@ -129,9 +127,46 @@ class RateLimitFilterTest {
     }
 
     /**
+     * O teto tem que evictar, nao parar de aceitar. Uma politica "mapa cheio, nao guarda mais"
+     * respeita o tamanho identicamente e <b>desliga o rate limit</b>: cada request de IP novo ganha
+     * um limitador descartavel com orcamento inteiro. Sem este caso a suite aprova o fail-open.
+     */
+    @Test
+    void comOMapaCheioUmIpNovoContinuaSendoLimitado() throws Exception {
+        FilterChain chain = mock(FilterChain.class);
+        for (int i = 0; i < RateLimitFilter.MAX_LIMITADORES; i++) {
+            encherComIpDistinto(chain, i);
+        }
+
+        MockHttpServletResponse primeira = new MockHttpServletResponse();
+        MockHttpServletResponse segunda = new MockHttpServletResponse();
+        MockHttpServletResponse terceira = new MockHttpServletResponse();
+        filter.doFilter(req("/api/v1/auth/login", "POST", "4.4.4.4"), primeira, chain);
+        filter.doFilter(req("/api/v1/auth/login", "POST", "4.4.4.4"), segunda, chain);
+        filter.doFilter(req("/api/v1/auth/login", "POST", "4.4.4.4"), terceira, chain);
+
+        assertThat(primeira.getStatus()).isEqualTo(200);
+        assertThat(segunda.getStatus()).isEqualTo(200);
+        assertThat(terceira.getStatus())
+                .as("o limitador de 4.4.4.4 tem que persistir entre requests mesmo com o mapa cheio")
+                .isEqualTo(429);
+    }
+
+    private void encherComIpDistinto(FilterChain chain, int indice) throws Exception {
+        MockHttpServletRequest r = req("/api/v1/auth/login", "POST", "203.0.113." + indice);
+        filter.doFilter(r, new MockHttpServletResponse(), chain);
+    }
+
+    /**
      * A evicção nao pode devolver orcamento: a entrada descartada e a mais antiga <b>em acesso</b>,
      * entao um IP que continua batendo permanece no mapa e segue barrado mesmo depois de o teto
      * estourar muitas vezes.
+     *
+     * <p>E este o caso que separa LRU de FIFO. Sob ordem de <b>insercao</b>, {@code 5.5.5.5} e o
+     * mais antigo inserido, seria evictado no primeiro estouro e voltaria com orcamento cheio — a
+     * ultima request responderia 200. O {@code isEqualTo(MAX_LIMITADORES)} antes do desfecho existe
+     * para que a distincao nao dependa do fixture: se o teto nunca estourar, o teste passaria sob
+     * as duas politicas provando nada.
      */
     @Test
     void evicaoNaoRessuscitaOOrcamentoDeQuemSegueAtivo() throws Exception {
@@ -140,13 +175,15 @@ class RateLimitFilterTest {
             filter.doFilter(req("/api/v1/auth/login", "POST", "5.5.5.5"), new MockHttpServletResponse(), chain);
         }
 
-        for (int i = 0; i < RateLimitFilter.MAX_LIMITADORES; i++) {
-            MockHttpServletRequest ruido = req("/api/v1/auth/login", "POST", "10.0.0.1");
-            ruido.addHeader("X-Forwarded-For", "198.51.100." + i);
-            filter.doFilter(ruido, new MockHttpServletResponse(), chain);
+        for (int i = 0; i < 2 * RateLimitFilter.MAX_LIMITADORES; i++) {
+            encherComIpDistinto(chain, i);
             // Mantem 5.5.5.5 como recem-acessado, entao ele nunca e o eldest.
             filter.doFilter(req("/api/v1/auth/login", "POST", "5.5.5.5"), new MockHttpServletResponse(), chain);
         }
+
+        assertThat(filter.limitadoresAtivos())
+                .as("sem estourar o teto o teste nao distingue LRU de FIFO")
+                .isEqualTo(RateLimitFilter.MAX_LIMITADORES);
 
         MockHttpServletResponse res = new MockHttpServletResponse();
         filter.doFilter(req("/api/v1/auth/login", "POST", "5.5.5.5"), res, chain);
@@ -154,6 +191,33 @@ class RateLimitFilterTest {
         assertThat(res.getStatus())
                 .as("o limitador de 5.5.5.5 sobreviveu ao teto e continua contando")
                 .isEqualTo(429);
+    }
+
+    /**
+     * O teto limita entradas, nao bytes — e a chave e escolhida pelo cliente. Sem cortar por
+     * tamanho, 10.000 chaves de 8 KB valem mais de 80 MB em vez dos ~4 MB anunciados, e o valor
+     * ainda estouraria o {@code VARCHAR(45)} de {@code login_attempt.ip}, abortando o rastro.
+     */
+    @Test
+    void origemMaiorQueOLimiteViraBaldeUnico() {
+        MockHttpServletRequest doHeader = req("/p", "POST", "1.1.1.1");
+        doHeader.addHeader("X-Forwarded-For", "a".repeat(RateLimitFilter.MAX_TAMANHO_IP + 1));
+        MockHttpServletRequest doRemoteAddr = req("/p", "POST", "b".repeat(RateLimitFilter.MAX_TAMANHO_IP + 1));
+
+        assertThat(RateLimitFilter.extrairIp(doHeader)).isEqualTo("unknown");
+        assertThat(RateLimitFilter.extrairIp(doRemoteAddr))
+                .as("com forward-headers-strategy=framework o valor chega pelo getRemoteAddr()")
+                .isEqualTo("unknown");
+    }
+
+    @Test
+    void ipv6NoLimiteDeTamanhoEhPreservado() {
+        String ipv6 = "0000:0000:0000:0000:0000:ffff:192.168.100.228";
+        assertThat(ipv6.length())
+                .as("o IPv6 com mapeamento IPv4 no maior tamanho possivel nao pode ser cortado")
+                .isEqualTo(RateLimitFilter.MAX_TAMANHO_IP);
+
+        assertThat(RateLimitFilter.extrairIp(req("/p", "POST", ipv6))).isEqualTo(ipv6);
     }
 
     @Test

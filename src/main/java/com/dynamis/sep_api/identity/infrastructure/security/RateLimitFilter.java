@@ -31,19 +31,22 @@ import java.util.Map;
  * {@code 429 Too Many Requests} com {@link ErrorResponseDto} JSON e nao chama a chain.
  *
  * <p><b>Evicção</b> (Sprint 34 Task 34.4): ate a Sprint 33 os limitadores viviam num
- * {@code RateLimiterRegistry.ofDefaults()} com get-or-create por IP, <b>sem TTL nem teto</b> — e
- * como {@link #extrairIp} confia no {@code X-Forwarded-For} sem allowlist de proxy, a cardinalidade
- * das chaves era escolhida pelo cliente: um atacante variando o header enchia a heap sem nunca
- * exceder limite nenhum. O registry deu lugar a um mapa LRU por <b>ordem de acesso</b>, limitado a
- * {@link #MAX_LIMITADORES}.
+ * {@code RateLimiterRegistry.ofDefaults()} com get-or-create por IP, <b>sem TTL nem teto</b>, e a
+ * cardinalidade das chaves e escolhida pelo cliente (ver {@link #extrairIp}): um atacante variando
+ * a origem enchia a heap sem nunca exceder limite nenhum. O registry deu lugar a um mapa LRU por
+ * <b>ordem de acesso</b>, limitado a {@link #MAX_LIMITADORES}.
  *
  * <p>LRU e nao expiracao por tempo porque aqui as duas quase coincidem sem precisar de relogio: a
  * entrada mais antiga em acesso e a que passou mais tempo sem consumir permissao, ou seja a que tem
  * mais chance de ja ter recuperado <b>todas</b> as permissoes — e um limitador cheio e
- * indistinguivel de um recem-criado, entao descarta-lo nao devolve orcamento a ninguem. Para forcar
- * a evicção de uma entrada quente o atacante teria que emitir {@link #MAX_LIMITADORES} requests de
- * IPs distintos <b>sem</b> usar o proprio — que e precisamente o que ja recarregaria o limitador
- * dele de graca.
+ * indistinguivel de um recem-criado, entao descarta-lo nao devolve orcamento a ninguem.
+ *
+ * <p>Forcar a evicção da <b>propria</b> entrada exige toca-la por ultimo entre
+ * {@link #MAX_LIMITADORES} chaves distintas <b>dentro</b> de {@link #PERIODO_DE_REFRESH} — passado
+ * esse tempo o limitador recarrega sozinho e a evicção nao compra nada. Isso e lucrativo apenas
+ * acima de {@code MAX_LIMITADORES / PERIODO_DE_REFRESH} ≈ 167 req/s, e mesmo la e dominado: quem
+ * consegue emitir 10.000 chaves distintas ja tem 10.000 orcamentos cheios de graca, sem precisar
+ * evictar nada. O caminho de evicção nao acrescenta capacidade nenhuma.
  */
 public class RateLimitFilter extends OncePerRequestFilter {
 
@@ -58,6 +61,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * limitada, nao para dimensionar capacidade.
      */
     static final int MAX_LIMITADORES = 10_000;
+
+    /** Comprimento maximo de um IPv6 com mapeamento IPv4 e zona — e o mesmo de {@code LoginAttempt.ip}. */
+    static final int MAX_TAMANHO_IP = 45;
 
     /** Janela do limitador, e tambem o {@code Retry-After} do {@code 429} — ver {@link #escreverErro429}. */
     private static final Duration PERIODO_DE_REFRESH = Duration.ofMinutes(1);
@@ -130,13 +136,35 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return limitadores.size();
     }
 
+    /**
+     * Origem da request, usada como chave do limitador e como {@code ip} da trilha de login.
+     *
+     * <p><b>Nao e confiavel</b>: com {@code server.forward-headers-strategy: framework} o
+     * {@code ForwardedHeaderFilter} do Spring roda antes desta cadeia, consome o
+     * {@code X-Forwarded-For} e copia o primeiro token — sem allowlist de proxy — para o
+     * {@code getRemoteAddr()}. O ramo do header abaixo cobre o caso sem aquele filtro; nos dois
+     * caminhos quem escolhe o valor e o cliente. Fechar isso e mudanca de configuracao
+     * ({@code forward-headers-strategy: native} com {@code server.tomcat.remoteip.internal-proxies}
+     * restrito ao CIDR do balanceador), nao de codigo, e segue como follow-up.
+     *
+     * <p>O que da para fazer aqui e limitar o <b>tamanho</b>: sem isso o teto de
+     * {@link #MAX_LIMITADORES} entradas nao limita bytes, porque a chave e escolhida pelo cliente —
+     * um token de 8 KB infla a memoria do mapa em mais de 20x. O corte tambem protege o
+     * {@code LoginAttempt.ip}, coluna {@code VARCHAR(45)}: um valor maior aborta o insert do rastro
+     * dentro do {@code REQUIRES_NEW} e devolve 500 sem deixar registro. 45 e o comprimento maximo de
+     * um IPv6 com mapeamento IPv4 e zona, e o mesmo da coluna. Valores acima disso caem todos no
+     * mesmo balde {@code unknown} — mais estrito, nunca mais permissivo.
+     */
     public static String extrairIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+            return normalizar(forwarded.split(",")[0].trim());
         }
-        String remoto = request.getRemoteAddr();
-        return remoto != null ? remoto : "unknown";
+        return normalizar(request.getRemoteAddr());
+    }
+
+    private static String normalizar(String origem) {
+        return origem == null || origem.isBlank() || origem.length() > MAX_TAMANHO_IP ? "unknown" : origem;
     }
 
     /**
