@@ -160,7 +160,8 @@ public class MfaController {
                 headers =
                         @Header(
                                 name = "Retry-After",
-                                description = "Segundos ate a proxima permissao do rate limit.",
+                                description =
+                                        "Periodo de refresh do limitador, em segundos. E limite superior, nao o tempo exato ate a proxima permissao.",
                                 schema = @Schema(type = "integer")),
                 description = "Rate limit por IP excedido",
                 content =

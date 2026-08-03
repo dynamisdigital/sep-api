@@ -70,6 +70,13 @@ import java.util.UUID;
 @Tag(name = "contratos", description = "Formalizacao contratual — geracao, aceite e cancelamento pre-aceite")
 public class ContratoController {
 
+    /**
+     * Fonte unica do nome do header: ele e declarado no {@code @ApiResponse} e setado na resposta,
+     * e um literal repetido nos dois pontos permitiria renomear so um deles — o contrato seguiria
+     * anunciando o nome antigo sem nenhum teste notar (Sprint 34 Task 34.6).
+     */
+    static final String HEADER_HASH_DOCUMENTO = "X-Document-Hash-Sha256";
+
     private final ConsultarContratoUseCase consultarContratoUseCase;
     private final RegistrarAceiteUseCase registrarAceiteUseCase;
     private final CancelarContratoUseCase cancelarContratoUseCase;
@@ -372,7 +379,7 @@ public class ContratoController {
                 description = "PDF assinado",
                 headers = {
                     @Header(
-                            name = "X-Document-Hash-Sha256",
+                            name = HEADER_HASH_DOCUMENTO,
                             description = "SHA-256 do documento assinado, em hexadecimal.",
                             schema = @Schema(type = "string")),
                     @Header(
@@ -413,7 +420,7 @@ public class ContratoController {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"contrato-" + id + "-assinado.pdf\"")
-                .header("X-Document-Hash-Sha256", resultado.documento().getHashSha256())
+                .header(HEADER_HASH_DOCUMENTO, resultado.documento().getHashSha256())
                 .body(resultado.conteudo());
     }
 

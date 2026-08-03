@@ -317,7 +317,11 @@ class BackofficeIT {
                 .body("contadoresPorTipo", org.hamcrest.Matchers.notNullValue())
                 .body("contadoresPorPrioridade", org.hamcrest.Matchers.notNullValue())
                 .body("contadoresPorStatus", org.hamcrest.Matchers.notNullValue())
-                .body("tempoMedioResolucao30d", org.hamcrest.Matchers.notNullValue())
+                // Fixa a FORMA no fio (Sprint 34 Task 34.6): o Spring Boot desliga
+                // WRITE_DURATIONS_AS_TIMESTAMPS, entao Duration sai ISO-8601 e o OpenAPI o documenta
+                // como string. Um notNullValue() aceitava numero e string igualmente, e foi por isso
+                // que anotar o schema como number passou pela suite inteira.
+                .body("tempoMedioResolucao30d", org.hamcrest.Matchers.matchesPattern("^P.*"))
                 .body("itensCriticosAbertosMais48h", org.hamcrest.Matchers.notNullValue())
                 .body("topCincoTiposMaisFrequentes", org.hamcrest.Matchers.notNullValue())
                 .body("recebimentosDoDia", org.hamcrest.Matchers.notNullValue())

@@ -18,11 +18,11 @@ public record DashboardResponse(
         List<ContadorPorTipo> contadoresPorTipo,
         List<ContadorPorPrioridade> contadoresPorPrioridade,
         List<ContadorPorStatus> contadoresPorStatus,
-        // O springdoc documenta java.time.Duration como string, mas WRITE_DURATIONS_AS_TIMESTAMPS
-        // nao e desligado em lugar nenhum, entao o Jackson serializa numero — e o frontend declara
-        // frontendType: number. Corrige-se a documentacao, e nao a serializacao: desligar a flag
-        // passaria a emitir ISO-8601 e quebraria o cliente (Sprint 34 Task 34.6).
-        @Schema(type = "number", description = "Tempo medio de resolucao nos ultimos 30 dias, em segundos.")
+        // NAO anotar com @Schema(type = "number"). O springdoc documenta este campo como string e
+        // esta certo: o JacksonAutoConfiguration do Spring Boot desliga WRITE_DURATIONS_AS_TIMESTAMPS,
+        // entao o fio leva ISO-8601 ("PT2H"), medido na Sprint 34 Task 34.6. A divergencia registrada
+        // como lacuna de contrato e do lado do cliente, que declara number — nao daqui.
+        @Schema(description = "Tempo medio de resolucao nos ultimos 30 dias, em ISO-8601 (ex.: PT2H).")
                 Duration tempoMedioResolucao30d,
         long itensCriticosAbertosMais48h,
         List<ContadorPorTipo> topCincoTiposMaisFrequentes,
