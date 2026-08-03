@@ -6,10 +6,16 @@ import com.dynamis.sep_api.identity.infrastructure.persistence.LoginAttemptRepos
 import com.dynamis.sep_api.shared.audit.AuditLogSeguranca;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaRepository;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -19,13 +25,19 @@ import java.util.UUID;
 @Service
 public class RegistrarTentativaLoginUseCase {
 
+    private static final Logger log = LoggerFactory.getLogger(RegistrarTentativaLoginUseCase.class);
+
     private final LoginAttemptRepository attemptRepository;
     private final AuditLogSegurancaRepository auditRepository;
+    private final ObjectMapper objectMapper;
 
     public RegistrarTentativaLoginUseCase(
-            LoginAttemptRepository attemptRepository, AuditLogSegurancaRepository auditRepository) {
+            LoginAttemptRepository attemptRepository,
+            AuditLogSegurancaRepository auditRepository,
+            ObjectMapper objectMapper) {
         this.attemptRepository = attemptRepository;
         this.auditRepository = auditRepository;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -39,12 +51,26 @@ public class RegistrarTentativaLoginUseCase {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void registrar(UUID usuarioId, String username, String ip, String userAgent, LoginAttemptStatus status) {
         attemptRepository.save(LoginAttempt.registrar(usuarioId, username, ip, userAgent, status));
-        auditRepository.save(AuditLogSeguranca.registrar(
-                tipoEvento(status),
-                usuarioId,
-                ip,
-                userAgent,
-                "{\"status\":\"" + status.name() + "\",\"username\":\"" + username + "\"}"));
+        auditRepository.save(
+                AuditLogSeguranca.registrar(tipoEvento(status), usuarioId, ip, userAgent, detalhes(status, username)));
+    }
+
+    /**
+     * O {@code username} vem do corpo da request e a coluna e {@code jsonb}: montar o documento por
+     * concatenacao deixava um username com aspas produzir JSON invalido, que o Postgres rejeita na
+     * conversao — derrubando a gravacao inteira do rastro (Sprint 34 Task 34.2). O {@code @Email} do
+     * DTO nao protege: a RFC admite local-part entre aspas.
+     */
+    private String detalhes(LoginAttemptStatus status, String username) {
+        Map<String, Object> detalhes = new LinkedHashMap<>();
+        detalhes.put("status", status.name());
+        detalhes.put("username", username);
+        try {
+            return objectMapper.writeValueAsString(detalhes);
+        } catch (JsonProcessingException ex) {
+            log.warn("falha ao serializar detalhes de auditoria de tentativa de login", ex);
+            return null;
+        }
     }
 
     private TipoEventoSeguranca tipoEvento(LoginAttemptStatus status) {

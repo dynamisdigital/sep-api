@@ -8,6 +8,8 @@ import com.dynamis.sep_api.shared.audit.AuditLogSeguranca;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaRepository;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import com.dynamis.sep_api.shared.email.EmailService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -46,7 +48,27 @@ class LockoutServiceTest {
         auditRepository = mock(AuditLogSegurancaRepository.class);
         emailService = mock(EmailService.class);
         properties = new LockoutProperties();
-        service = new LockoutService(repository, auditRepository, properties, emailService);
+        service = new LockoutService(repository, auditRepository, properties, emailService, new ObjectMapper());
+    }
+
+    /**
+     * Mesmo defeito do {@code RegistrarTentativaLoginUseCase}: o {@code username} vem do corpo da
+     * request e a coluna e {@code jsonb}. Concatenar deixava um username com aspas produzir JSON
+     * invalido, que o Postgres rejeita — e o audit de LOCKOUT se perderia inteiro.
+     */
+    @Test
+    void detalhesDoLockoutSaoJsonValidoParaUsernameComAspas() throws Exception {
+        String hostil = "\"a\\b\"@sep.test";
+        when(repository.buscarInstantesDeFalha(eq(hostil), anyList(), any(), any()))
+                .thenReturn(falhasRecentes(properties.getMaxAttempts(), Duration.ofMinutes(2)));
+
+        service.avaliarPosFalha(UUID.randomUUID(), hostil);
+
+        ArgumentCaptor<AuditLogSeguranca> captor = ArgumentCaptor.forClass(AuditLogSeguranca.class);
+        verify(auditRepository).save(captor.capture());
+        JsonNode json = new ObjectMapper().readTree(captor.getValue().getDetalhes());
+        assertThat(json.get("username").asText()).isEqualTo(hostil);
+        assertThat(json.get("lockoutMinutes").asInt()).isEqualTo(properties.getLockoutMinutes());
     }
 
     /** Falhas a cada {@code intervalo}, terminando agora (ordem decrescente, como o repository). */

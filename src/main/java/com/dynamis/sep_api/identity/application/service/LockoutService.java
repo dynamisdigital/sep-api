@@ -9,6 +9,8 @@ import com.dynamis.sep_api.shared.audit.AuditLogSeguranca;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaRepository;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import com.dynamis.sep_api.shared.email.EmailService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
@@ -18,7 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -51,16 +55,19 @@ public class LockoutService {
     private final AuditLogSegurancaRepository auditRepository;
     private final LockoutProperties properties;
     private final EmailService emailService;
+    private final ObjectMapper objectMapper;
 
     public LockoutService(
             LoginAttemptRepository attemptRepository,
             AuditLogSegurancaRepository auditRepository,
             LockoutProperties properties,
-            EmailService emailService) {
+            EmailService emailService,
+            ObjectMapper objectMapper) {
         this.attemptRepository = attemptRepository;
         this.auditRepository = auditRepository;
         this.properties = properties;
         this.emailService = emailService;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -129,16 +136,30 @@ public class LockoutService {
                     .addKeyValue("durationMinutes", properties.getLockoutMinutes())
                     .log("Conta entrou em lockout");
             auditRepository.save(AuditLogSeguranca.registrar(
-                    TipoEventoSeguranca.LOCKOUT,
-                    usuarioId,
-                    null,
-                    null,
-                    "{\"username\":\"" + username + "\",\"lockoutMinutes\":" + properties.getLockoutMinutes() + "}"));
+                    TipoEventoSeguranca.LOCKOUT, usuarioId, null, null, detalhesDoBloqueio(username)));
             emailService.enviar(
                     username,
                     "Conta SEP bloqueada temporariamente",
                     "Detectamos varias tentativas de login. Sua conta esta bloqueada por "
                             + properties.getLockoutMinutes() + " minutos.");
+        }
+    }
+
+    /**
+     * O {@code username} vem do corpo da request e a coluna e {@code jsonb}: montar o documento por
+     * concatenacao deixava um username com aspas produzir JSON invalido, que o Postgres rejeita na
+     * conversao — derrubando a gravacao inteira do rastro (Sprint 34 Task 34.2). O {@code @Email} do
+     * DTO nao protege: a RFC admite local-part entre aspas.
+     */
+    private String detalhesDoBloqueio(String username) {
+        Map<String, Object> detalhes = new LinkedHashMap<>();
+        detalhes.put("username", username);
+        detalhes.put("lockoutMinutes", properties.getLockoutMinutes());
+        try {
+            return objectMapper.writeValueAsString(detalhes);
+        } catch (JsonProcessingException ex) {
+            log.warn("falha ao serializar detalhes de auditoria de lockout", ex);
+            return null;
         }
     }
 }
