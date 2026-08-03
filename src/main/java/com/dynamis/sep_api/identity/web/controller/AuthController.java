@@ -1,11 +1,11 @@
 package com.dynamis.sep_api.identity.web.controller;
 
 import com.dynamis.sep_api.identity.application.ClientChannel;
+import com.dynamis.sep_api.identity.application.service.LockoutService;
 import com.dynamis.sep_api.identity.application.usecase.AutenticarUsuarioUseCase;
 import com.dynamis.sep_api.identity.application.usecase.LogoutAllUseCase;
 import com.dynamis.sep_api.identity.application.usecase.LogoutUseCase;
 import com.dynamis.sep_api.identity.application.usecase.RefreshTokenUseCase;
-import com.dynamis.sep_api.identity.infrastructure.security.LockoutProperties;
 import com.dynamis.sep_api.identity.infrastructure.security.RateLimitFilter;
 import com.dynamis.sep_api.identity.infrastructure.security.RefreshCookieService;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
@@ -53,7 +53,7 @@ public class AuthController {
     private final UsuarioRepository usuarioRepository;
     private final UsuarioMapper mapper;
     private final RefreshCookieService refreshCookieService;
-    private final LockoutProperties lockoutProperties;
+    private final LockoutService lockoutService;
 
     public AuthController(
             AutenticarUsuarioUseCase autenticarUsuarioUseCase,
@@ -63,7 +63,7 @@ public class AuthController {
             UsuarioRepository usuarioRepository,
             UsuarioMapper mapper,
             RefreshCookieService refreshCookieService,
-            LockoutProperties lockoutProperties) {
+            LockoutService lockoutService) {
         this.autenticarUsuarioUseCase = autenticarUsuarioUseCase;
         this.refreshTokenUseCase = refreshTokenUseCase;
         this.logoutUseCase = logoutUseCase;
@@ -71,7 +71,7 @@ public class AuthController {
         this.usuarioRepository = usuarioRepository;
         this.mapper = mapper;
         this.refreshCookieService = refreshCookieService;
-        this.lockoutProperties = lockoutProperties;
+        this.lockoutService = lockoutService;
     }
 
     @GetMapping("/politica-lockout")
@@ -79,8 +79,9 @@ public class AuthController {
             summary = "Consultar politica de bloqueio de conta",
             description = "Somente leitura e sem autenticacao: quem precisa do valor esta bloqueado e, por definicao,"
                     + " nao tem sessao. Serve a pagina de conta bloqueada, que renderiza sem ter recebido resposta de"
-                    + " API e por isso fixava a duracao no texto. Os mesmos numeros ja sao publicados pela message do"
-                    + " 423.")
+                    + " API e por isso fixava a duracao no texto. lockoutMinutes ja e publicado pela message do 423; os"
+                    + " outros dois, apenas pelo /v3/api-docs, e com os defaults fixos no codigo — aqui vem o valor"
+                    + " efetivo do ambiente.")
     @ApiResponses({
         @ApiResponse(
                 responseCode = "200",
@@ -91,7 +92,7 @@ public class AuthController {
                                 schema = @Schema(implementation = PoliticaLockoutResponseDto.class)))
     })
     public PoliticaLockoutResponseDto politicaLockout() {
-        return PoliticaLockoutResponseDto.de(lockoutProperties);
+        return PoliticaLockoutResponseDto.de(lockoutService.politica());
     }
 
     @PostMapping("/login")

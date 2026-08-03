@@ -33,6 +33,9 @@ class OpenApiConfigTest {
                         .value("JWT"))
                 .andExpect(jsonPath("$.paths['/api/v1/auth/login']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/auth/me']").exists())
+                // Sprint 34 Task 34.5: a F-22.6 consome esta rota pelo snapshot exportado; fora do
+                // contrato ela nao chega ao contract:check do sep-app.
+                .andExpect(jsonPath("$.paths['/api/v1/auth/politica-lockout']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/usuarios']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/usuarios/{id}']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/usuarios/{id}/senha']").exists())

@@ -108,7 +108,14 @@ public class LockoutService {
                 username, STATUSES_FALHA, inicioDaLeitura, PageRequest.of(0, politica.limiteDeLeitura()));
     }
 
-    private PoliticaLockout politica() {
+    /**
+     * A politica vigente, montada da configuracao. Publica desde a Task 34.5 para que
+     * {@code GET /auth/politica-lockout} anuncie <b>a mesma</b> politica que este servico aplica: se
+     * o endpoint derivasse da configuracao por conta propria, o dia em que a fonte da verdade mudar
+     * (parametro governado, politica por tenant, clamp de validacao) o anuncio continuaria correto
+     * na aparencia e errado no conteudo.
+     */
+    public PoliticaLockout politica() {
         return new PoliticaLockout(
                 properties.getMaxAttempts(),
                 Duration.ofMinutes(properties.getWindowMinutes()),

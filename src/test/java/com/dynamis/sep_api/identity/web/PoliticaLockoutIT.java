@@ -64,11 +64,16 @@ class PoliticaLockoutIT {
     /**
      * O {@code permitAll} e por metodo: abrir a leitura nao pode abrir escrita no mesmo path, senao
      * um {@code POST} futuro nasceria publico sem ninguem decidir isso.
+     *
+     * <p>Assere <b>401</b>, e nao "diferente de 200": trocar o matcher por um sem metodo — a
+     * arrumacao mais provavel — faz o POST atravessar a autorizacao e morrer adiante com 500, que
+     * tambem e diferente de 200. Com a assercao fraca a guarda evaporava em silencio; so o codigo
+     * exato distingue "a autorizacao barrou" de "passou e quebrou depois".
      */
     @Test
     void naoAbreOutrosMetodosNoMesmoPath() {
         Response resposta = RestAssured.given().when().post("/api/v1/auth/politica-lockout");
 
-        assertThat(resposta.statusCode()).isNotEqualTo(200);
+        assertThat(resposta.statusCode()).isEqualTo(401);
     }
 }
