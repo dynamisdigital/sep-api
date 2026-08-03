@@ -73,9 +73,13 @@ class LockoutServiceTest {
 
     /** Falhas a cada {@code intervalo}, terminando agora (ordem decrescente, como o repository). */
     private static List<OffsetDateTime> falhasRecentes(int quantidade, Duration intervalo) {
-        OffsetDateTime agora = OffsetDateTime.now();
+        return falhasAte(quantidade, OffsetDateTime.now(), intervalo);
+    }
+
+    /** Falhas a cada {@code intervalo}, terminando em {@code maisRecente} (ordem decrescente). */
+    private static List<OffsetDateTime> falhasAte(int quantidade, OffsetDateTime maisRecente, Duration intervalo) {
         return IntStream.range(0, quantidade)
-                .mapToObj(i -> agora.minus(intervalo.multipliedBy(i)))
+                .mapToObj(i -> maisRecente.minus(intervalo.multipliedBy(i)))
                 .toList();
     }
 
@@ -95,6 +99,26 @@ class LockoutServiceTest {
         assertThatThrownBy(() -> service.verificar("locked@sep.test"))
                 .isInstanceOf(ContaBloqueadaException.class)
                 .hasMessageContaining("30");
+    }
+
+    /**
+     * O {@code 423} carrega o tempo <b>restante</b>, nao a duracao configurada (Sprint 34 Task
+     * 34.3). Aqui a janela fechou ha 20 minutos, entao restam ~10 dos 30 — fixar o header na
+     * duracao configurada (1800s) deixa este teste vermelho, e era esse o comportamento ate a
+     * Sprint 33.
+     */
+    @Test
+    void verificarCarregaOTempoRestanteDoBloqueioENaoADuracaoConfigurada() {
+        OffsetDateTime evento = OffsetDateTime.now().minusMinutes(20);
+        when(repository.buscarInstantesDeFalha(eq("locked@sep.test"), anyList(), any(), any()))
+                .thenReturn(falhasAte(properties.getMaxAttempts(), evento, Duration.ofMinutes(1)));
+
+        assertThatThrownBy(() -> service.verificar("locked@sep.test"))
+                .isInstanceOfSatisfying(ContaBloqueadaException.class, ex -> assertThat(ex.getSegundosRestantes())
+                        .as("restam ~10 dos %d minutos configurados", properties.getLockoutMinutes())
+                        .isBetween(
+                                Duration.ofMinutes(9).toSeconds(),
+                                Duration.ofMinutes(11).toSeconds()));
     }
 
     /**

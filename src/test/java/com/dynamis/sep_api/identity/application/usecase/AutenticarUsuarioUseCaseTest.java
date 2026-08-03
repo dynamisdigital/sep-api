@@ -189,7 +189,7 @@ class AutenticarUsuarioUseCaseTest {
     void contaBloqueadaLancaAntesDeValidarSenha() {
         Usuario existente = Usuario.criar("locked@sep.test", "$2a$hash", Role.CLIENTE);
         when(repository.findByUsername("locked@sep.test")).thenReturn(Optional.of(existente));
-        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30))
+        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30, 1800))
                 .when(lockoutService)
                 .verificar("locked@sep.test");
 
@@ -205,7 +205,7 @@ class AutenticarUsuarioUseCaseTest {
      */
     @Test
     void falhaAoRegistrarTentativaBarradaNaoEngoleAContaBloqueadaException() {
-        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30))
+        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30, 1800))
                 .when(lockoutService)
                 .verificar("locked@sep.test");
         org.mockito.Mockito.doThrow(new IllegalStateException("banco fora"))
@@ -225,7 +225,7 @@ class AutenticarUsuarioUseCaseTest {
     void contaBloqueadaRegistraTentativaBarradaComOUsuarioResolvido() {
         Usuario usuario = Usuario.criar("locked@sep.test", "$2a$hash", Role.CLIENTE);
         when(repository.findByUsername("locked@sep.test")).thenReturn(Optional.of(usuario));
-        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30))
+        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30, 1800))
                 .when(lockoutService)
                 .verificar("locked@sep.test");
 

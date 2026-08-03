@@ -82,16 +82,33 @@ public class LockoutService {
      */
     @Transactional(readOnly = true, noRollbackFor = ContaBloqueadaException.class)
     public void verificar(String username) {
-        if (estaBloqueada(username)) {
-            throw new ContaBloqueadaException(properties.getLockoutMinutes());
+        Optional<Duration> restante = tempoRestanteDeBloqueio(username);
+        if (restante.isPresent()) {
+            throw new ContaBloqueadaException(properties.getLockoutMinutes(), segundosAteLiberar(restante.get()));
         }
     }
 
-    public boolean estaBloqueada(String username) {
+    /**
+     * Quanto falta do bloqueio vigente, ou vazio se a conta esta liberada.
+     *
+     * <p>Ate a Sprint 33 este metodo era {@code estaBloqueada} e devolvia {@code boolean},
+     * descartando o instante que {@link PoliticaLockout} ja calculava — por isso o {@code 423} so
+     * sabia anunciar a duracao configurada (Sprint 34 Task 34.3). Quem decide continua sendo o
+     * dominio; aqui so se le o historico e se converte para transporte.
+     */
+    public Optional<Duration> tempoRestanteDeBloqueio(String username) {
         OffsetDateTime agora = OffsetDateTime.now();
         PoliticaLockout politica = politica();
-        return politica.eventoDeBloqueio(falhasRecentes(username, agora, politica), agora)
-                .isPresent();
+        return politica.tempoRestanteDeBloqueio(falhasRecentes(username, agora, politica), agora);
+    }
+
+    /**
+     * Arredonda para cima porque {@code Retry-After} e inteiro em segundos: truncar convidaria o
+     * cliente a voltar ainda dentro do bloqueio e, com menos de um segundo restante, produziria um
+     * {@code Retry-After: 0}.
+     */
+    private static long segundosAteLiberar(Duration restante) {
+        return restante.toSeconds() + (restante.toNanosPart() > 0 ? 1 : 0);
     }
 
     private List<OffsetDateTime> falhasRecentes(String username, OffsetDateTime agora, PoliticaLockout politica) {

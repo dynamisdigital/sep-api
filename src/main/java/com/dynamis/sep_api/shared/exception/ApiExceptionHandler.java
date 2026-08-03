@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -120,9 +121,20 @@ public class ApiExceptionHandler {
         return build(HttpStatus.UNAUTHORIZED, "Unauthorized", "Autenticacao requerida", request);
     }
 
+    /**
+     * {@code Retry-After} com o tempo <b>restante</b> do bloqueio (Sprint 34 Task 34.3). O header e
+     * acrescentado aqui, e nao no {@code build}, porque aquele helper e compartilhado por todos os
+     * handlers e so o {@code 423} tem essa informacao.
+     *
+     * <p>A {@code message} continua anunciando a duracao configurada — ela enuncia a politica, o
+     * header diz quando voltar.
+     */
     @ExceptionHandler(ContaBloqueadaException.class)
     public ResponseEntity<ErrorResponseDto> handleLocked(ContaBloqueadaException ex, HttpServletRequest request) {
-        return build(HttpStatus.LOCKED, "Locked", ex.getMessage(), request);
+        ResponseEntity<ErrorResponseDto> resposta = build(HttpStatus.LOCKED, "Locked", ex.getMessage(), request);
+        return ResponseEntity.status(resposta.getStatusCode())
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getSegundosRestantes()))
+                .body(resposta.getBody());
     }
 
     /**

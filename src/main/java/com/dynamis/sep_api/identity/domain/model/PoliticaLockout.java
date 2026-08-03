@@ -71,6 +71,22 @@ public record PoliticaLockout(int maxAttempts, Duration janelaDeteccao, Duration
     }
 
     /**
+     * Quanto falta do bloqueio vigente em {@code agora}; vazio se a conta estiver liberada.
+     *
+     * <p>{@code evento + duracaoBloqueio - agora}. E o dado que o cliente precisa para saber quando
+     * voltar, e nao se confunde com {@link #duracaoBloqueio()}: um bloqueio que ja correu metade do
+     * tempo devolve metade. Ate a Sprint 33 o instante do evento existia mas era descartado, e o
+     * {@code 423} anunciava a duracao configurada como se fosse a espera restante.
+     *
+     * <p>Nunca negativo: se o bloqueio expirou, {@link #eventoDeBloqueio} ja devolve vazio.
+     */
+    public Optional<Duration> tempoRestanteDeBloqueio(
+            List<OffsetDateTime> falhasMaisRecentesPrimeiro, OffsetDateTime agora) {
+        return eventoDeBloqueio(falhasMaisRecentesPrimeiro, agora)
+                .map(evento -> Duration.between(agora, evento.plus(duracaoBloqueio)));
+    }
+
+    /**
      * Instante da falha mais recente que fecha uma janela e cujo bloqueio ainda vale em
      * {@code agora}; vazio se a conta estiver liberada.
      *

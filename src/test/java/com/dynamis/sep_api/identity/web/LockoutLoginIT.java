@@ -19,9 +19,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.Duration;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -140,6 +142,15 @@ class LockoutLoginIT {
         assertThat(sexta.jsonPath().getString("error")).isEqualTo("Locked");
         assertThat(sexta.jsonPath().getString("path")).isEqualTo("/api/v1/auth/login");
         assertThat(sexta.jsonPath().getString("message")).contains("bloqueada");
+
+        // Sprint 34 Task 34.3: prova que o header sai pelo fio, o que os unitarios do handler nao
+        // alcancam. O bloqueio acabou de comecar, entao o restante e ~a duracao inteira; quem
+        // distingue restante de duracao e LockoutServiceTest.
+        assertThat(Long.parseLong(sexta.header(HttpHeaders.RETRY_AFTER)))
+                .as("Retry-After do 423 traz o restante do bloqueio em segundos")
+                .isPositive()
+                .isLessThanOrEqualTo(Duration.ofMinutes(lockoutProperties.getLockoutMinutes())
+                        .toSeconds());
 
         assertThat(tentarLogin(SENHA).statusCode())
                 .as("o lockout e verificado antes da credencial, entao a senha certa nao desbloqueia")

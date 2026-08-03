@@ -5,6 +5,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
@@ -84,6 +85,25 @@ class RateLimitFilterTest {
         filter.doFilter(req("/api/v1/auth/totp/verify", "POST", "7.7.7.7"), extraRes, chain);
 
         assertThat(extraRes.getStatus()).isEqualTo(429);
+    }
+
+    /**
+     * Sprint 34 Task 34.3: o {@code 429} tambem diz quando voltar. O valor e o periodo de refresh do
+     * limitador — pior caso, porque o Resilience4j so daria o tempo exato por
+     * {@code reservePermission()}, que consome uma reserva.
+     */
+    @Test
+    void resposta429TrazRetryAfterDoPeriodoDeRefresh() throws Exception {
+        FilterChain chain = mock(FilterChain.class);
+        for (int i = 0; i < 2; i++) {
+            filter.doFilter(req("/api/v1/auth/login", "POST", "6.6.6.6"), new MockHttpServletResponse(), chain);
+        }
+
+        MockHttpServletResponse extraRes = new MockHttpServletResponse();
+        filter.doFilter(req("/api/v1/auth/login", "POST", "6.6.6.6"), extraRes, chain);
+
+        assertThat(extraRes.getStatus()).isEqualTo(429);
+        assertThat(extraRes.getHeader(HttpHeaders.RETRY_AFTER)).isEqualTo("60");
     }
 
     @Test

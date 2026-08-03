@@ -120,6 +120,36 @@ class PoliticaLockoutTest {
         assertThat(politica.eventoDeBloqueio(historico, AGORA)).contains(clusterMaisRecente);
     }
 
+    /**
+     * O restante nao e a duracao configurada (Sprint 34 Task 34.3): um bloqueio que ja correu 20 dos
+     * 30 minutos devolve 10. Sem este caso, devolver {@code duracaoBloqueio} fixo passaria — que e
+     * exatamente o defeito que o {@code Retry-After} veio corrigir.
+     */
+    @Test
+    void tempoRestanteDescontaOQueJaCorreuDoBloqueio() {
+        OffsetDateTime evento = AGORA.minusMinutes(20);
+        List<OffsetDateTime> cincoEmDezMinutos = falhas(5, evento, Duration.ofMinutes(2));
+
+        assertThat(politica.tempoRestanteDeBloqueio(cincoEmDezMinutos, AGORA)).contains(Duration.ofMinutes(10));
+    }
+
+    @Test
+    void tempoRestanteEhVazioSemBloqueioVigente() {
+        List<OffsetDateTime> quatroEmQuatroMinutos = falhas(4, AGORA, Duration.ofMinutes(1));
+
+        assertThat(politica.tempoRestanteDeBloqueio(quatroEmQuatroMinutos, AGORA))
+                .isEmpty();
+    }
+
+    /** Bloqueio expirado devolve vazio, nao um restante negativo que viraria {@code Retry-After} invalido. */
+    @Test
+    void tempoRestanteNuncaEhNegativo() {
+        OffsetDateTime eventoExpirado = AGORA.minusMinutes(31);
+        List<OffsetDateTime> cincoEmDezMinutos = falhas(5, eventoExpirado, Duration.ofMinutes(2));
+
+        assertThat(politica.tempoRestanteDeBloqueio(cincoEmDezMinutos, AGORA)).isEmpty();
+    }
+
     @Test
     void janelaDeLeituraCobreBloqueioMaisDeteccao() {
         assertThat(politica.janelaDeLeitura()).isEqualTo(Duration.ofMinutes(45));

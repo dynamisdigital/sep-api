@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -33,6 +34,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
     static final String LOGIN_PATH = "/api/v1/auth/login";
     static final String TOTP_VERIFY_PATH = "/api/v1/auth/totp/verify";
 
+    /** Janela do limitador, e tambem o {@code Retry-After} do {@code 429} — ver {@link #escreverErro429}. */
+    private static final Duration PERIODO_DE_REFRESH = Duration.ofMinutes(1);
+
     private final RateLimiterRegistry registry;
     private final ObjectMapper objectMapper;
     private final RateLimiterConfig loginConfig;
@@ -43,12 +47,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
         this.objectMapper = objectMapper;
         this.loginConfig = RateLimiterConfig.custom()
                 .limitForPeriod(properties.getLoginPerMinutePerIp())
-                .limitRefreshPeriod(Duration.ofMinutes(1))
+                .limitRefreshPeriod(PERIODO_DE_REFRESH)
                 .timeoutDuration(Duration.ZERO)
                 .build();
         this.totpVerifyConfig = RateLimiterConfig.custom()
                 .limitForPeriod(properties.getTotpVerifyPerMinutePerIp())
-                .limitRefreshPeriod(Duration.ofMinutes(1))
+                .limitRefreshPeriod(PERIODO_DE_REFRESH)
                 .timeoutDuration(Duration.ZERO)
                 .build();
     }
@@ -97,8 +101,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return remoto != null ? remoto : "unknown";
     }
 
+    /**
+     * {@code Retry-After} com o periodo de refresh (Sprint 34 Task 34.3), nao com o tempo exato ate
+     * a proxima permissao: o Resilience4j so expoe esse tempo por {@code reservePermission()}, que
+     * <b>consome</b> uma reserva — perguntar mudaria o estado do limitador. O periodo e o pior caso
+     * e o header e um hint pela RFC 9110, entao errar para mais e correto.
+     */
     private void escreverErro429(HttpServletResponse response, String path) throws IOException {
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+        response.setHeader(HttpHeaders.RETRY_AFTER, String.valueOf(PERIODO_DE_REFRESH.toSeconds()));
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         ErrorResponseDto erro = ErrorResponseDto.of(
                 429,
