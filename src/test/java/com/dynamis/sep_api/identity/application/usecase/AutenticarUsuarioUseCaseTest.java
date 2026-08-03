@@ -5,6 +5,7 @@ import com.dynamis.sep_api.identity.application.service.LockoutService;
 import com.dynamis.sep_api.identity.application.service.MfaChallengeService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService.TokenCru;
+import com.dynamis.sep_api.identity.domain.model.LoginAttemptStatus;
 import com.dynamis.sep_api.identity.domain.model.RefreshToken;
 import com.dynamis.sep_api.identity.domain.model.UsuarioTotpSecret;
 import com.dynamis.sep_api.identity.infrastructure.persistence.UsuarioTotpSecretRepository;
@@ -187,6 +188,26 @@ class AutenticarUsuarioUseCaseTest {
 
         assertThatThrownBy(() -> useCase.executar(new LoginRequestDto("locked@sep.test", "x"), "127.0.0.1", "ua"))
                 .isInstanceOf(ContaBloqueadaException.class);
-        verify(repository, never()).findByUsername(any());
+        verify(passwordEncoder, never()).matches(any(), any());
+    }
+
+    /**
+     * Sprint 34 Task 34.1: a tentativa contra conta bloqueada passa a deixar rastro. Ate a Sprint 33
+     * nao gerava linha em {@code login_attempt} nem evento de audit, porque {@code verificar} lanca
+     * antes de qualquer registro — uma conta sob ataque durante o bloqueio ficava invisivel.
+     */
+    @Test
+    void contaBloqueadaRegistraTentativaBarradaComOUsuarioResolvido() {
+        Usuario usuario = Usuario.criar("locked@sep.test", "$2a$hash", Role.CLIENTE);
+        when(repository.findByUsername("locked@sep.test")).thenReturn(Optional.of(usuario));
+        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30))
+                .when(lockoutService)
+                .verificar("locked@sep.test");
+
+        assertThatThrownBy(() -> useCase.executar(new LoginRequestDto("locked@sep.test", "x"), "127.0.0.1", "ua"))
+                .isInstanceOf(ContaBloqueadaException.class);
+
+        verify(registrarTentativaLogin)
+                .registrar(usuario.getId(), "locked@sep.test", "127.0.0.1", "ua", LoginAttemptStatus.CONTA_BLOQUEADA);
     }
 }

@@ -1,0 +1,103 @@
+-- =============================================================================
+-- V60 — Sprint 34 Task 34.1: amplia chk_audit_seguranca_tipo com o evento da
+-- tentativa de autenticacao barrada por conta ja bloqueada.
+-- =============================================================================
+-- Adiciona 1 tipo:
+--   LOCKOUT_TENTATIVA_BARRADA — tentativa recusada durante um bloqueio vigente.
+--
+-- Distinto de LOCKOUT, que marca a transicao para bloqueada (uma vez por
+-- bloqueio, emitido por LockoutService.avaliarPosFalha). Ate a Sprint 33 esta
+-- tentativa nao deixava rastro nenhum: verificar() lanca antes de registrar.
+--
+-- Forward-only. Mantem todos os tipos anteriores (base: V59).
+-- =============================================================================
+
+ALTER TABLE audit_log_seguranca DROP CONSTRAINT chk_audit_seguranca_tipo;
+
+ALTER TABLE audit_log_seguranca ADD CONSTRAINT chk_audit_seguranca_tipo CHECK (tipo IN (
+    'LOGIN_OK', 'LOGIN_FAIL',
+    'TOTP_OK', 'TOTP_FAIL',
+    'BACKUP_CODE_USED',
+    'LOCKOUT',
+    'PASSWORD_CHANGED',
+    'MFA_ENABLED', 'MFA_DISABLED',
+    'REFRESH_REUSE_DETECTED',
+    'STEP_UP_OK', 'STEP_UP_FAIL',
+    'KYC_INICIADO',
+    'KYC_DOCUMENTO_ENVIADO',
+    'KYC_VERIFICACAO_DISPARADA',
+    'KYC_FINALIZADO_APROVADO',
+    'KYC_FINALIZADO_REPROVADO',
+    'KYC_FINALIZADO_PENDENCIA',
+    'KYB_INICIADO',
+    'KYB_FINALIZADO_APROVADO',
+    'KYB_FINALIZADO_REPROVADO',
+    'PLD_INICIADO',
+    'PLD_HIT_DETECTADO',
+    'PLD_LIMPO',
+    'PLD_FINALIZADO',
+    'ROLE_ALTERADO',
+    'PROPOSTA_CRIADA',
+    'PROPOSTA_AVALIADA_MOTOR',
+    'PARECER_REGISTRADO',
+    'PROPOSTA_APROVADA',
+    'PROPOSTA_REJEITADA',
+    'OPEN_FINANCE_CONSENTIMENTO_INICIADO',
+    'OPEN_FINANCE_AUTORIZADO',
+    'OPEN_FINANCE_NEGADO',
+    'OPEN_FINANCE_DADOS_RECEBIDOS',
+    'OPEN_FINANCE_REAVALIACAO',
+    'OPEN_FINANCE_REVOGADO',
+    'CONTRATO_GERADO',
+    'CONTRATO_NOVA_VERSAO',
+    'CONTRATO_ACEITO',
+    'CONTRATO_CANCELADO',
+    'CCB_GERADA',
+    'ASSINATURA_ENVIADA',
+    'ASSINATURA_VISUALIZADA',
+    'ASSINATURA_ASSINADA',
+    'ASSINATURA_RECUSADA',
+    'DOCUMENTO_ASSINADO_BAIXADO',
+    'AGENDA_GERADA',
+    'PARCELA_CRIADA',
+    'RECEBIMENTO_REGISTRADO',
+    'PARCELA_PAGA',
+    'PARCELA_ATRASADA',
+    'MOVIMENTACAO_ESCROW_CRIADA',
+    'NOTIFICACAO_ENVIADA',
+    'EVENTO_COBRANCA_REGISTRADO',
+    'PARCELA_INADIMPLENTE',
+    'RENEGOCIACAO_PROPOSTA',
+    'RENEGOCIACAO_ACEITA',
+    'RENEGOCIACAO_RECUSADA',
+    'RENEGOCIACAO_EXPIRADA',
+    'ITEM_FILA_CRIADO',
+    'ITEM_ASSUMIDO',
+    'COMENTARIO_REGISTRADO',
+    'ITEM_RESOLVIDO',
+    'ITEM_IGNORADO',
+    'REPROCESSO_DISPARADO',
+    'CREDORA_CADASTRADA',
+    'CREDORA_ELEGIVEL',
+    'CREDORA_INELEGIVEL',
+    'CREDORA_INTERESSE_REGISTRADO',
+    'CREDORA_INTERESSE_CANCELADO',
+    'CREDORA_OPERACAO_ASSOCIADA',
+    'CREDORA_APORTE_REGISTRADO',
+    'CREDORA_APORTE_LIQUIDADO',
+    'CREDORA_APORTE_FALHOU',
+    'CREDORA_MATCHING_SUGERIDA',
+    'CREDORA_MATCHING_CONFIRMADA',
+    'CREDORA_MATCHING_REJEITADA',
+    'USUARIO_ROLES_ALTERADAS',
+    'PARAMETRO_OPERACIONAL_ALTERADO',
+    'PIX_WEBHOOK_RECEBIDO',
+    'PIX_WEBHOOK_PROCESSADO',
+    'PIX_WEBHOOK_FALHOU',
+    'PIX_TRANSFERENCIA_SOLICITADA',
+    'PIX_TRANSFERENCIA_CONCLUIDA',
+    'PIX_TRANSFERENCIA_FALHOU',
+    'PIX_CHAVE_CADASTRADA',
+    'PIX_CHAVE_REMOVIDA',
+    'LOCKOUT_TENTATIVA_BARRADA'
+));

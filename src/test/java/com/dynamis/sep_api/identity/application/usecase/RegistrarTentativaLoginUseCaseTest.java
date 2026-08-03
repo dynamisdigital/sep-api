@@ -53,13 +53,19 @@ class RegistrarTentativaLoginUseCaseTest {
         assertThat(captor.getValue().getTipo()).isEqualTo(TipoEventoSeguranca.TOTP_FAIL);
     }
 
+    /**
+     * A tentativa barrada tem tipo proprio (Sprint 34 Task 34.1). Reusar {@code LOCKOUT} misturaria
+     * dois fatos distintos na mesma trilha — "bloqueou agora", que sai uma vez por bloqueio, e
+     * "tentou durante o bloqueio", que sai a cada tentativa — e obrigaria a parsear {@code jsonb}
+     * para separa-los.
+     */
     @Test
-    void contaBloqueadaMapeiaParaLockout() {
+    void contaBloqueadaMapeiaParaTipoProprioENaoParaLockout() {
         useCase.registrar(UUID.randomUUID(), "u@sep.test", "127.0.0.1", "ua", LoginAttemptStatus.CONTA_BLOQUEADA);
 
         ArgumentCaptor<AuditLogSeguranca> captor = ArgumentCaptor.forClass(AuditLogSeguranca.class);
         verify(auditRepository).save(captor.capture());
-        assertThat(captor.getValue().getTipo()).isEqualTo(TipoEventoSeguranca.LOCKOUT);
+        assertThat(captor.getValue().getTipo()).isEqualTo(TipoEventoSeguranca.LOCKOUT_TENTATIVA_BARRADA);
     }
 
     @Test

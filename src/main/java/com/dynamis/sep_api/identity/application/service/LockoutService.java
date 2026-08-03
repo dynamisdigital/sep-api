@@ -40,23 +40,12 @@ public class LockoutService {
     private static final Logger log = LoggerFactory.getLogger(LockoutService.class);
 
     /**
-     * Statuses que contam como falha. {@code CONTA_BLOQUEADA} ficou de fora de proposito: nenhum
-     * caminho de producao o escreve (ambos os use cases lancam antes de registrar) e, se passasse a
-     * escrever, cada tentativa barrada renovaria o proprio bloqueio — bloqueio auto-perpetuante.
+     * Statuses que contam como falha. {@code CONTA_BLOQUEADA} fica de fora: desde a Sprint 34 os use
+     * cases <b>registram</b> a tentativa barrada, e conta-la faria cada tentativa durante o bloqueio
+     * renovar o proprio bloqueio — bloqueio auto-perpetuante.
      */
     private static final List<LoginAttemptStatus> STATUSES_FALHA =
             List.of(LoginAttemptStatus.SENHA_INVALIDA, LoginAttemptStatus.TOTP_INVALIDO);
-
-    /**
-     * Teto defensivo de falhas lidas por decisao, para nao varrer uma cauda longa sob ataque.
-     *
-     * <p>Nao esconde bloqueio porque {@code verificar} lanca <b>antes</b> de registrar a tentativa
-     * ({@code AutenticarUsuarioUseCase}, {@code VerificarTotpUseCase}): nenhuma falha e gravada
-     * enquanto a conta esta bloqueada, entao o evento de bloqueio fica sempre entre as primeiras
-     * posicoes da lista. Se algum dia tentativas bloqueadas passarem a ser registradas, esta
-     * premissa cai e o limite precisa ser derivado da configuracao.
-     */
-    private static final int LIMITE_DE_LEITURA = 100;
 
     private final LoginAttemptRepository attemptRepository;
     private final AuditLogSegurancaRepository auditRepository;
@@ -92,7 +81,7 @@ public class LockoutService {
     private List<OffsetDateTime> falhasRecentes(String username, OffsetDateTime agora, PoliticaLockout politica) {
         OffsetDateTime inicioDaLeitura = agora.minus(politica.janelaDeLeitura());
         return attemptRepository.buscarInstantesDeFalha(
-                username, STATUSES_FALHA, inicioDaLeitura, PageRequest.of(0, LIMITE_DE_LEITURA));
+                username, STATUSES_FALHA, inicioDaLeitura, PageRequest.of(0, politica.limiteDeLeitura()));
     }
 
     private PoliticaLockout politica() {

@@ -43,6 +43,32 @@ public record PoliticaLockout(int maxAttempts, Duration janelaDeteccao, Duration
     }
 
     /**
+     * Quantas falhas basta ler, mais recentes primeiro, para que a decisao nao dependa de
+     * truncamento. Derivado da propria politica: um teto fixo so seria seguro sob premissas sobre o
+     * que e gravado, e premissa nao e invariante.
+     *
+     * <p>O raciocinio: truncar em {@code N} so poderia esconder um bloqueio se nenhuma das
+     * {@code N} falhas lidas fechasse uma janela e alguma mais antiga fechasse. Se nenhuma fecha,
+     * entao cada grupo de {@code maxAttempts} falhas consecutivas gasta <b>mais</b> que
+     * {@code janelaDeteccao}; encadeando {@code m} grupos disjuntos, as {@code N} falhas gastam mais
+     * que {@code m * janelaDeteccao}. Como todas cabem em {@link #janelaDeLeitura()}, existe um teto
+     * para {@code m} — e portanto para {@code N}. Ler acima dele torna o caso impossivel.
+     *
+     * <p>Divisor minimo de um segundo: com {@code janelaDeteccao} zero o encadeamento nao gasta
+     * tempo e nao ha teto derivavel. A configuracao e degenerada (so falhas simultaneas bloqueiam) e
+     * a resposta certa e ler <b>mais</b>, nao menos.
+     *
+     * <p>Satura em vez de estourar: uma configuracao absurda deve produzir uma leitura grande, nao
+     * uma excecao — que aqui cairia dentro do login e trocaria erro de config por indisponibilidade
+     * de autenticacao.
+     */
+    public int limiteDeLeitura() {
+        long janelasNaLeitura = janelaDeLeitura().toSeconds() / Math.max(1L, janelaDeteccao.toSeconds());
+        long grupos = Math.min(janelasNaLeitura + 1L, Integer.MAX_VALUE);
+        return (int) Math.min(grupos * (maxAttempts - 1L) + 1L, Integer.MAX_VALUE);
+    }
+
+    /**
      * Instante da falha mais recente que fecha uma janela e cujo bloqueio ainda vale em
      * {@code agora}; vazio se a conta estiver liberada.
      *

@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.identity.application.usecase;
 
+import com.dynamis.sep_api.identity.application.exception.ContaBloqueadaException;
 import com.dynamis.sep_api.identity.application.exception.MfaChallengeInvalidoException;
 import com.dynamis.sep_api.identity.application.exception.MfaNaoHabilitadoException;
 import com.dynamis.sep_api.identity.application.exception.TotpInvalidoException;
@@ -8,6 +9,7 @@ import com.dynamis.sep_api.identity.application.service.LockoutService;
 import com.dynamis.sep_api.identity.application.service.MfaChallengeService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService.TokenCru;
+import com.dynamis.sep_api.identity.domain.model.LoginAttemptStatus;
 import com.dynamis.sep_api.identity.domain.model.RefreshToken;
 import com.dynamis.sep_api.identity.domain.model.UsuarioTotpSecret;
 import com.dynamis.sep_api.identity.infrastructure.persistence.UsuarioTotpSecretRepository;
@@ -31,7 +33,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -160,6 +164,27 @@ class VerificarTotpUseCaseTest {
                 .isInstanceOf(TotpInvalidoException.class);
         verify(challengeService).devolver(challengeId, usuarioId);
         verify(registrarTentativaLogin).registrar(any(), any(), any(), any(), any());
+    }
+
+    /**
+     * Sprint 34 Task 34.1: o segundo fator tambem passa a registrar a tentativa recusada por
+     * bloqueio. Aqui o usuario ja veio do challenge, entao o rastro nao custa leitura extra.
+     */
+    @Test
+    void contaBloqueadaRegistraTentativaBarradaEPropagaExcecao() {
+        UUID challengeId = UUID.randomUUID();
+        Usuario usuario = Usuario.criar("u@sep.test", "h", Role.CLIENTE);
+        UUID usuarioId = usuario.getId();
+        when(challengeService.consumir(challengeId)).thenReturn(usuarioId);
+        when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
+        doThrow(new ContaBloqueadaException(30)).when(lockoutService).verificar("u@sep.test");
+
+        assertThatThrownBy(() -> useCase.executar(challengeId, "123456", "127.0.0.1", "ua"))
+                .isInstanceOf(ContaBloqueadaException.class);
+
+        verify(registrarTentativaLogin)
+                .registrar(usuarioId, "u@sep.test", "127.0.0.1", "ua", LoginAttemptStatus.CONTA_BLOQUEADA);
+        verify(totpRepository, never()).findByUsuarioId(any());
     }
 
     @Test

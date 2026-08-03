@@ -136,5 +136,11 @@ public enum TipoEventoSeguranca {
     PIX_TRANSFERENCIA_FALHOU,
     // Sprint 31 Task 31.5: gestao assistida de chaves Pix da conta operacional (Epic 15).
     PIX_CHAVE_CADASTRADA,
-    PIX_CHAVE_REMOVIDA
+    PIX_CHAVE_REMOVIDA,
+    /**
+     * Sprint 34 Task 34.1: tentativa de autenticacao recusada porque a conta ja estava bloqueada.
+     * Distinto de {@link #LOCKOUT}, que marca a <b>transicao</b> para bloqueada e sai uma vez por
+     * bloqueio; este sai a cada tentativa durante o bloqueio. Check constraint atualizado em V60.
+     */
+    LOCKOUT_TENTATIVA_BARRADA
 }

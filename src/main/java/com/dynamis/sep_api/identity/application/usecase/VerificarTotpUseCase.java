@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.identity.application.usecase;
 
+import com.dynamis.sep_api.identity.application.exception.ContaBloqueadaException;
 import com.dynamis.sep_api.identity.application.exception.MfaNaoHabilitadoException;
 import com.dynamis.sep_api.identity.application.exception.TotpInvalidoException;
 import com.dynamis.sep_api.identity.application.service.BackupCodeService;
@@ -85,7 +86,7 @@ public class VerificarTotpUseCase {
         UUID usuarioId = challengeService.consumir(mfaChallengeId);
         Usuario usuario =
                 usuarioRepository.findById(usuarioId).orElseThrow(() -> new UsuarioNaoEncontradoException(usuarioId));
-        lockoutService.verificar(usuario.getUsername());
+        verificarLockout(usuarioId, usuario.getUsername(), ip, userAgent);
 
         UsuarioTotpSecret secret =
                 totpRepository.findByUsuarioId(usuarioId).orElseThrow(MfaNaoHabilitadoException::new);
@@ -119,6 +120,22 @@ public class VerificarTotpUseCase {
         TokenCru refresh = refreshTokenService.emitirParaNovoLogin(usuario.getId());
         return TokenResponseDto.comTokens(
                 access, jwtProperties.getAccessExpirationSeconds(), refresh.token(), usuarioMapper.toResponse(usuario));
+    }
+
+    /**
+     * Recusa a verificacao de segundo fator e <b>deixa rastro da recusa</b> (Sprint 34 Task 34.1).
+     * Ate a Sprint 33 nada era gravado neste caminho: {@code verificar} lanca antes de qualquer
+     * {@code registrar}.
+     *
+     * <p>Aqui o usuario ja esta resolvido pelo challenge, entao o rastro nao custa leitura extra.
+     */
+    private void verificarLockout(UUID usuarioId, String username, String ip, String userAgent) {
+        try {
+            lockoutService.verificar(username);
+        } catch (ContaBloqueadaException e) {
+            registrarTentativaLogin.registrar(usuarioId, username, ip, userAgent, LoginAttemptStatus.CONTA_BLOQUEADA);
+            throw e;
+        }
     }
 
     private boolean ehCodigoTotp(String codigo) {

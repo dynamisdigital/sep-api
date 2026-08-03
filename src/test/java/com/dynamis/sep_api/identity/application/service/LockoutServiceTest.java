@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -116,6 +117,25 @@ class LockoutServiceTest {
         verify(repository).buscarInstantesDeFalha(eq("u@sep.test"), anyList(), any(), limite.capture());
         assertThat(limite.getValue().getPageNumber()).isZero();
         assertThat(limite.getValue().getPageSize()).isGreaterThanOrEqualTo(properties.getMaxAttempts());
+    }
+
+    /**
+     * O teto de leitura sai da politica configurada, nao de uma constante (Sprint 34 Task 34.1).
+     * Falha se alguem voltar a fixar o valor: com bloqueio mais longo o servico precisa pedir mais
+     * historico.
+     */
+    @Test
+    void limiteDeLeituraVemDaConfiguracaoENaoDeUmaConstante() {
+        when(repository.buscarInstantesDeFalha(any(), anyList(), any(), any())).thenReturn(List.of());
+
+        service.verificar("u@sep.test");
+        properties.setLockoutMinutes(properties.getLockoutMinutes() * 4);
+        service.verificar("u@sep.test");
+
+        ArgumentCaptor<Pageable> limites = ArgumentCaptor.forClass(Pageable.class);
+        verify(repository, times(2)).buscarInstantesDeFalha(eq("u@sep.test"), anyList(), any(), limites.capture());
+        assertThat(limites.getAllValues().get(1).getPageSize())
+                .isGreaterThan(limites.getAllValues().get(0).getPageSize());
     }
 
     @Test

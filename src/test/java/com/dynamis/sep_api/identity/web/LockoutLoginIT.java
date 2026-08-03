@@ -1,7 +1,11 @@
 package com.dynamis.sep_api.identity.web;
 
+import com.dynamis.sep_api.identity.domain.model.LoginAttemptStatus;
+import com.dynamis.sep_api.identity.infrastructure.persistence.LoginAttemptRepository;
 import com.dynamis.sep_api.identity.infrastructure.security.LockoutProperties;
 import com.dynamis.sep_api.identity.infrastructure.security.RateLimitProperties;
+import com.dynamis.sep_api.shared.audit.AuditLogSegurancaRepository;
+import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
 import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository;
@@ -27,6 +31,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>Nao existia nenhum teste assegurando o {@code 423}: os unitarios param na excecao e o
  * {@code ApiExceptionHandler} nunca era exercitado por este caminho.
+ *
+ * <p>Sprint 34 Task 34.1: a mesma jornada passa a cobrir a trilha de auditoria fim a fim — o
+ * {@code LOCKOUT} da transicao (que rodava em {@code REQUIRES_NEW} sem cobertura observavel) e o
+ * {@code LOCKOUT_TENTATIVA_BARRADA} de cada tentativa recusada durante o bloqueio.
  *
  * <p><b>Nao</b> sobrescreve {@code app.security.rate-limit.*}, diferente dos demais ITs. O ponto do
  * teste e justamente que o rate limit default deixa a 6a tentativa alcancar o controller: com os
@@ -62,14 +70,23 @@ class LockoutLoginIT {
     @Autowired
     LockoutProperties lockoutProperties;
 
+    @Autowired
+    AuditLogSegurancaRepository auditRepository;
+
+    @Autowired
+    LoginAttemptRepository loginAttemptRepository;
+
     private String username;
+    private UUID usuarioId;
 
     @BeforeEach
     void setup() {
         RestAssured.port = port;
         limpar();
         username = "lockout-" + UUID.randomUUID().toString().substring(0, 8) + "@sep.test";
-        usuarioRepository.saveAndFlush(Usuario.criar(username, passwordEncoder.encode(SENHA), Role.CLIENTE));
+        usuarioId = usuarioRepository
+                .saveAndFlush(Usuario.criar(username, passwordEncoder.encode(SENHA), Role.CLIENTE))
+                .getId();
     }
 
     @AfterEach
@@ -127,5 +144,44 @@ class LockoutLoginIT {
         assertThat(tentarLogin(SENHA).statusCode())
                 .as("o lockout e verificado antes da credencial, entao a senha certa nao desbloqueia")
                 .isEqualTo(423);
+
+        // Sprint 34 Task 34.1: os dois fatos sao distintos e ambos precisam de rastro. Filtra por
+        // usuarioId porque limpar() nao apaga audit_log_seguranca — por tipo pegaria outras classes.
+        pollUntilAsserted(() -> {
+            assertThat(auditRepository.findByUsuarioIdAndTipoOrderByDataEventoDesc(
+                            usuarioId, TipoEventoSeguranca.LOCKOUT))
+                    .as("transicao para bloqueada: sai uma vez, na 5a falha")
+                    .hasSize(1);
+            assertThat(auditRepository.findByUsuarioIdAndTipoOrderByDataEventoDesc(
+                            usuarioId, TipoEventoSeguranca.LOCKOUT_TENTATIVA_BARRADA))
+                    .as("tentativa durante o bloqueio: sai a cada recusa, aqui a 6a e a 7a")
+                    .hasSize(2);
+        });
+
+        assertThat(loginAttemptRepository.findByUsuarioId(usuarioId))
+                .filteredOn(tentativa -> tentativa.getStatus() == LoginAttemptStatus.CONTA_BLOQUEADA)
+                .as("ate a Sprint 33 a tentativa barrada nao gerava linha nenhuma em login_attempt")
+                .hasSize(2);
+    }
+
+    /** Copia do padrao replicado em 7 ITs (ver {@code CarteiraCredoraIT}). */
+    private static void pollUntilAsserted(Runnable assercao) {
+        long deadline = System.currentTimeMillis() + 5_000L;
+        AssertionError ultimo = null;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                assercao.run();
+                return;
+            } catch (AssertionError ex) {
+                ultimo = ex;
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        throw ultimo != null ? ultimo : new AssertionError("Timeout sem assercao");
     }
 }

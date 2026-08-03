@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.identity.application.usecase;
 
+import com.dynamis.sep_api.identity.application.exception.ContaBloqueadaException;
 import com.dynamis.sep_api.identity.application.service.LockoutService;
 import com.dynamis.sep_api.identity.application.service.MfaChallengeService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService;
@@ -73,7 +74,7 @@ public class AutenticarUsuarioUseCase {
 
     @Transactional
     public TokenResponseDto executar(LoginRequestDto dto, String ip, String userAgent) {
-        lockoutService.verificar(dto.username());
+        verificarLockout(dto.username(), ip, userAgent);
 
         Optional<Usuario> usuarioOpt = repository.findByUsername(dto.username());
         if (usuarioOpt.isEmpty()) {
@@ -99,6 +100,26 @@ public class AutenticarUsuarioUseCase {
 
         registrarTentativaLogin.registrar(usuario.getId(), dto.username(), ip, userAgent, LoginAttemptStatus.SUCESSO);
         return emitirSessao(usuario);
+    }
+
+    /**
+     * Recusa a tentativa antes de tocar na senha e <b>deixa rastro da recusa</b> (Sprint 34 Task
+     * 34.1). Ate a Sprint 33 nada era gravado neste caminho: {@code verificar} lanca antes de
+     * qualquer {@code registrar}, entao uma conta sob ataque durante o bloqueio ficava invisivel.
+     *
+     * <p>O usuario e resolvido apenas aqui, para o rastro ter sujeito; o caminho normal continua com
+     * uma unica leitura. O registro sobrevive ao rollback desta transacao por rodar em
+     * {@code REQUIRES_NEW}, pelo mesmo motivo do registro de falha de senha.
+     */
+    private void verificarLockout(String username, String ip, String userAgent) {
+        try {
+            lockoutService.verificar(username);
+        } catch (ContaBloqueadaException e) {
+            UUID usuarioId =
+                    repository.findByUsername(username).map(Usuario::getId).orElse(null);
+            registrarTentativaLogin.registrar(usuarioId, username, ip, userAgent, LoginAttemptStatus.CONTA_BLOQUEADA);
+            throw e;
+        }
     }
 
     private boolean mfaAtivoPara(UUID usuarioId) {

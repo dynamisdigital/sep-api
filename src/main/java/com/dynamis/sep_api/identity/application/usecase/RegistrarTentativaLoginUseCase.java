@@ -51,7 +51,7 @@ public class RegistrarTentativaLoginUseCase {
         return switch (status) {
             case SUCESSO -> TipoEventoSeguranca.LOGIN_OK;
             case TOTP_INVALIDO -> TipoEventoSeguranca.TOTP_FAIL;
-            case CONTA_BLOQUEADA -> TipoEventoSeguranca.LOCKOUT;
+            case CONTA_BLOQUEADA -> TipoEventoSeguranca.LOCKOUT_TENTATIVA_BARRADA;
             case SENHA_INVALIDA, USUARIO_INEXISTENTE, TOTP_NECESSARIO -> TipoEventoSeguranca.LOGIN_FAIL;
         };
     }

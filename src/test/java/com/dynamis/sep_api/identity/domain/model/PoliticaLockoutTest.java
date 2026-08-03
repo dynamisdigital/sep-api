@@ -123,6 +123,46 @@ class PoliticaLockoutTest {
         assertThat(politica.janelaDeLeitura()).isEqualTo(Duration.ofMinutes(45));
     }
 
+    /**
+     * O limite de leitura sai da configuracao, nao de um numero fixo (Sprint 34 Task 34.1). Um teto
+     * constante so seria seguro sob premissas sobre o que e gravado; a mesma politica com bloqueio
+     * mais longo precisa ler mais historico.
+     */
+    @Test
+    void limiteDeLeituraAcompanhaAConfiguracao() {
+        PoliticaLockout bloqueioLongo = new PoliticaLockout(5, Duration.ofMinutes(15), Duration.ofMinutes(120));
+        PoliticaLockout maisTentativas = new PoliticaLockout(9, Duration.ofMinutes(15), Duration.ofMinutes(30));
+
+        assertThat(bloqueioLongo.limiteDeLeitura()).isGreaterThan(politica.limiteDeLeitura());
+        assertThat(maisTentativas.limiteDeLeitura()).isGreaterThan(politica.limiteDeLeitura());
+    }
+
+    /**
+     * A propriedade que o limite precisa garantir: truncar a leitura nao pode esconder um bloqueio.
+     *
+     * <p>Constroi o historico <b>mais denso possivel</b> que ainda nao fecha nenhuma janela — grupos
+     * de {@code maxAttempts - 1} falhas simultaneas, separados por pouco mais que a janela de
+     * deteccao — e confirma que ele nao cabe no limite. Consequencia: qualquer historico grande o
+     * bastante para encher a leitura fecha alguma janela antes do corte.
+     */
+    @Test
+    void limiteDeLeituraNaoCabeEmHistoricoSemJanelaFechada() {
+        List<OffsetDateTime> semBloqueio = new ArrayList<>();
+        OffsetDateTime inicioDaLeitura = AGORA.minus(politica.janelaDeLeitura());
+        for (OffsetDateTime grupo = AGORA;
+                grupo.isAfter(inicioDaLeitura);
+                grupo = grupo.minus(politica.janelaDeteccao()).minusSeconds(1)) {
+            for (int i = 0; i < politica.maxAttempts() - 1; i++) {
+                semBloqueio.add(grupo);
+            }
+        }
+
+        assertThat(politica.eventoDeBloqueio(semBloqueio, AGORA))
+                .as("historico construido de proposito para nao fechar janela")
+                .isEmpty();
+        assertThat(semBloqueio).hasSizeLessThan(politica.limiteDeLeitura());
+    }
+
     @Test
     void limiteInvalidoEhRejeitado() {
         assertThatThrownBy(() -> new PoliticaLockout(0, Duration.ofMinutes(15), Duration.ofMinutes(30)))
