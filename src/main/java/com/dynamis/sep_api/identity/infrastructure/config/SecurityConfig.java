@@ -71,6 +71,10 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login")
                         .permitAll()
+                        // Somente leitura de configuracao: quem precisa da politica esta bloqueado
+                        // e, por definicao, nao tem sessao (Sprint 34 Task 34.5).
+                        .requestMatchers(HttpMethod.GET, "/api/v1/auth/politica-lockout")
+                        .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout")

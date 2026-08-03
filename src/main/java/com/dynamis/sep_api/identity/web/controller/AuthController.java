@@ -5,11 +5,13 @@ import com.dynamis.sep_api.identity.application.usecase.AutenticarUsuarioUseCase
 import com.dynamis.sep_api.identity.application.usecase.LogoutAllUseCase;
 import com.dynamis.sep_api.identity.application.usecase.LogoutUseCase;
 import com.dynamis.sep_api.identity.application.usecase.RefreshTokenUseCase;
+import com.dynamis.sep_api.identity.infrastructure.security.LockoutProperties;
 import com.dynamis.sep_api.identity.infrastructure.security.RateLimitFilter;
 import com.dynamis.sep_api.identity.infrastructure.security.RefreshCookieService;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.identity.web.dto.LoginRequestDto;
 import com.dynamis.sep_api.identity.web.dto.LogoutRequestDto;
+import com.dynamis.sep_api.identity.web.dto.PoliticaLockoutResponseDto;
 import com.dynamis.sep_api.identity.web.dto.RefreshTokenRequestDto;
 import com.dynamis.sep_api.identity.web.dto.TokenResponseDto;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
@@ -51,6 +53,7 @@ public class AuthController {
     private final UsuarioRepository usuarioRepository;
     private final UsuarioMapper mapper;
     private final RefreshCookieService refreshCookieService;
+    private final LockoutProperties lockoutProperties;
 
     public AuthController(
             AutenticarUsuarioUseCase autenticarUsuarioUseCase,
@@ -59,7 +62,8 @@ public class AuthController {
             LogoutAllUseCase logoutAllUseCase,
             UsuarioRepository usuarioRepository,
             UsuarioMapper mapper,
-            RefreshCookieService refreshCookieService) {
+            RefreshCookieService refreshCookieService,
+            LockoutProperties lockoutProperties) {
         this.autenticarUsuarioUseCase = autenticarUsuarioUseCase;
         this.refreshTokenUseCase = refreshTokenUseCase;
         this.logoutUseCase = logoutUseCase;
@@ -67,6 +71,27 @@ public class AuthController {
         this.usuarioRepository = usuarioRepository;
         this.mapper = mapper;
         this.refreshCookieService = refreshCookieService;
+        this.lockoutProperties = lockoutProperties;
+    }
+
+    @GetMapping("/politica-lockout")
+    @Operation(
+            summary = "Consultar politica de bloqueio de conta",
+            description = "Somente leitura e sem autenticacao: quem precisa do valor esta bloqueado e, por definicao,"
+                    + " nao tem sessao. Serve a pagina de conta bloqueada, que renderiza sem ter recebido resposta de"
+                    + " API e por isso fixava a duracao no texto. Os mesmos numeros ja sao publicados pela message do"
+                    + " 423.")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Politica vigente",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = PoliticaLockoutResponseDto.class)))
+    })
+    public PoliticaLockoutResponseDto politicaLockout() {
+        return PoliticaLockoutResponseDto.de(lockoutProperties);
     }
 
     @PostMapping("/login")

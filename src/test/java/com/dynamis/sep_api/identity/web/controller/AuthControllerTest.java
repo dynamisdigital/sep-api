@@ -7,6 +7,7 @@ import com.dynamis.sep_api.identity.application.usecase.LogoutUseCase;
 import com.dynamis.sep_api.identity.application.usecase.RefreshTokenUseCase;
 import com.dynamis.sep_api.identity.infrastructure.security.JwtAuthenticationFilter;
 import com.dynamis.sep_api.identity.infrastructure.security.JwtTokenProvider;
+import com.dynamis.sep_api.identity.infrastructure.security.LockoutProperties;
 import com.dynamis.sep_api.identity.infrastructure.security.RefreshCookieService;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.identity.web.dto.LoginRequestDto;
@@ -56,7 +57,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers = AuthController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(ApiExceptionHandler.class)
+// LockoutProperties entra como bean real, e nao @MockBean, porque /politica-lockout devolve os
+// valores dele: um mock responderia 0 e o teste nao veria a serializacao (Sprint 34 Task 34.5).
+@Import({ApiExceptionHandler.class, LockoutProperties.class})
 class AuthControllerTest {
 
     @Autowired
@@ -119,6 +122,21 @@ class AuthControllerTest {
                 "system",
                 false,
                 false);
+    }
+
+    /**
+     * Sprint 34 Task 34.5. Aqui se cobre o mapeamento e a serializacao dos tres campos; que a rota
+     * responde <b>sem autenticacao</b> e reflete override de env var e assunto da
+     * {@code PoliticaLockoutIT} — nesta slice os filtros estao desligados
+     * ({@code addFilters = false}), entao um teste de acesso publico aqui nao provaria nada.
+     */
+    @Test
+    void getPoliticaLockoutDevolveOsTresCamposDaConfiguracao() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/politica-lockout"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.maxAttempts").value(5))
+                .andExpect(jsonPath("$.windowMinutes").value(15))
+                .andExpect(jsonPath("$.lockoutMinutes").value(30));
     }
 
     @Test
