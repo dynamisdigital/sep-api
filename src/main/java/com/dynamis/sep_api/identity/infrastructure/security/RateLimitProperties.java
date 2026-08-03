@@ -5,14 +5,21 @@ import org.springframework.stereotype.Component;
 
 /**
  * Limites por IP em endpoints sensiveis de autenticacao (Sprint 5 Task 5.4). Aplicado pelo {@link
- * RateLimitFilter} via Resilience4j {@code RateLimiterRegistry}.
+ * RateLimitFilter} via Resilience4j.
+ *
+ * <p>Defaults sao <b>10</b> para respeitar a invariante {@code rate-limit > lockout.max-attempts}
+ * (default 5) sem depender do {@code application.yml} — ate a Sprint 34 valiam 5, iguais ao limiar
+ * de lockout, e um contexto que nao carregasse o YAML nascia com o {@code 429} mascarando o
+ * {@code 423}. O {@link RateLimitLockoutValidator} trava a invariante no boot.
  */
 @Component
 @ConfigurationProperties(prefix = "app.security.rate-limit")
 public class RateLimitProperties {
 
-    private int loginPerMinutePerIp = 5;
-    private int totpVerifyPerMinutePerIp = 5;
+    static final int DEFAULT_POR_MINUTO_POR_IP = 10;
+
+    private int loginPerMinutePerIp = DEFAULT_POR_MINUTO_POR_IP;
+    private int totpVerifyPerMinutePerIp = DEFAULT_POR_MINUTO_POR_IP;
 
     public int getLoginPerMinutePerIp() {
         return loginPerMinutePerIp;

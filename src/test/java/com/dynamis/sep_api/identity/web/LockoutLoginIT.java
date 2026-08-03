@@ -43,7 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * dois valores em 5 (como era ate a Sprint 33) esta classe receberia {@code 429}. Sobrescrever o
  * rate limit aqui destruiria a regressao.
  *
- * <p>Por isso a jornada esta em <b>um unico teste</b>: o {@code RateLimiterRegistry} do
+ * <p>Por isso a jornada esta em <b>um unico teste</b>: o mapa de limitadores do
  * {@code RateLimitFilter} vive na JVM e nao e reiniciado entre metodos, entao varios metodos
  * fazendo login somariam permits e esbarrariam no limite por motivo errado.
  */

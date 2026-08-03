@@ -106,6 +106,56 @@ class RateLimitFilterTest {
         assertThat(extraRes.getHeader(HttpHeaders.RETRY_AFTER)).isEqualTo("60");
     }
 
+    /**
+     * Sprint 34 Task 34.4: o mapa de limitadores para de crescer sem limite. Ate a Sprint 33 era um
+     * {@code RateLimiterRegistry} com get-or-create por IP e sem teto — e como {@code extrairIp}
+     * confia no {@code X-Forwarded-For} sem allowlist, quem escolhia quantas chaves criar era o
+     * cliente.
+     */
+    @Test
+    void mapaDeLimitadoresRespeitaOTeto() throws Exception {
+        FilterChain chain = mock(FilterChain.class);
+        int excedente = 100;
+
+        for (int i = 0; i < RateLimitFilter.MAX_LIMITADORES + excedente; i++) {
+            MockHttpServletRequest r = req("/api/v1/auth/login", "POST", "10.0.0.1");
+            r.addHeader("X-Forwarded-For", "203.0.113." + i);
+            filter.doFilter(r, new MockHttpServletResponse(), chain);
+        }
+
+        assertThat(filter.limitadoresAtivos())
+                .as("sem teto o mapa teria %d entradas", RateLimitFilter.MAX_LIMITADORES + excedente)
+                .isEqualTo(RateLimitFilter.MAX_LIMITADORES);
+    }
+
+    /**
+     * A evicção nao pode devolver orcamento: a entrada descartada e a mais antiga <b>em acesso</b>,
+     * entao um IP que continua batendo permanece no mapa e segue barrado mesmo depois de o teto
+     * estourar muitas vezes.
+     */
+    @Test
+    void evicaoNaoRessuscitaOOrcamentoDeQuemSegueAtivo() throws Exception {
+        FilterChain chain = mock(FilterChain.class);
+        for (int i = 0; i < 2; i++) {
+            filter.doFilter(req("/api/v1/auth/login", "POST", "5.5.5.5"), new MockHttpServletResponse(), chain);
+        }
+
+        for (int i = 0; i < RateLimitFilter.MAX_LIMITADORES; i++) {
+            MockHttpServletRequest ruido = req("/api/v1/auth/login", "POST", "10.0.0.1");
+            ruido.addHeader("X-Forwarded-For", "198.51.100." + i);
+            filter.doFilter(ruido, new MockHttpServletResponse(), chain);
+            // Mantem 5.5.5.5 como recem-acessado, entao ele nunca e o eldest.
+            filter.doFilter(req("/api/v1/auth/login", "POST", "5.5.5.5"), new MockHttpServletResponse(), chain);
+        }
+
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        filter.doFilter(req("/api/v1/auth/login", "POST", "5.5.5.5"), res, chain);
+
+        assertThat(res.getStatus())
+                .as("o limitador de 5.5.5.5 sobreviveu ao teto e continua contando")
+                .isEqualTo(429);
+    }
+
     @Test
     void extrairIpUsaXForwardedForQuandoPresente() {
         MockHttpServletRequest r = req("/p", "GET", "1.1.1.1");

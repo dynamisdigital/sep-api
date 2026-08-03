@@ -2,8 +2,8 @@ package com.dynamis.sep_api.identity.infrastructure.security;
 
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.ratelimiter.RateLimiterConfig;
-import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,14 +18,32 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Aplica rate limit por IP em rotas sensiveis de autenticacao (Sprint 5 Task 5.4): {@code POST
  * /api/v1/auth/login} e {@code POST /api/v1/auth/totp/verify}.
  *
- * <p>Usa o {@link RateLimiterRegistry} default do Resilience4j com configs especificas por
- * endpoint (chave dinamica = {@code "login:" + ip} ou {@code "totp-verify:" + ip}). Ao exceder,
- * devolve {@code 429 Too Many Requests} com {@link ErrorResponseDto} JSON e nao chama a chain.
+ * <p>Um {@link RateLimiter} do Resilience4j por chave dinamica ({@code "login:" + ip} ou
+ * {@code "totp-verify:" + ip}), com config especifica por endpoint. Ao exceder, devolve
+ * {@code 429 Too Many Requests} com {@link ErrorResponseDto} JSON e nao chama a chain.
+ *
+ * <p><b>Evicção</b> (Sprint 34 Task 34.4): ate a Sprint 33 os limitadores viviam num
+ * {@code RateLimiterRegistry.ofDefaults()} com get-or-create por IP, <b>sem TTL nem teto</b> — e
+ * como {@link #extrairIp} confia no {@code X-Forwarded-For} sem allowlist de proxy, a cardinalidade
+ * das chaves era escolhida pelo cliente: um atacante variando o header enchia a heap sem nunca
+ * exceder limite nenhum. O registry deu lugar a um mapa LRU por <b>ordem de acesso</b>, limitado a
+ * {@link #MAX_LIMITADORES}.
+ *
+ * <p>LRU e nao expiracao por tempo porque aqui as duas quase coincidem sem precisar de relogio: a
+ * entrada mais antiga em acesso e a que passou mais tempo sem consumir permissao, ou seja a que tem
+ * mais chance de ja ter recuperado <b>todas</b> as permissoes — e um limitador cheio e
+ * indistinguivel de um recem-criado, entao descarta-lo nao devolve orcamento a ninguem. Para forcar
+ * a evicção de uma entrada quente o atacante teria que emitir {@link #MAX_LIMITADORES} requests de
+ * IPs distintos <b>sem</b> usar o proprio — que e precisamente o que ja recarregaria o limitador
+ * dele de graca.
  */
 public class RateLimitFilter extends OncePerRequestFilter {
 
@@ -34,16 +52,28 @@ public class RateLimitFilter extends OncePerRequestFilter {
     static final String LOGIN_PATH = "/api/v1/auth/login";
     static final String TOTP_VERIFY_PATH = "/api/v1/auth/totp/verify";
 
+    /**
+     * Teto de limitadores vivos. Uma instancia que veja mais de 10 mil IPs distintos dentro de uma
+     * janela de refresh ja esta fora do porte deste monolito; o numero existe para tornar a memoria
+     * limitada, nao para dimensionar capacidade.
+     */
+    static final int MAX_LIMITADORES = 10_000;
+
     /** Janela do limitador, e tambem o {@code Retry-After} do {@code 429} — ver {@link #escreverErro429}. */
     private static final Duration PERIODO_DE_REFRESH = Duration.ofMinutes(1);
 
-    private final RateLimiterRegistry registry;
+    private final Map<String, RateLimiter> limitadores;
     private final ObjectMapper objectMapper;
     private final RateLimiterConfig loginConfig;
     private final RateLimiterConfig totpVerifyConfig;
 
     public RateLimitFilter(RateLimitProperties properties, ObjectMapper objectMapper) {
-        this.registry = RateLimiterRegistry.ofDefaults();
+        this.limitadores = Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, RateLimiter> eldest) {
+                return size() > MAX_LIMITADORES;
+            }
+        });
         this.objectMapper = objectMapper;
         this.loginConfig = RateLimiterConfig.custom()
                 .limitForPeriod(properties.getLoginPerMinutePerIp())
@@ -80,7 +110,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
         String ip = extrairIp(request);
         String key = prefixo + ":" + ip;
-        boolean permitido = registry.rateLimiter(key, config).acquirePermission();
+        RateLimiterConfig configDaChave = config;
+        boolean permitido = limitadores
+                .computeIfAbsent(key, chave -> RateLimiter.of(chave, configDaChave))
+                .acquirePermission();
         if (!permitido) {
             log.atWarn()
                     .addKeyValue("event", "rate_limit_exceeded")
@@ -90,6 +123,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
         filterChain.doFilter(request, response);
+    }
+
+    /** Quantos limitadores estao vivos. Existe para o teste do teto observar a evicção. */
+    int limitadoresAtivos() {
+        return limitadores.size();
     }
 
     public static String extrairIp(HttpServletRequest request) {
