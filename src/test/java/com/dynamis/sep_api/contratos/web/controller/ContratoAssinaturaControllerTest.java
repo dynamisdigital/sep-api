@@ -170,7 +170,8 @@ class ContratoAssinaturaControllerTest {
                         StatusFormalizacao.EM_ASSINATURA, StatusEnvelope.ENVIADO, "ext-1", OffsetDateTime.now());
         when(consultarStatusAssinaturaUseCase.executar(contratoId)).thenReturn(snapshot);
         when(mapper.toStatusAssinaturaResponse(snapshot))
-                .thenReturn(new StatusAssinaturaResponse("EM_ASSINATURA", "ENVIADO", "ext-1", OffsetDateTime.now()));
+                .thenReturn(new StatusAssinaturaResponse(
+                        StatusFormalizacao.EM_ASSINATURA, StatusEnvelope.ENVIADO, "ext-1", OffsetDateTime.now()));
 
         mockMvc.perform(post("/api/v1/contratos/{id}/assinar", contratoId).header("X-Step-Up-Token", "tok"))
                 .andExpect(status().isAccepted())
@@ -210,7 +211,7 @@ class ContratoAssinaturaControllerTest {
                         StatusFormalizacao.ACEITO, null, null, null);
         when(consultarStatusAssinaturaUseCase.executar(c.getId())).thenReturn(snapshot);
         when(mapper.toStatusAssinaturaResponse(snapshot))
-                .thenReturn(new StatusAssinaturaResponse("ACEITO", null, null, null));
+                .thenReturn(new StatusAssinaturaResponse(StatusFormalizacao.ACEITO, null, null, null));
 
         mockMvc.perform(get("/api/v1/contratos/{id}/assinatura/status", c.getId()))
                 .andExpect(status().isOk())
@@ -228,8 +229,8 @@ class ContratoAssinaturaControllerTest {
                         StatusFormalizacao.EM_ASSINATURA, StatusEnvelope.VISUALIZADO, "ext-x", OffsetDateTime.now());
         when(consultarStatusAssinaturaUseCase.executar(c.getId())).thenReturn(snapshot);
         when(mapper.toStatusAssinaturaResponse(snapshot))
-                .thenReturn(
-                        new StatusAssinaturaResponse("EM_ASSINATURA", "VISUALIZADO", "ext-x", OffsetDateTime.now()));
+                .thenReturn(new StatusAssinaturaResponse(
+                        StatusFormalizacao.EM_ASSINATURA, StatusEnvelope.VISUALIZADO, "ext-x", OffsetDateTime.now()));
 
         mockMvc.perform(get("/api/v1/contratos/{id}/assinatura/status", c.getId()))
                 .andExpect(status().isOk());

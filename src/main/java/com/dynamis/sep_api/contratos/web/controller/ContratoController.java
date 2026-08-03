@@ -22,6 +22,7 @@ import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -363,9 +364,22 @@ public class ContratoController {
             summary = "Baixar PDF assinado",
             description = "Retorna o PDF assinado armazenado pelo SEP (BYTEA inline; Epic 16 troca por S3/MinIO).")
     @ApiResponses({
+        // Os dois headers sao setados via ResponseEntity.header(...), invisiveis ao springdoc
+        // (Sprint 34 Task 34.6). O hash e o que permite ao cliente conferir o PDF contra o
+        // documento registrado, entao deixa-lo fora do contrato torna a verificacao indocumentada.
         @ApiResponse(
                 responseCode = "200",
                 description = "PDF assinado",
+                headers = {
+                    @Header(
+                            name = "X-Document-Hash-Sha256",
+                            description = "SHA-256 do documento assinado, em hexadecimal.",
+                            schema = @Schema(type = "string")),
+                    @Header(
+                            name = HttpHeaders.CONTENT_DISPOSITION,
+                            description = "attachment com o nome do arquivo sugerido.",
+                            schema = @Schema(type = "string"))
+                },
                 content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE)),
         @ApiResponse(
                 responseCode = "400",

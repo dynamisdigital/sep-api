@@ -21,6 +21,7 @@ import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository
 import com.dynamis.sep_api.usuarios.web.dto.UsuarioResponseDto;
 import com.dynamis.sep_api.usuarios.web.mapper.UsuarioMapper;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -124,6 +125,11 @@ public class AuthController {
                                 schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "423",
+                headers =
+                        @Header(
+                                name = "Retry-After",
+                                description = "Segundos restantes do bloqueio da conta.",
+                                schema = @Schema(type = "integer")),
                 description = "Conta bloqueada por excesso de tentativas (5 falhas em 15 min; expira em 30 min)",
                 content =
                         @Content(
@@ -131,6 +137,11 @@ public class AuthController {
                                 schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "429",
+                headers =
+                        @Header(
+                                name = "Retry-After",
+                                description = "Segundos ate a proxima permissao do rate limit.",
+                                schema = @Schema(type = "integer")),
                 description = "Rate limit por IP excedido",
                 content =
                         @Content(

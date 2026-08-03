@@ -18,7 +18,12 @@ public record DashboardResponse(
         List<ContadorPorTipo> contadoresPorTipo,
         List<ContadorPorPrioridade> contadoresPorPrioridade,
         List<ContadorPorStatus> contadoresPorStatus,
-        Duration tempoMedioResolucao30d,
+        // O springdoc documenta java.time.Duration como string, mas WRITE_DURATIONS_AS_TIMESTAMPS
+        // nao e desligado em lugar nenhum, entao o Jackson serializa numero — e o frontend declara
+        // frontendType: number. Corrige-se a documentacao, e nao a serializacao: desligar a flag
+        // passaria a emitir ISO-8601 e quebraria o cliente (Sprint 34 Task 34.6).
+        @Schema(type = "number", description = "Tempo medio de resolucao nos ultimos 30 dias, em segundos.")
+                Duration tempoMedioResolucao30d,
         long itensCriticosAbertosMais48h,
         List<ContadorPorTipo> topCincoTiposMaisFrequentes,
         BigDecimal recebimentosDoDia,
