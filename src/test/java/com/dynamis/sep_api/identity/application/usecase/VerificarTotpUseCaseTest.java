@@ -26,6 +26,7 @@ import com.dynamis.sep_api.usuarios.web.mapper.UsuarioMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -177,7 +178,9 @@ class VerificarTotpUseCaseTest {
         UUID usuarioId = usuario.getId();
         when(challengeService.consumir(challengeId)).thenReturn(usuarioId);
         when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
-        doThrow(new ContaBloqueadaException(30, 1800)).when(lockoutService).verificar("u@sep.test");
+        doThrow(new ContaBloqueadaException(30, Duration.ofMinutes(12)))
+                .when(lockoutService)
+                .verificar("u@sep.test");
 
         assertThatThrownBy(() -> useCase.executar(challengeId, "123456", "127.0.0.1", "ua"))
                 .isInstanceOf(ContaBloqueadaException.class);
@@ -194,7 +197,9 @@ class VerificarTotpUseCaseTest {
         Usuario usuario = Usuario.criar("u@sep.test", "h", Role.CLIENTE);
         when(challengeService.consumir(challengeId)).thenReturn(usuario.getId());
         when(usuarioRepository.findById(usuario.getId())).thenReturn(Optional.of(usuario));
-        doThrow(new ContaBloqueadaException(30, 1800)).when(lockoutService).verificar("u@sep.test");
+        doThrow(new ContaBloqueadaException(30, Duration.ofMinutes(12)))
+                .when(lockoutService)
+                .verificar("u@sep.test");
         doThrow(new IllegalStateException("banco fora"))
                 .when(registrarTentativaLogin)
                 .registrar(any(), any(), any(), any(), any());

@@ -103,9 +103,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     /**
      * {@code Retry-After} com o periodo de refresh (Sprint 34 Task 34.3), nao com o tempo exato ate
-     * a proxima permissao: o Resilience4j so expoe esse tempo por {@code reservePermission()}, que
-     * <b>consome</b> uma reserva — perguntar mudaria o estado do limitador. O periodo e o pior caso
-     * e o header e um hint pela RFC 9110, entao errar para mais e correto.
+     * a proxima permissao: o tempo exato so existe em
+     * {@code AtomicRateLimiter.getDetailedMetrics().getNanosToWait()}, do pacote {@code internal} —
+     * o {@code RateLimiter.Metrics} publico expoe apenas {@code getAvailablePermissions()} e
+     * {@code getNumberOfWaitingThreads()}, e nao vale amarrar o filtro a uma classe de
+     * implementacao. O periodo e o pior caso a partir de qualquer instante do ciclo recusado, e o
+     * header e um hint pela RFC 9110, entao errar para mais e correto.
      */
     private void escreverErro429(HttpServletResponse response, String path) throws IOException {
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());

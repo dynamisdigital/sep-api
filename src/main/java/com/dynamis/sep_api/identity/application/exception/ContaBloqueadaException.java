@@ -1,5 +1,7 @@
 package com.dynamis.sep_api.identity.application.exception;
 
+import java.time.Duration;
+
 /**
  * Sinaliza que a conta excedeu o numero de tentativas de login falhas dentro da janela e esta
  * temporariamente bloqueada (Sprint 5 Task 5.4).
@@ -10,22 +12,25 @@ public final class ContaBloqueadaException extends RuntimeException {
 
     public static final String CODIGO = "AUTH-423-001";
 
-    private final long segundosRestantes;
+    private final Duration tempoRestante;
 
     /**
      * @param lockoutMinutes duracao <b>configurada</b> do bloqueio, que a mensagem publica como
      *     enunciado da politica
-     * @param segundosRestantes quanto falta <b>deste</b> bloqueio, publicado no {@code Retry-After}
-     *     (Sprint 34 Task 34.3). Os dois diferem: um bloqueio que ja correu metade do tempo anuncia
-     *     a mesma politica e uma espera menor.
+     * @param tempoRestante quanto falta <b>deste</b> bloqueio (Sprint 34 Task 34.3). Os dois diferem:
+     *     um bloqueio que ja correu metade do tempo anuncia a mesma politica e uma espera menor.
+     *     <p>E {@link Duration}, e nao segundos, por dois motivos: arredondar para o inteiro do
+     *     {@code Retry-After} e regra de transporte e pertence ao handler; e dois numeros adjacentes
+     *     em unidades diferentes, com {@code int} alargando para {@code long} em silencio, deixariam
+     *     {@code (1800, 30)} compilar limpo e produzir "Tente novamente em 1800 minutos".
      */
-    public ContaBloqueadaException(int lockoutMinutes, long segundosRestantes) {
+    public ContaBloqueadaException(int lockoutMinutes, Duration tempoRestante) {
         super("Conta bloqueada temporariamente. Tente novamente em " + lockoutMinutes + " minutos.");
-        this.segundosRestantes = segundosRestantes;
+        this.tempoRestante = tempoRestante;
     }
 
-    public long getSegundosRestantes() {
-        return segundosRestantes;
+    public Duration getTempoRestante() {
+        return tempoRestante;
     }
 
     public String getCodigo() {

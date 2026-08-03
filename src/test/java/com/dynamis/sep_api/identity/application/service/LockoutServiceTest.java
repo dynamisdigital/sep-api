@@ -103,9 +103,8 @@ class LockoutServiceTest {
 
     /**
      * O {@code 423} carrega o tempo <b>restante</b>, nao a duracao configurada (Sprint 34 Task
-     * 34.3). Aqui a janela fechou ha 20 minutos, entao restam ~10 dos 30 — fixar o header na
-     * duracao configurada (1800s) deixa este teste vermelho, e era esse o comportamento ate a
-     * Sprint 33.
+     * 34.3). Aqui a janela fechou ha 20 minutos, entao restam ~10 dos 30 — devolver a duracao
+     * configurada deixa este teste vermelho, e era esse o comportamento ate a Task 34.3.
      */
     @Test
     void verificarCarregaOTempoRestanteDoBloqueioENaoADuracaoConfigurada() {
@@ -114,11 +113,9 @@ class LockoutServiceTest {
                 .thenReturn(falhasAte(properties.getMaxAttempts(), evento, Duration.ofMinutes(1)));
 
         assertThatThrownBy(() -> service.verificar("locked@sep.test"))
-                .isInstanceOfSatisfying(ContaBloqueadaException.class, ex -> assertThat(ex.getSegundosRestantes())
+                .isInstanceOfSatisfying(ContaBloqueadaException.class, ex -> assertThat(ex.getTempoRestante())
                         .as("restam ~10 dos %d minutos configurados", properties.getLockoutMinutes())
-                        .isBetween(
-                                Duration.ofMinutes(9).toSeconds(),
-                                Duration.ofMinutes(11).toSeconds()));
+                        .isBetween(Duration.ofMinutes(9), Duration.ofMinutes(11)));
     }
 
     /**

@@ -75,10 +75,14 @@ public record PoliticaLockout(int maxAttempts, Duration janelaDeteccao, Duration
      *
      * <p>{@code evento + duracaoBloqueio - agora}. E o dado que o cliente precisa para saber quando
      * voltar, e nao se confunde com {@link #duracaoBloqueio()}: um bloqueio que ja correu metade do
-     * tempo devolve metade. Ate a Sprint 33 o instante do evento existia mas era descartado, e o
-     * {@code 423} anunciava a duracao configurada como se fosse a espera restante.
+     * tempo devolve metade. Da Sprint 33 ate a Task 34.3 o instante do evento existia mas era
+     * descartado pelo servico, e o {@code 423} anunciava a duracao configurada como se fosse a
+     * espera restante.
      *
-     * <p>Nunca negativo: se o bloqueio expirou, {@link #eventoDeBloqueio} ja devolve vazio.
+     * <p><b>Estritamente positivo</b>, nunca zero nem negativo: {@link #eventoDeBloqueio} so devolve
+     * um candidato que passou por {@code !candidato.isAfter(agora - duracaoBloqueio)}, ou seja
+     * {@code evento + duracaoBloqueio > agora}. Um bloqueio que expira exatamente em {@code agora}
+     * ja e reportado como liberado.
      */
     public Optional<Duration> tempoRestanteDeBloqueio(
             List<OffsetDateTime> falhasMaisRecentesPrimeiro, OffsetDateTime agora) {

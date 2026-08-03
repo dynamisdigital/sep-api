@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -189,7 +190,7 @@ class AutenticarUsuarioUseCaseTest {
     void contaBloqueadaLancaAntesDeValidarSenha() {
         Usuario existente = Usuario.criar("locked@sep.test", "$2a$hash", Role.CLIENTE);
         when(repository.findByUsername("locked@sep.test")).thenReturn(Optional.of(existente));
-        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30, 1800))
+        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30, Duration.ofMinutes(12)))
                 .when(lockoutService)
                 .verificar("locked@sep.test");
 
@@ -205,7 +206,7 @@ class AutenticarUsuarioUseCaseTest {
      */
     @Test
     void falhaAoRegistrarTentativaBarradaNaoEngoleAContaBloqueadaException() {
-        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30, 1800))
+        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30, Duration.ofMinutes(12)))
                 .when(lockoutService)
                 .verificar("locked@sep.test");
         org.mockito.Mockito.doThrow(new IllegalStateException("banco fora"))
@@ -225,7 +226,7 @@ class AutenticarUsuarioUseCaseTest {
     void contaBloqueadaRegistraTentativaBarradaComOUsuarioResolvido() {
         Usuario usuario = Usuario.criar("locked@sep.test", "$2a$hash", Role.CLIENTE);
         when(repository.findByUsername("locked@sep.test")).thenReturn(Optional.of(usuario));
-        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30, 1800))
+        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30, Duration.ofMinutes(12)))
                 .when(lockoutService)
                 .verificar("locked@sep.test");
 

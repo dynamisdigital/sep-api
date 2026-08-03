@@ -150,6 +150,21 @@ class PoliticaLockoutTest {
         assertThat(politica.tempoRestanteDeBloqueio(cincoEmDezMinutos, AGORA)).isEmpty();
     }
 
+    /**
+     * A fronteira pelo lado vivo: a um segundo de expirar o restante ainda e positivo, nao zero. E
+     * o caso que o {@code Retry-After} precisa que seja verdade — {@code 0} mandaria o cliente
+     * retentar dentro do proprio bloqueio. Prende a desigualdade estrita de {@code eventoDeBloqueio}
+     * atraves deste metodo; o caso expirado acima nao alcanca isso, porque nunca produz um
+     * {@code Duration}.
+     */
+    @Test
+    void tempoRestanteNoUltimoSegundoAindaEPositivo() {
+        OffsetDateTime evento = AGORA.minusMinutes(30).plusSeconds(1);
+        List<OffsetDateTime> cincoEmDezMinutos = falhas(5, evento, Duration.ofMinutes(2));
+
+        assertThat(politica.tempoRestanteDeBloqueio(cincoEmDezMinutos, AGORA)).contains(Duration.ofSeconds(1));
+    }
+
     @Test
     void janelaDeLeituraCobreBloqueioMaisDeteccao() {
         assertThat(politica.janelaDeLeitura()).isEqualTo(Duration.ofMinutes(45));

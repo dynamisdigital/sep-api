@@ -146,7 +146,12 @@ class LockoutLoginIT {
         // Sprint 34 Task 34.3: prova que o header sai pelo fio, o que os unitarios do handler nao
         // alcancam. O bloqueio acabou de comecar, entao o restante e ~a duracao inteira; quem
         // distingue restante de duracao e LockoutServiceTest.
-        assertThat(Long.parseLong(sexta.header(HttpHeaders.RETRY_AFTER)))
+        String retryAfter = sexta.header(HttpHeaders.RETRY_AFTER);
+        assertThat(retryAfter)
+                .as("o 423 precisa anunciar Retry-After; sem esta assercao um header ausente falha "
+                        + "como NumberFormatException e esconde o motivo")
+                .isNotNull();
+        assertThat(Long.parseLong(retryAfter))
                 .as("Retry-After do 423 traz o restante do bloqueio em segundos")
                 .isPositive()
                 .isLessThanOrEqualTo(Duration.ofMinutes(lockoutProperties.getLockoutMinutes())
