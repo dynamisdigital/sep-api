@@ -200,8 +200,9 @@ class LockoutServiceTest {
     }
 
     /**
-     * {@code CONTA_BLOQUEADA} nao pode contar como falha: nenhum caminho de producao o escreve e, se
-     * escrevesse, cada tentativa barrada renovaria o proprio bloqueio.
+     * {@code CONTA_BLOQUEADA} nao pode contar como falha. Desde a Sprint 34 os use cases
+     * <b>registram</b> a tentativa barrada, entao a hipotese deixou de ser teorica: se o status
+     * entrasse nesta lista, cada tentativa durante o bloqueio renovaria o proprio bloqueio.
      */
     @Test
     void contagemDeFalhasIgnoraTentativasBarradasPorBloqueio() {

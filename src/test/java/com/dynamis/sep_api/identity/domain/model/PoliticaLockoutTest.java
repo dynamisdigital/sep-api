@@ -1,6 +1,8 @@
 package com.dynamis.sep_api.identity.domain.model;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -144,23 +146,35 @@ class PoliticaLockoutTest {
      * de {@code maxAttempts - 1} falhas simultaneas, separados por pouco mais que a janela de
      * deteccao — e confirma que ele nao cabe no limite. Consequencia: qualquer historico grande o
      * bastante para encher a leitura fecha alguma janela antes do corte.
+     *
+     * <p>Parametrizado de proposito: com um unico config a assercao nao fixa a formula. O default
+     * (15/30) e o caso de folga <b>maxima</b>, porque a duracao e multipla exata da janela — nele o
+     * teste sobrevive tanto a um teto constante quanto a perder o {@code + 1} da formula. Os casos
+     * de duracao nao-multipla tem margem 1 e matam o {@code + 1}; o de bloqueio longo produz
+     * historico grande o bastante para matar um teto constante de 100.
      */
-    @Test
-    void limiteDeLeituraNaoCabeEmHistoricoSemJanelaFechada() {
+    @ParameterizedTest(name = "maxAttempts={0}, deteccao={1}min, bloqueio={2}min")
+    @CsvSource({"5, 15, 30", "5, 10, 25", "3, 10, 25", "5, 7, 20", "5, 15, 360"})
+    void limiteDeLeituraNaoCabeEmHistoricoSemJanelaFechada(int maxAttempts, int deteccao, int bloqueio) {
+        PoliticaLockout parametrizada =
+                new PoliticaLockout(maxAttempts, Duration.ofMinutes(deteccao), Duration.ofMinutes(bloqueio));
         List<OffsetDateTime> semBloqueio = new ArrayList<>();
-        OffsetDateTime inicioDaLeitura = AGORA.minus(politica.janelaDeLeitura());
+        OffsetDateTime inicioDaLeitura = AGORA.minus(parametrizada.janelaDeLeitura());
         for (OffsetDateTime grupo = AGORA;
                 grupo.isAfter(inicioDaLeitura);
-                grupo = grupo.minus(politica.janelaDeteccao()).minusSeconds(1)) {
-            for (int i = 0; i < politica.maxAttempts() - 1; i++) {
+                grupo = grupo.minus(parametrizada.janelaDeteccao()).minusSeconds(1)) {
+            for (int i = 0; i < maxAttempts - 1; i++) {
                 semBloqueio.add(grupo);
             }
         }
 
-        assertThat(politica.eventoDeBloqueio(semBloqueio, AGORA))
+        assertThat(semBloqueio)
+                .as("sem historico grande o bastante o teste passaria provando nada")
+                .hasSizeGreaterThanOrEqualTo(maxAttempts);
+        assertThat(parametrizada.eventoDeBloqueio(semBloqueio, AGORA))
                 .as("historico construido de proposito para nao fechar janela")
                 .isEmpty();
-        assertThat(semBloqueio).hasSizeLessThan(politica.limiteDeLeitura());
+        assertThat(semBloqueio).hasSizeLessThan(parametrizada.limiteDeLeitura());
     }
 
     @Test

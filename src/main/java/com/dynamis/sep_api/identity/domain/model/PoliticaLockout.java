@@ -49,10 +49,12 @@ public record PoliticaLockout(int maxAttempts, Duration janelaDeteccao, Duration
      *
      * <p>O raciocinio: truncar em {@code N} so poderia esconder um bloqueio se nenhuma das
      * {@code N} falhas lidas fechasse uma janela e alguma mais antiga fechasse. Se nenhuma fecha,
-     * entao cada grupo de {@code maxAttempts} falhas consecutivas gasta <b>mais</b> que
-     * {@code janelaDeteccao}; encadeando {@code m} grupos disjuntos, as {@code N} falhas gastam mais
-     * que {@code m * janelaDeteccao}. Como todas cabem em {@link #janelaDeLeitura()}, existe um teto
-     * para {@code m} — e portanto para {@code N}. Ler acima dele torna o caso impossivel.
+     * entao para todo indice {@code i} vale {@code F[i] - F[i + maxAttempts - 1] > janelaDeteccao}.
+     * Encadeando {@code m} saltos de {@code maxAttempts - 1} posicoes (eles compartilham extremo, e
+     * por isso o passo e {@code maxAttempts - 1} e nao {@code maxAttempts}), as falhas percorridas
+     * gastam mais que {@code m * janelaDeteccao}. Como todas cabem em {@link #janelaDeLeitura()},
+     * existe um teto para {@code m}, e portanto {@code N <= (m + 1) * (maxAttempts - 1)}. O
+     * {@code + 1} final torna a pagina estritamente maior que o pior historico possivel.
      *
      * <p>Divisor minimo de um segundo: com {@code janelaDeteccao} zero o encadeamento nao gasta
      * tempo e nao ha teto derivavel. A configuracao e degenerada (so falhas simultaneas bloqueiam) e

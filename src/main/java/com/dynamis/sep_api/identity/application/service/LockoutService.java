@@ -63,8 +63,17 @@ public class LockoutService {
         this.emailService = emailService;
     }
 
-    /** Falha se a conta estiver atualmente bloqueada. */
-    @Transactional(readOnly = true)
+    /**
+     * Falha se a conta estiver atualmente bloqueada.
+     *
+     * <p>{@code noRollbackFor}: como participante da transacao do chamador, lancar aqui marcaria a
+     * transacao externa como rollback-only. Desde a Sprint 34 o chamador <b>continua trabalhando</b>
+     * apos capturar (resolve o usuario para registrar a tentativa barrada), e uma transacao ja
+     * condenada e uma armadilha — basta alguem passar a engolir a excecao, ou envolver o login numa
+     * transacao maior que commite, para virar {@code UnexpectedRollbackException}. A decisao nao
+     * muda: o chamador repropaga e o rollback acontece na fronteira dele.
+     */
+    @Transactional(readOnly = true, noRollbackFor = ContaBloqueadaException.class)
     public void verificar(String username) {
         if (estaBloqueada(username)) {
             throw new ContaBloqueadaException(properties.getLockoutMinutes());

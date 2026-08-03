@@ -187,6 +187,22 @@ class VerificarTotpUseCaseTest {
         verify(totpRepository, never()).findByUsuarioId(any());
     }
 
+    /** Ver o gemeo em {@code AutenticarUsuarioUseCaseTest}: o rastro nao derruba a decisao. */
+    @Test
+    void falhaAoRegistrarTentativaBarradaNaoEngoleAContaBloqueadaException() {
+        UUID challengeId = UUID.randomUUID();
+        Usuario usuario = Usuario.criar("u@sep.test", "h", Role.CLIENTE);
+        when(challengeService.consumir(challengeId)).thenReturn(usuario.getId());
+        when(usuarioRepository.findById(usuario.getId())).thenReturn(Optional.of(usuario));
+        doThrow(new ContaBloqueadaException(30)).when(lockoutService).verificar("u@sep.test");
+        doThrow(new IllegalStateException("banco fora"))
+                .when(registrarTentativaLogin)
+                .registrar(any(), any(), any(), any(), any());
+
+        assertThatThrownBy(() -> useCase.executar(challengeId, "123456", "127.0.0.1", "ua"))
+                .isInstanceOf(ContaBloqueadaException.class);
+    }
+
     @Test
     void challengeInvalidoLanca400() {
         UUID challengeId = UUID.randomUUID();

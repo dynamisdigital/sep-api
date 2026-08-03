@@ -23,6 +23,8 @@ import com.dynamis.sep_api.usuarios.application.exception.UsuarioNaoEncontradoEx
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
 import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository;
 import com.dynamis.sep_api.usuarios.web.mapper.UsuarioMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,8 @@ import java.util.UUID;
  */
 @Service
 public class VerificarTotpUseCase {
+
+    private static final Logger log = LoggerFactory.getLogger(VerificarTotpUseCase.class);
 
     private final UsuarioRepository usuarioRepository;
     private final UsuarioTotpSecretRepository totpRepository;
@@ -127,14 +131,30 @@ public class VerificarTotpUseCase {
      * Ate a Sprint 33 nada era gravado neste caminho: {@code verificar} lanca antes de qualquer
      * {@code registrar}.
      *
-     * <p>Aqui o usuario ja esta resolvido pelo challenge, entao o rastro nao custa leitura extra.
+     * <p>Aqui o usuario ja esta resolvido pelo challenge, entao o rastro nao custa leitura extra. O
+     * registro sobrevive ao rollback desta transacao por rodar em {@code REQUIRES_NEW}.
+     *
+     * <p>Falha ao gravar o rastro <b>nao</b> derruba a decisao: sem isolar, a excecao do registro
+     * substituiria a {@code ContaBloqueadaException} e o cliente receberia 500 no lugar de 423 —
+     * justamente sob a carga que esta observabilidade existe para enxergar.
      */
     private void verificarLockout(UUID usuarioId, String username, String ip, String userAgent) {
         try {
             lockoutService.verificar(username);
         } catch (ContaBloqueadaException e) {
-            registrarTentativaLogin.registrar(usuarioId, username, ip, userAgent, LoginAttemptStatus.CONTA_BLOQUEADA);
+            registrarTentativaBarrada(usuarioId, username, ip, userAgent);
             throw e;
+        }
+    }
+
+    private void registrarTentativaBarrada(UUID usuarioId, String username, String ip, String userAgent) {
+        try {
+            registrarTentativaLogin.registrar(usuarioId, username, ip, userAgent, LoginAttemptStatus.CONTA_BLOQUEADA);
+        } catch (RuntimeException falhaDoRastro) {
+            log.atWarn()
+                    .setCause(falhaDoRastro)
+                    .addKeyValue("event", "lockout_attempt_audit_failed")
+                    .log("Falha ao registrar tentativa contra conta bloqueada");
         }
     }
 

@@ -180,8 +180,15 @@ class AutenticarUsuarioUseCaseTest {
                 .isInstanceOf(BadCredentialsException.class);
     }
 
+    /**
+     * O usuario e stubado de proposito: sem ele o repositorio devolve {@code Optional.empty()}, o
+     * ramo da senha fica inalcancavel e o {@code never()} passaria em qualquer ordenacao — provando
+     * nada. Com o stub, inverter lockout e senha deixa este assert vermelho.
+     */
     @Test
     void contaBloqueadaLancaAntesDeValidarSenha() {
+        Usuario existente = Usuario.criar("locked@sep.test", "$2a$hash", Role.CLIENTE);
+        when(repository.findByUsername("locked@sep.test")).thenReturn(Optional.of(existente));
         org.mockito.Mockito.doThrow(new ContaBloqueadaException(30))
                 .when(lockoutService)
                 .verificar("locked@sep.test");
@@ -189,6 +196,24 @@ class AutenticarUsuarioUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(new LoginRequestDto("locked@sep.test", "x"), "127.0.0.1", "ua"))
                 .isInstanceOf(ContaBloqueadaException.class);
         verify(passwordEncoder, never()).matches(any(), any());
+    }
+
+    /**
+     * O rastro nao pode derrubar a decisao: se o registro falhar, o cliente ainda precisa receber
+     * {@code 423}. Sem isolar, a excecao do registro substituiria a {@code ContaBloqueadaException}
+     * e viraria {@code 500} — exatamente sob a carga que esta observabilidade existe para enxergar.
+     */
+    @Test
+    void falhaAoRegistrarTentativaBarradaNaoEngoleAContaBloqueadaException() {
+        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30))
+                .when(lockoutService)
+                .verificar("locked@sep.test");
+        org.mockito.Mockito.doThrow(new IllegalStateException("banco fora"))
+                .when(registrarTentativaLogin)
+                .registrar(any(), any(), any(), any(), any());
+
+        assertThatThrownBy(() -> useCase.executar(new LoginRequestDto("locked@sep.test", "x"), "127.0.0.1", "ua"))
+                .isInstanceOf(ContaBloqueadaException.class);
     }
 
     /**
