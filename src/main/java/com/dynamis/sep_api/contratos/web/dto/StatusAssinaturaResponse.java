@@ -1,5 +1,7 @@
 package com.dynamis.sep_api.contratos.web.dto;
 
+import com.dynamis.sep_api.contratos.domain.vo.StatusEnvelope;
+import com.dynamis.sep_api.contratos.domain.vo.StatusFormalizacao;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.OffsetDateTime;
@@ -13,10 +15,11 @@ import java.time.OffsetDateTime;
  */
 @Schema(description = "Status agregado da assinatura digital de um contrato")
 public record StatusAssinaturaResponse(
+        // Enums tipados desde a Sprint 34 Task 34.6: o schema passa a publicar os valores aceitos.
         @Schema(description = "Status do contrato no fluxo de formalizacao", example = "EM_ASSINATURA")
-                String statusContrato,
+                StatusFormalizacao statusContrato,
         @Schema(description = "Status do envelope no provider (null se nao houver envelope)", example = "ENVIADO")
-                String statusEnvelope,
+                StatusEnvelope statusEnvelope,
         @Schema(description = "Identificador do envelope no provider externo (null se nao houver envelope)")
                 String idEnvelopeExterno,
         @Schema(description = "Ultima atualizacao recebida do provider (null se nao houver envelope)")

@@ -81,7 +81,10 @@ app:
     allowed-origins: ${APP_CORS_ORIGINS:http://localhost:4200,http://localhost:8100}
     allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
     allowed-headers: Authorization,Content-Type,Idempotency-Key,X-Correlation-Id,X-Step-Up-Token,X-Client-Channel
-    exposed-headers: X-Correlation-Id
+    # Retry-After nao e CORS-safelisted: sem estar aqui, o 423 e o 429 chegam ao browser com o
+    # header cortado e `headers.get('Retry-After')` devolve null no sep-app/sep-mobile, que sao
+    # origens distintas da API (Sprint 34 Task 34.3).
+    exposed-headers: X-Correlation-Id,Retry-After
     allow-credentials: true
     max-age: 3600
   # Cookie HttpOnly de refresh token para canal WEB (5F-FIX-02). Em producao, secure=true e

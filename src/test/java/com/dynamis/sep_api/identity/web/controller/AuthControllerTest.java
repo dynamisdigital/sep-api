@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.identity.web.controller;
 
 import com.dynamis.sep_api.identity.application.ClientChannel;
+import com.dynamis.sep_api.identity.application.service.LockoutService;
 import com.dynamis.sep_api.identity.application.usecase.AutenticarUsuarioUseCase;
 import com.dynamis.sep_api.identity.application.usecase.LogoutAllUseCase;
 import com.dynamis.sep_api.identity.application.usecase.LogoutUseCase;
@@ -92,6 +93,9 @@ class AuthControllerTest {
     @MockBean
     private RefreshCookieService refreshCookieService;
 
+    @MockBean
+    private LockoutService lockoutService;
+
     @BeforeEach
     void configureCookieService() {
         // Default: comportamento MOBILE/sem canal — devolve o body como esta.
@@ -120,6 +124,11 @@ class AuthControllerTest {
                 false,
                 false);
     }
+
+    // /politica-lockout nao tem caso aqui de proposito: esta slice roda com addFilters = false,
+    // entao nao prova acesso publico, e assertar os defaults 5/15/30 aceitaria exatamente a
+    // implementacao de constantes fixas que a PoliticaLockoutIT existe para rejeitar. A IT cobre o
+    // endpoint inteiro (Sprint 34 Task 34.5).
 
     @Test
     void postLoginRetorna200ComAccessERefresh() throws Exception {

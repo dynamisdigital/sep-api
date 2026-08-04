@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.identity.application.usecase;
 
+import com.dynamis.sep_api.identity.application.exception.ContaBloqueadaException;
 import com.dynamis.sep_api.identity.application.service.LockoutService;
 import com.dynamis.sep_api.identity.application.service.MfaChallengeService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService;
@@ -15,6 +16,8 @@ import com.dynamis.sep_api.identity.web.dto.TokenResponseDto;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
 import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository;
 import com.dynamis.sep_api.usuarios.web.mapper.UsuarioMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -29,13 +32,16 @@ import java.util.UUID;
  * <p>Sequencia:
  *
  * <ol>
- *   <li>{@link LockoutService#verificar} primeiro — conta ja bloqueada nao chega a tentar senha.
+ *   <li>{@link LockoutService#verificar} primeiro — conta ja bloqueada nao chega a tentar senha, e
+ *       a recusa fica registrada (Sprint 34).
  *   <li>Resolve usuario e valida senha; em falha registra tentativa e avalia lockout.
  *   <li>Se MFA ATIVO emite challenge; senao emite access + refresh tokens.
  * </ol>
  */
 @Service
 public class AutenticarUsuarioUseCase {
+
+    private static final Logger log = LoggerFactory.getLogger(AutenticarUsuarioUseCase.class);
 
     private final UsuarioRepository repository;
     private final PasswordEncoder passwordEncoder;
@@ -73,7 +79,7 @@ public class AutenticarUsuarioUseCase {
 
     @Transactional
     public TokenResponseDto executar(LoginRequestDto dto, String ip, String userAgent) {
-        lockoutService.verificar(dto.username());
+        verificarLockout(dto.username(), ip, userAgent);
 
         Optional<Usuario> usuarioOpt = repository.findByUsername(dto.username());
         if (usuarioOpt.isEmpty()) {
@@ -99,6 +105,41 @@ public class AutenticarUsuarioUseCase {
 
         registrarTentativaLogin.registrar(usuario.getId(), dto.username(), ip, userAgent, LoginAttemptStatus.SUCESSO);
         return emitirSessao(usuario);
+    }
+
+    /**
+     * Recusa a tentativa antes de tocar na senha e <b>deixa rastro da recusa</b> (Sprint 34 Task
+     * 34.1). Ate a Sprint 33 nada era gravado neste caminho: {@code verificar} lanca antes de
+     * qualquer {@code registrar}, entao uma conta sob ataque durante o bloqueio ficava invisivel.
+     *
+     * <p>O usuario e resolvido apenas aqui, para o rastro ter sujeito; o caminho normal continua com
+     * uma unica leitura. O registro sobrevive ao rollback desta transacao por rodar em
+     * {@code REQUIRES_NEW}, pelo mesmo motivo do registro de falha de senha.
+     *
+     * <p>Falha ao gravar o rastro <b>nao</b> derruba a decisao: sem isolar, a excecao do registro
+     * substituiria a {@code ContaBloqueadaException} e o cliente receberia 500 no lugar de 423 —
+     * justamente sob a carga que esta observabilidade existe para enxergar.
+     */
+    private void verificarLockout(String username, String ip, String userAgent) {
+        try {
+            lockoutService.verificar(username);
+        } catch (ContaBloqueadaException e) {
+            registrarTentativaBarrada(username, ip, userAgent);
+            throw e;
+        }
+    }
+
+    private void registrarTentativaBarrada(String username, String ip, String userAgent) {
+        try {
+            UUID usuarioId =
+                    repository.findByUsername(username).map(Usuario::getId).orElse(null);
+            registrarTentativaLogin.registrar(usuarioId, username, ip, userAgent, LoginAttemptStatus.CONTA_BLOQUEADA);
+        } catch (RuntimeException falhaDoRastro) {
+            log.atWarn()
+                    .setCause(falhaDoRastro)
+                    .addKeyValue("event", "lockout_attempt_audit_failed")
+                    .log("Falha ao registrar tentativa contra conta bloqueada");
+        }
     }
 
     private boolean mfaAtivoPara(UUID usuarioId) {

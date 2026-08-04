@@ -43,6 +43,54 @@ public record PoliticaLockout(int maxAttempts, Duration janelaDeteccao, Duration
     }
 
     /**
+     * Quantas falhas basta ler, mais recentes primeiro, para que a decisao nao dependa de
+     * truncamento. Derivado da propria politica: um teto fixo so seria seguro sob premissas sobre o
+     * que e gravado, e premissa nao e invariante.
+     *
+     * <p>O raciocinio: truncar em {@code N} so poderia esconder um bloqueio se nenhuma das
+     * {@code N} falhas lidas fechasse uma janela e alguma mais antiga fechasse. Se nenhuma fecha,
+     * entao para todo indice {@code i} vale {@code F[i] - F[i + maxAttempts - 1] > janelaDeteccao}.
+     * Encadeando {@code m} saltos de {@code maxAttempts - 1} posicoes (eles compartilham extremo, e
+     * por isso o passo e {@code maxAttempts - 1} e nao {@code maxAttempts}), as falhas percorridas
+     * gastam mais que {@code m * janelaDeteccao}. Como todas cabem em {@link #janelaDeLeitura()},
+     * existe um teto para {@code m}, e portanto {@code N <= (m + 1) * (maxAttempts - 1)}. O
+     * {@code + 1} final torna a pagina estritamente maior que o pior historico possivel.
+     *
+     * <p>Divisor minimo de um segundo: com {@code janelaDeteccao} zero o encadeamento nao gasta
+     * tempo e nao ha teto derivavel. A configuracao e degenerada (so falhas simultaneas bloqueiam) e
+     * a resposta certa e ler <b>mais</b>, nao menos.
+     *
+     * <p>Satura em vez de estourar: uma configuracao absurda deve produzir uma leitura grande, nao
+     * uma excecao — que aqui cairia dentro do login e trocaria erro de config por indisponibilidade
+     * de autenticacao.
+     */
+    public int limiteDeLeitura() {
+        long janelasNaLeitura = janelaDeLeitura().toSeconds() / Math.max(1L, janelaDeteccao.toSeconds());
+        long grupos = Math.min(janelasNaLeitura + 1L, Integer.MAX_VALUE);
+        return (int) Math.min(grupos * (maxAttempts - 1L) + 1L, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Quanto falta do bloqueio vigente em {@code agora}; vazio se a conta estiver liberada.
+     *
+     * <p>{@code evento + duracaoBloqueio - agora}. E o dado que o cliente precisa para saber quando
+     * voltar, e nao se confunde com {@link #duracaoBloqueio()}: um bloqueio que ja correu metade do
+     * tempo devolve metade. Da Sprint 33 ate a Task 34.3 o instante do evento existia mas era
+     * descartado pelo servico, e o {@code 423} anunciava a duracao configurada como se fosse a
+     * espera restante.
+     *
+     * <p><b>Estritamente positivo</b>, nunca zero nem negativo: {@link #eventoDeBloqueio} so devolve
+     * um candidato que passou por {@code !candidato.isAfter(agora - duracaoBloqueio)}, ou seja
+     * {@code evento + duracaoBloqueio > agora}. Um bloqueio que expira exatamente em {@code agora}
+     * ja e reportado como liberado.
+     */
+    public Optional<Duration> tempoRestanteDeBloqueio(
+            List<OffsetDateTime> falhasMaisRecentesPrimeiro, OffsetDateTime agora) {
+        return eventoDeBloqueio(falhasMaisRecentesPrimeiro, agora)
+                .map(evento -> Duration.between(agora, evento.plus(duracaoBloqueio)));
+    }
+
+    /**
      * Instante da falha mais recente que fecha uma janela e cujo bloqueio ainda vale em
      * {@code agora}; vazio se a conta estiver liberada.
      *

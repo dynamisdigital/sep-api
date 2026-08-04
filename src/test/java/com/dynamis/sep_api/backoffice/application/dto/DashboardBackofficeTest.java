@@ -13,6 +13,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class DashboardBackofficeTest {
 
+    /**
+     * Mapper <b>cru</b>, sem a auto-configuracao do Spring Boot — logo <b>nao</b> reproduz o fio: aqui
+     * WRITE_DURATIONS_AS_TIMESTAMPS segue no default do Jackson (ligado) e Duration sai numero,
+     * enquanto o bean da aplicacao tem a flag desligada e emite ISO-8601 (medido na Sprint 34 Task
+     * 34.6). Este teste cobre a forma do DTO, nao o contrato; quem fixa a serializacao real e a
+     * {@code BackofficeIT}.
+     */
     private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @Test

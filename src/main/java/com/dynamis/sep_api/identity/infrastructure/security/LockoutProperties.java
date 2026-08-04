@@ -11,7 +11,9 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "app.security.lockout")
 public class LockoutProperties {
 
-    private int maxAttempts = 5;
+    static final int DEFAULT_MAX_ATTEMPTS = 5;
+
+    private int maxAttempts = DEFAULT_MAX_ATTEMPTS;
     private int windowMinutes = 15;
     private int lockoutMinutes = 30;
 
