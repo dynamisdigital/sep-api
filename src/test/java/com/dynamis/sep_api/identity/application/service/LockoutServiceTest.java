@@ -83,6 +83,14 @@ class LockoutServiceTest {
                 .toList();
     }
 
+    /** Falhas a cada {@code intervalo}, terminando agora (ordem decrescente, como o repository). */
+    private static List<OffsetDateTime> falhasRecentes(int quantidade, Duration intervalo) {
+        OffsetDateTime agora = OffsetDateTime.now();
+        return IntStream.range(0, quantidade)
+                .mapToObj(i -> agora.minus(intervalo.multipliedBy(i)))
+                .toList();
+    }
+
     @Test
     void verificarPassaQuandoFalhasAbaixoDoLimite() {
         when(repository.buscarInstantesDeFalha(eq("u@sep.test"), anyList(), any(), any()))
