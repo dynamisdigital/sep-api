@@ -1,8 +1,5 @@
 package com.dynamis.sep_api.shared.config;
 
-import com.dynamis.sep_api.contratos.domain.vo.StatusEnvelope;
-import com.dynamis.sep_api.contratos.domain.vo.StatusFormalizacao;
-import com.dynamis.sep_api.contratos.domain.vo.TipoContrato;
 import com.dynamis.sep_api.contratos.web.controller.ContratoController;
 import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUpEstrito;
 import com.dynamis.sep_api.identity.infrastructure.security.StepUpEnforcementAspect;
@@ -20,7 +17,10 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -190,51 +190,94 @@ class OpenApiConfigTest {
         Map<RequestMappingInfo, HandlerMethod> handlers = context.getBean(
                         "requestMappingHandlerMapping", RequestMappingHandlerMapping.class)
                 .getHandlerMethods();
-        List<HandlerMethod> anotados = handlers.values().stream()
-                .filter(hm -> Arrays.stream(hm.getMethod().getAnnotations())
-                        .anyMatch(a -> a.annotationType().getSimpleName().startsWith("RequireStepUp")))
-                .toList();
-        long estritos = anotados.stream()
-                .filter(hm -> hm.getMethodAnnotation(RequireStepUpEstrito.class) != null)
-                .count();
+        Set<String> anotados = new TreeSet<>();
+        Set<String> estritos = new TreeSet<>();
+        handlers.forEach((info, hm) -> {
+            boolean stepUp = Arrays.stream(hm.getMethod().getAnnotations())
+                    .anyMatch(a -> a.annotationType().getSimpleName().startsWith("RequireStepUp"));
+            if (stepUp) {
+                anotados.addAll(operacoesDe(info));
+                if (hm.getMethodAnnotation(RequireStepUpEstrito.class) != null) {
+                    estritos.addAll(operacoesDe(info));
+                }
+            }
+        });
 
         String json = mockMvc().perform(get(API_DOCS)).andReturn().getResponse().getContentAsString();
-        List<Map<String, Object>> declarados =
-                JsonPath.read(json, "$..parameters[?(@.name=='" + StepUpEnforcementAspect.HEADER + "')]");
+        Set<String> declarados = new TreeSet<>();
+        Set<String> declaradosObrigatorios = new TreeSet<>();
+        Map<String, Map<String, Object>> paths = JsonPath.read(json, "$.paths");
+        paths.forEach((path, operacoes) -> operacoes.forEach((verbo, corpo) -> {
+            if (!(corpo instanceof Map<?, ?> operacao)) {
+                return;
+            }
+            for (Object parametro : parametrosDe(operacao)) {
+                if (parametro instanceof Map<?, ?> p && StepUpEnforcementAspect.HEADER.equals(p.get("name"))) {
+                    String chave = verbo.toUpperCase(Locale.ROOT) + " " + path;
+                    declarados.add(chave);
+                    if (Boolean.TRUE.equals(p.get("required"))) {
+                        declaradosObrigatorios.add(chave);
+                    }
+                }
+            }
+        }));
 
         assertThat(anotados)
                 .as("sem endpoints anotados o teste passaria provando nada")
                 .isNotEmpty();
+        // Conjuntos, e nao contagens: com hasSize, esquecer um endpoint e declarar o header duas
+        // vezes em outro se cancelariam, e a falha diria "esperava 24, veio 24".
         assertThat(declarados)
-                .as("todo endpoint anotado precisa declarar o header, e so eles")
-                .hasSize(anotados.size());
-        assertThat(declarados.stream().filter(p -> Boolean.TRUE.equals(p.get("required"))))
+                .as("todo endpoint anotado declara o header, e so eles")
+                .containsExactlyInAnyOrderElementsOf(anotados);
+        assertThat(declaradosObrigatorios)
                 .as("obrigatorio exatamente nos estritos")
-                .hasSize((int) estritos);
+                .containsExactlyInAnyOrderElementsOf(estritos);
+    }
+
+    /** {@code "PATCH /api/v1/contratos/{id}/aceite"} para cada verbo mapeado. */
+    private static Set<String> operacoesDe(RequestMappingInfo info) {
+        Set<String> caminhos = info.getPathPatternsCondition() == null
+                ? info.getPatternsCondition().getPatterns()
+                : info.getPathPatternsCondition().getPatternValues();
+        Set<String> chaves = new TreeSet<>();
+        info.getMethodsCondition()
+                .getMethods()
+                .forEach(metodo -> caminhos.forEach(caminho -> chaves.add(metodo.name() + " " + caminho)));
+        return chaves;
+    }
+
+    private static List<?> parametrosDe(Map<?, ?> operacao) {
+        return operacao.get("parameters") instanceof List<?> lista ? lista : List.of();
     }
 
     /**
-     * Converte em verificacao de maquina a premissa da Task 34.6 de que enum tipado "nunca
-     * dessincroniza": trocar de volta por {@code String} apaga a lista, e <b>crescer</b> o enum de
-     * dominio passa a exigir uma edicao deliberada aqui — o schema e publico, e ate a Sprint 33
-     * cresceu uma vez sem checkpoint nenhum na fronteira web.
+     * A lista esperada e <b>literal</b>, de proposito. Deriva-la de {@code values()} pareceria mais
+     * limpo e nao provaria nada contra crescimento: os dois lados sairiam do mesmo enum e andariam
+     * juntos — medido, acrescentar um valor ao {@code StatusFormalizacao} passava verde. Como o
+     * schema e publico e {@code StatusFormalizacao} ja cresceu uma vez (Sprint 11) sem checkpoint na
+     * fronteira web, publicar um valor novo tem que custar uma edicao deliberada aqui.
+     *
+     * <p>Trocar o campo de volta por {@code String} tambem fica vermelho: sem enum tipado a chave
+     * {@code enum} some do schema e o jsonPath nao resolve.
      */
     @Test
     void enumsDeContratoEAssinaturaPublicadosNoSchema() throws Exception {
+        Object[] statusFormalizacao = {
+            "GERADO", "AGUARDANDO_ACEITE", "ACEITO", "EM_ASSINATURA", "ASSINADO", "RECUSADO", "CANCELADO"
+        };
+
         mockMvc()
                 .perform(get(API_DOCS))
                 .andExpect(jsonPath("$.components.schemas.ContratoResponse.properties.tipo.enum")
-                        .value(containsInAnyOrder(nomesDe(TipoContrato.values()))))
+                        .value(containsInAnyOrder("MUTUO", "CCB", "OUTROS")))
                 .andExpect(jsonPath("$.components.schemas.ContratoResponse.properties.status.enum")
-                        .value(containsInAnyOrder(nomesDe(StatusFormalizacao.values()))))
+                        .value(containsInAnyOrder(statusFormalizacao)))
                 .andExpect(jsonPath("$.components.schemas.StatusAssinaturaResponse.properties.statusContrato.enum")
-                        .value(containsInAnyOrder(nomesDe(StatusFormalizacao.values()))))
+                        .value(containsInAnyOrder(statusFormalizacao)))
                 .andExpect(jsonPath("$.components.schemas.StatusAssinaturaResponse.properties.statusEnvelope.enum")
-                        .value(containsInAnyOrder(nomesDe(StatusEnvelope.values()))));
-    }
-
-    private static Object[] nomesDe(Enum<?>[] valores) {
-        return Arrays.stream(valores).map(Enum::name).toArray();
+                        .value(containsInAnyOrder(
+                                "RASCUNHO", "ENVIADO", "VISUALIZADO", "ASSINADO", "RECUSADO", "EXPIRADO")));
     }
 
     /**
@@ -252,12 +295,14 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.paths['/api/v1/contratos/{id}/documento-assinado'].get"
                                 + ".responses.200.headers['Content-Disposition']")
                         .exists())
-                .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post.responses.423.headers['Retry-After']")
-                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post.responses.423"
+                                + ".headers['Retry-After'].schema.type")
+                        .value("integer"))
                 .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post.responses.429.headers['Retry-After']")
                         .exists())
-                .andExpect(jsonPath("$.paths['/api/v1/auth/totp/verify'].post.responses.423.headers['Retry-After']")
-                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/totp/verify'].post.responses.423"
+                                + ".headers['Retry-After'].schema.type")
+                        .value("integer"))
                 .andExpect(jsonPath("$.paths['/api/v1/auth/totp/verify'].post.responses.429.headers['Retry-After']")
                         .exists());
     }
