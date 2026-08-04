@@ -18,7 +18,12 @@ public record DashboardResponse(
         List<ContadorPorTipo> contadoresPorTipo,
         List<ContadorPorPrioridade> contadoresPorPrioridade,
         List<ContadorPorStatus> contadoresPorStatus,
-        Duration tempoMedioResolucao30d,
+        // NAO anotar com @Schema(type = "number"). O springdoc documenta este campo como string e
+        // esta certo: o JacksonAutoConfiguration do Spring Boot desliga WRITE_DURATIONS_AS_TIMESTAMPS,
+        // entao o fio leva ISO-8601 ("PT2H"), medido na Sprint 34 Task 34.6. A divergencia registrada
+        // como lacuna de contrato e do lado do cliente, que declara number — nao daqui.
+        @Schema(description = "Tempo medio de resolucao nos ultimos 30 dias, em ISO-8601 (ex.: PT2H).")
+                Duration tempoMedioResolucao30d,
         long itensCriticosAbertosMais48h,
         List<ContadorPorTipo> topCincoTiposMaisFrequentes,
         BigDecimal recebimentosDoDia,

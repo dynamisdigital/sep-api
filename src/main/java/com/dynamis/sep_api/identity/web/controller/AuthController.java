@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.identity.web.controller;
 
 import com.dynamis.sep_api.identity.application.ClientChannel;
+import com.dynamis.sep_api.identity.application.service.LockoutService;
 import com.dynamis.sep_api.identity.application.usecase.AutenticarUsuarioUseCase;
 import com.dynamis.sep_api.identity.application.usecase.LogoutAllUseCase;
 import com.dynamis.sep_api.identity.application.usecase.LogoutUseCase;
@@ -10,6 +11,7 @@ import com.dynamis.sep_api.identity.infrastructure.security.RefreshCookieService
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.identity.web.dto.LoginRequestDto;
 import com.dynamis.sep_api.identity.web.dto.LogoutRequestDto;
+import com.dynamis.sep_api.identity.web.dto.PoliticaLockoutResponseDto;
 import com.dynamis.sep_api.identity.web.dto.RefreshTokenRequestDto;
 import com.dynamis.sep_api.identity.web.dto.TokenResponseDto;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
@@ -19,6 +21,7 @@ import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository
 import com.dynamis.sep_api.usuarios.web.dto.UsuarioResponseDto;
 import com.dynamis.sep_api.usuarios.web.mapper.UsuarioMapper;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -51,6 +54,7 @@ public class AuthController {
     private final UsuarioRepository usuarioRepository;
     private final UsuarioMapper mapper;
     private final RefreshCookieService refreshCookieService;
+    private final LockoutService lockoutService;
 
     public AuthController(
             AutenticarUsuarioUseCase autenticarUsuarioUseCase,
@@ -59,7 +63,8 @@ public class AuthController {
             LogoutAllUseCase logoutAllUseCase,
             UsuarioRepository usuarioRepository,
             UsuarioMapper mapper,
-            RefreshCookieService refreshCookieService) {
+            RefreshCookieService refreshCookieService,
+            LockoutService lockoutService) {
         this.autenticarUsuarioUseCase = autenticarUsuarioUseCase;
         this.refreshTokenUseCase = refreshTokenUseCase;
         this.logoutUseCase = logoutUseCase;
@@ -67,6 +72,28 @@ public class AuthController {
         this.usuarioRepository = usuarioRepository;
         this.mapper = mapper;
         this.refreshCookieService = refreshCookieService;
+        this.lockoutService = lockoutService;
+    }
+
+    @GetMapping("/politica-lockout")
+    @Operation(
+            summary = "Consultar politica de bloqueio de conta",
+            description = "Somente leitura e sem autenticacao: quem precisa do valor esta bloqueado e, por definicao,"
+                    + " nao tem sessao. Serve a pagina de conta bloqueada, que renderiza sem ter recebido resposta de"
+                    + " API e por isso fixava a duracao no texto. lockoutMinutes ja e publicado pela message do 423; os"
+                    + " outros dois, apenas pelo /v3/api-docs, e com os defaults fixos no codigo — aqui vem o valor"
+                    + " efetivo do ambiente.")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Politica vigente",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = PoliticaLockoutResponseDto.class)))
+    })
+    public PoliticaLockoutResponseDto politicaLockout() {
+        return PoliticaLockoutResponseDto.de(lockoutService.politica());
     }
 
     @PostMapping("/login")
@@ -98,6 +125,11 @@ public class AuthController {
                                 schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "423",
+                headers =
+                        @Header(
+                                name = "Retry-After",
+                                description = "Segundos restantes do bloqueio da conta.",
+                                schema = @Schema(type = "integer")),
                 description = "Conta bloqueada por excesso de tentativas (5 falhas em 15 min; expira em 30 min)",
                 content =
                         @Content(
@@ -105,6 +137,12 @@ public class AuthController {
                                 schema = @Schema(implementation = ErrorResponseDto.class))),
         @ApiResponse(
                 responseCode = "429",
+                headers =
+                        @Header(
+                                name = "Retry-After",
+                                description =
+                                        "Periodo de refresh do limitador, em segundos. E limite superior, nao o tempo exato ate a proxima permissao.",
+                                schema = @Schema(type = "integer")),
                 description = "Rate limit por IP excedido",
                 content =
                         @Content(

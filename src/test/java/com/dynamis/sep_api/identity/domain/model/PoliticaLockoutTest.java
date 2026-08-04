@@ -1,6 +1,8 @@
 package com.dynamis.sep_api.identity.domain.model;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -118,9 +120,106 @@ class PoliticaLockoutTest {
         assertThat(politica.eventoDeBloqueio(historico, AGORA)).contains(clusterMaisRecente);
     }
 
+    /**
+     * O restante nao e a duracao configurada (Sprint 34 Task 34.3): um bloqueio que ja correu 20 dos
+     * 30 minutos devolve 10. Sem este caso, devolver {@code duracaoBloqueio} fixo passaria — que e
+     * exatamente o defeito que o {@code Retry-After} veio corrigir.
+     */
+    @Test
+    void tempoRestanteDescontaOQueJaCorreuDoBloqueio() {
+        OffsetDateTime evento = AGORA.minusMinutes(20);
+        List<OffsetDateTime> cincoEmDezMinutos = falhas(5, evento, Duration.ofMinutes(2));
+
+        assertThat(politica.tempoRestanteDeBloqueio(cincoEmDezMinutos, AGORA)).contains(Duration.ofMinutes(10));
+    }
+
+    @Test
+    void tempoRestanteEhVazioSemBloqueioVigente() {
+        List<OffsetDateTime> quatroEmQuatroMinutos = falhas(4, AGORA, Duration.ofMinutes(1));
+
+        assertThat(politica.tempoRestanteDeBloqueio(quatroEmQuatroMinutos, AGORA))
+                .isEmpty();
+    }
+
+    /** Bloqueio expirado devolve vazio, nao um restante negativo que viraria {@code Retry-After} invalido. */
+    @Test
+    void tempoRestanteNuncaEhNegativo() {
+        OffsetDateTime eventoExpirado = AGORA.minusMinutes(31);
+        List<OffsetDateTime> cincoEmDezMinutos = falhas(5, eventoExpirado, Duration.ofMinutes(2));
+
+        assertThat(politica.tempoRestanteDeBloqueio(cincoEmDezMinutos, AGORA)).isEmpty();
+    }
+
+    /**
+     * A fronteira pelo lado vivo: a um segundo de expirar o restante ainda e positivo, nao zero. E
+     * o caso que o {@code Retry-After} precisa que seja verdade — {@code 0} mandaria o cliente
+     * retentar dentro do proprio bloqueio. Prende a desigualdade estrita de {@code eventoDeBloqueio}
+     * atraves deste metodo; o caso expirado acima nao alcanca isso, porque nunca produz um
+     * {@code Duration}.
+     */
+    @Test
+    void tempoRestanteNoUltimoSegundoAindaEPositivo() {
+        OffsetDateTime evento = AGORA.minusMinutes(30).plusSeconds(1);
+        List<OffsetDateTime> cincoEmDezMinutos = falhas(5, evento, Duration.ofMinutes(2));
+
+        assertThat(politica.tempoRestanteDeBloqueio(cincoEmDezMinutos, AGORA)).contains(Duration.ofSeconds(1));
+    }
+
     @Test
     void janelaDeLeituraCobreBloqueioMaisDeteccao() {
         assertThat(politica.janelaDeLeitura()).isEqualTo(Duration.ofMinutes(45));
+    }
+
+    /**
+     * O limite de leitura sai da configuracao, nao de um numero fixo (Sprint 34 Task 34.1). Um teto
+     * constante so seria seguro sob premissas sobre o que e gravado; a mesma politica com bloqueio
+     * mais longo precisa ler mais historico.
+     */
+    @Test
+    void limiteDeLeituraAcompanhaAConfiguracao() {
+        PoliticaLockout bloqueioLongo = new PoliticaLockout(5, Duration.ofMinutes(15), Duration.ofMinutes(120));
+        PoliticaLockout maisTentativas = new PoliticaLockout(9, Duration.ofMinutes(15), Duration.ofMinutes(30));
+
+        assertThat(bloqueioLongo.limiteDeLeitura()).isGreaterThan(politica.limiteDeLeitura());
+        assertThat(maisTentativas.limiteDeLeitura()).isGreaterThan(politica.limiteDeLeitura());
+    }
+
+    /**
+     * A propriedade que o limite precisa garantir: truncar a leitura nao pode esconder um bloqueio.
+     *
+     * <p>Constroi o historico <b>mais denso possivel</b> que ainda nao fecha nenhuma janela — grupos
+     * de {@code maxAttempts - 1} falhas simultaneas, separados por pouco mais que a janela de
+     * deteccao — e confirma que ele nao cabe no limite. Consequencia: qualquer historico grande o
+     * bastante para encher a leitura fecha alguma janela antes do corte.
+     *
+     * <p>Parametrizado de proposito: com um unico config a assercao nao fixa a formula. O default
+     * (15/30) e o caso de folga <b>maxima</b>, porque a duracao e multipla exata da janela — nele o
+     * teste sobrevive tanto a um teto constante quanto a perder o {@code + 1} da formula. Os casos
+     * de duracao nao-multipla tem margem 1 e matam o {@code + 1}; o de bloqueio longo produz
+     * historico grande o bastante para matar um teto constante de 100.
+     */
+    @ParameterizedTest(name = "maxAttempts={0}, deteccao={1}min, bloqueio={2}min")
+    @CsvSource({"5, 15, 30", "5, 10, 25", "3, 10, 25", "5, 7, 20", "5, 15, 360"})
+    void limiteDeLeituraNaoCabeEmHistoricoSemJanelaFechada(int maxAttempts, int deteccao, int bloqueio) {
+        PoliticaLockout parametrizada =
+                new PoliticaLockout(maxAttempts, Duration.ofMinutes(deteccao), Duration.ofMinutes(bloqueio));
+        List<OffsetDateTime> semBloqueio = new ArrayList<>();
+        OffsetDateTime inicioDaLeitura = AGORA.minus(parametrizada.janelaDeLeitura());
+        for (OffsetDateTime grupo = AGORA;
+                grupo.isAfter(inicioDaLeitura);
+                grupo = grupo.minus(parametrizada.janelaDeteccao()).minusSeconds(1)) {
+            for (int i = 0; i < maxAttempts - 1; i++) {
+                semBloqueio.add(grupo);
+            }
+        }
+
+        assertThat(semBloqueio)
+                .as("sem historico grande o bastante o teste passaria provando nada")
+                .hasSizeGreaterThanOrEqualTo(maxAttempts);
+        assertThat(parametrizada.eventoDeBloqueio(semBloqueio, AGORA))
+                .as("historico construido de proposito para nao fechar janela")
+                .isEmpty();
+        assertThat(semBloqueio).hasSizeLessThan(parametrizada.limiteDeLeitura());
     }
 
     @Test

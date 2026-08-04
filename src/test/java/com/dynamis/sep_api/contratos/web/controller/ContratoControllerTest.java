@@ -371,14 +371,6 @@ class ContratoControllerTest {
 
     private ContratoResponse stubResponse(Contrato c) {
         return new ContratoResponse(
-                c.getId(),
-                c.getPropostaId(),
-                c.getTomadorId(),
-                c.getTipo().name(),
-                c.getStatus().name(),
-                null,
-                null,
-                null,
-                null);
+                c.getId(), c.getPropostaId(), c.getTomadorId(), c.getTipo(), c.getStatus(), null, null, null, null);
     }
 }

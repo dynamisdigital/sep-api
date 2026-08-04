@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -24,6 +25,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import java.time.Duration;
 
 /**
  * Tratamento centralizado de erros da API SEP — handler consolidado da Sprint 4.
@@ -120,9 +123,37 @@ public class ApiExceptionHandler {
         return build(HttpStatus.UNAUTHORIZED, "Unauthorized", "Autenticacao requerida", request);
     }
 
+    /**
+     * {@code Retry-After} com o tempo <b>restante</b> do bloqueio (Sprint 34 Task 34.3). O header e
+     * acrescentado aqui, e nao no {@code build}, porque aquele helper e compartilhado por todos os
+     * handlers e so o {@code 423} tem essa informacao.
+     *
+     * <p>A {@code message} continua anunciando a duracao configurada — ela enuncia a politica, o
+     * header diz quando voltar.
+     *
+     * <p>{@code headers(...)} propaga o que o {@code build} tiver posto: hoje ele nao poe nenhum
+     * header, mas sem isso o {@code 423} seria o unico erro a perder qualquer header que o helper
+     * comum ganhasse depois — e nenhum teste pegaria.
+     */
     @ExceptionHandler(ContaBloqueadaException.class)
     public ResponseEntity<ErrorResponseDto> handleLocked(ContaBloqueadaException ex, HttpServletRequest request) {
-        return build(HttpStatus.LOCKED, "Locked", ex.getMessage(), request);
+        ResponseEntity<ErrorResponseDto> resposta = build(HttpStatus.LOCKED, "Locked", ex.getMessage(), request);
+        return ResponseEntity.status(resposta.getStatusCode())
+                .headers(resposta.getHeaders())
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(segundosAteLiberar(ex.getTempoRestante())))
+                .body(resposta.getBody());
+    }
+
+    /**
+     * Arredonda para cima porque {@code delay-seconds} da RFC 9110 e inteiro: truncar convidaria o
+     * cliente a voltar ainda dentro do bloqueio e, com menos de um segundo restante, produziria um
+     * {@code Retry-After: 0}.
+     *
+     * <p>Fica no handler, e nao no dominio ou no servico, porque "segundos inteiros" e exigencia do
+     * cabecalho HTTP, nao da politica de lockout.
+     */
+    static long segundosAteLiberar(Duration restante) {
+        return restante.toSeconds() + (restante.toNanosPart() > 0 ? 1 : 0);
     }
 
     /**

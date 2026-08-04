@@ -5,6 +5,7 @@ import com.dynamis.sep_api.identity.application.service.LockoutService;
 import com.dynamis.sep_api.identity.application.service.MfaChallengeService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService;
 import com.dynamis.sep_api.identity.application.service.RefreshTokenService.TokenCru;
+import com.dynamis.sep_api.identity.domain.model.LoginAttemptStatus;
 import com.dynamis.sep_api.identity.domain.model.RefreshToken;
 import com.dynamis.sep_api.identity.domain.model.UsuarioTotpSecret;
 import com.dynamis.sep_api.identity.infrastructure.persistence.UsuarioTotpSecretRepository;
@@ -25,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -179,14 +181,59 @@ class AutenticarUsuarioUseCaseTest {
                 .isInstanceOf(BadCredentialsException.class);
     }
 
+    /**
+     * O usuario e stubado de proposito: sem ele o repositorio devolve {@code Optional.empty()}, o
+     * ramo da senha fica inalcancavel e o {@code never()} passaria em qualquer ordenacao — provando
+     * nada. Com o stub, inverter lockout e senha deixa este assert vermelho.
+     */
     @Test
     void contaBloqueadaLancaAntesDeValidarSenha() {
-        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30))
+        Usuario existente = Usuario.criar("locked@sep.test", "$2a$hash", Role.CLIENTE);
+        when(repository.findByUsername("locked@sep.test")).thenReturn(Optional.of(existente));
+        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30, Duration.ofMinutes(12)))
                 .when(lockoutService)
                 .verificar("locked@sep.test");
 
         assertThatThrownBy(() -> useCase.executar(new LoginRequestDto("locked@sep.test", "x"), "127.0.0.1", "ua"))
                 .isInstanceOf(ContaBloqueadaException.class);
-        verify(repository, never()).findByUsername(any());
+        verify(passwordEncoder, never()).matches(any(), any());
+    }
+
+    /**
+     * O rastro nao pode derrubar a decisao: se o registro falhar, o cliente ainda precisa receber
+     * {@code 423}. Sem isolar, a excecao do registro substituiria a {@code ContaBloqueadaException}
+     * e viraria {@code 500} — exatamente sob a carga que esta observabilidade existe para enxergar.
+     */
+    @Test
+    void falhaAoRegistrarTentativaBarradaNaoEngoleAContaBloqueadaException() {
+        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30, Duration.ofMinutes(12)))
+                .when(lockoutService)
+                .verificar("locked@sep.test");
+        org.mockito.Mockito.doThrow(new IllegalStateException("banco fora"))
+                .when(registrarTentativaLogin)
+                .registrar(any(), any(), any(), any(), any());
+
+        assertThatThrownBy(() -> useCase.executar(new LoginRequestDto("locked@sep.test", "x"), "127.0.0.1", "ua"))
+                .isInstanceOf(ContaBloqueadaException.class);
+    }
+
+    /**
+     * Sprint 34 Task 34.1: a tentativa contra conta bloqueada passa a deixar rastro. Ate a Sprint 33
+     * nao gerava linha em {@code login_attempt} nem evento de audit, porque {@code verificar} lanca
+     * antes de qualquer registro — uma conta sob ataque durante o bloqueio ficava invisivel.
+     */
+    @Test
+    void contaBloqueadaRegistraTentativaBarradaComOUsuarioResolvido() {
+        Usuario usuario = Usuario.criar("locked@sep.test", "$2a$hash", Role.CLIENTE);
+        when(repository.findByUsername("locked@sep.test")).thenReturn(Optional.of(usuario));
+        org.mockito.Mockito.doThrow(new ContaBloqueadaException(30, Duration.ofMinutes(12)))
+                .when(lockoutService)
+                .verificar("locked@sep.test");
+
+        assertThatThrownBy(() -> useCase.executar(new LoginRequestDto("locked@sep.test", "x"), "127.0.0.1", "ua"))
+                .isInstanceOf(ContaBloqueadaException.class);
+
+        verify(registrarTentativaLogin)
+                .registrar(usuario.getId(), "locked@sep.test", "127.0.0.1", "ua", LoginAttemptStatus.CONTA_BLOQUEADA);
     }
 }

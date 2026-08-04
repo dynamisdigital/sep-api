@@ -22,6 +22,7 @@ import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -68,6 +69,13 @@ import java.util.UUID;
 @RequestMapping("/api/v1/contratos")
 @Tag(name = "contratos", description = "Formalizacao contratual — geracao, aceite e cancelamento pre-aceite")
 public class ContratoController {
+
+    /**
+     * Fonte unica do nome do header: ele e declarado no {@code @ApiResponse} e setado na resposta,
+     * e um literal repetido nos dois pontos permitiria renomear so um deles — o contrato seguiria
+     * anunciando o nome antigo sem nenhum teste notar (Sprint 34 Task 34.6).
+     */
+    public static final String HEADER_HASH_DOCUMENTO = "X-Document-Hash-Sha256";
 
     private final ConsultarContratoUseCase consultarContratoUseCase;
     private final RegistrarAceiteUseCase registrarAceiteUseCase;
@@ -363,9 +371,22 @@ public class ContratoController {
             summary = "Baixar PDF assinado",
             description = "Retorna o PDF assinado armazenado pelo SEP (BYTEA inline; Epic 16 troca por S3/MinIO).")
     @ApiResponses({
+        // Os dois headers sao setados via ResponseEntity.header(...), invisiveis ao springdoc
+        // (Sprint 34 Task 34.6). O hash e o que permite ao cliente conferir o PDF contra o
+        // documento registrado, entao deixa-lo fora do contrato torna a verificacao indocumentada.
         @ApiResponse(
                 responseCode = "200",
                 description = "PDF assinado",
+                headers = {
+                    @Header(
+                            name = HEADER_HASH_DOCUMENTO,
+                            description = "SHA-256 do documento assinado, em hexadecimal.",
+                            schema = @Schema(type = "string")),
+                    @Header(
+                            name = HttpHeaders.CONTENT_DISPOSITION,
+                            description = "attachment com o nome do arquivo sugerido.",
+                            schema = @Schema(type = "string"))
+                },
                 content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE)),
         @ApiResponse(
                 responseCode = "400",
@@ -399,7 +420,7 @@ public class ContratoController {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"contrato-" + id + "-assinado.pdf\"")
-                .header("X-Document-Hash-Sha256", resultado.documento().getHashSha256())
+                .header(HEADER_HASH_DOCUMENTO, resultado.documento().getHashSha256())
                 .body(resultado.conteudo());
     }
 

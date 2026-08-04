@@ -32,8 +32,8 @@ public interface ContratoWebMapper {
                 contrato.getId(),
                 contrato.getPropostaId(),
                 contrato.getTomadorId(),
-                contrato.getTipo().name(),
-                contrato.getStatus().name(),
+                contrato.getTipo(),
+                contrato.getStatus(),
                 vigente,
                 aceiteResp,
                 contrato.getDataCriacao(),
@@ -72,10 +72,8 @@ public interface ContratoWebMapper {
 
     default StatusAssinaturaResponse toStatusAssinaturaResponse(StatusAssinaturaContrato snapshot) {
         return new StatusAssinaturaResponse(
-                snapshot.statusContrato().name(),
-                snapshot.statusEnvelope() == null
-                        ? null
-                        : snapshot.statusEnvelope().name(),
+                snapshot.statusContrato(),
+                snapshot.statusEnvelope(),
                 snapshot.idEnvelopeExterno(),
                 snapshot.dataAtualizacaoProvider());
     }

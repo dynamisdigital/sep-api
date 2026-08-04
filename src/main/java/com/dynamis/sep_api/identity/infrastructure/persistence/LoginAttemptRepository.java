@@ -21,7 +21,10 @@ public interface LoginAttemptRepository extends JpaRepository<LoginAttempt, UUID
      * basta para decidir "N falhas dentro de uma janela" (Sprint 33).
      *
      * <p>O {@code Pageable} e limite defensivo, nao paginacao: evita ler uma cauda longa de falhas
-     * sob ataque. E seguro porque qualquer janela que bloqueie estara entre as falhas mais recentes.
+     * sob ataque. O tamanho da pagina <b>deve</b> vir de {@code PoliticaLockout#limiteDeLeitura()},
+     * que e derivado da politica de forma a tornar impossivel que o truncamento esconda um bloqueio
+     * — qualquer outro valor invalida a decisao (Sprint 34; ate a Sprint 33 o teto era uma constante
+     * justificada por premissa sobre o que era gravado).
      */
     @Query("SELECT l.dataTentativa FROM LoginAttempt l "
             + "WHERE l.username = :username "

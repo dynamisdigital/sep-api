@@ -9,6 +9,8 @@ import com.dynamis.sep_api.shared.audit.AuditLogSeguranca;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaRepository;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
 import com.dynamis.sep_api.shared.email.EmailService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
@@ -18,7 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,62 +44,78 @@ public class LockoutService {
     private static final Logger log = LoggerFactory.getLogger(LockoutService.class);
 
     /**
-     * Statuses que contam como falha. {@code CONTA_BLOQUEADA} ficou de fora de proposito: nenhum
-     * caminho de producao o escreve (ambos os use cases lancam antes de registrar) e, se passasse a
-     * escrever, cada tentativa barrada renovaria o proprio bloqueio — bloqueio auto-perpetuante.
+     * Statuses que contam como falha. {@code CONTA_BLOQUEADA} fica de fora: desde a Sprint 34 os use
+     * cases <b>registram</b> a tentativa barrada, e conta-la faria cada tentativa durante o bloqueio
+     * renovar o proprio bloqueio — bloqueio auto-perpetuante.
      */
     private static final List<LoginAttemptStatus> STATUSES_FALHA =
             List.of(LoginAttemptStatus.SENHA_INVALIDA, LoginAttemptStatus.TOTP_INVALIDO);
-
-    /**
-     * Teto defensivo de falhas lidas por decisao, para nao varrer uma cauda longa sob ataque.
-     *
-     * <p>Nao esconde bloqueio porque {@code verificar} lanca <b>antes</b> de registrar a tentativa
-     * ({@code AutenticarUsuarioUseCase}, {@code VerificarTotpUseCase}): nenhuma falha e gravada
-     * enquanto a conta esta bloqueada, entao o evento de bloqueio fica sempre entre as primeiras
-     * posicoes da lista. Se algum dia tentativas bloqueadas passarem a ser registradas, esta
-     * premissa cai e o limite precisa ser derivado da configuracao.
-     */
-    private static final int LIMITE_DE_LEITURA = 100;
 
     private final LoginAttemptRepository attemptRepository;
     private final AuditLogSegurancaRepository auditRepository;
     private final LockoutProperties properties;
     private final EmailService emailService;
+    private final ObjectMapper objectMapper;
 
     public LockoutService(
             LoginAttemptRepository attemptRepository,
             AuditLogSegurancaRepository auditRepository,
             LockoutProperties properties,
-            EmailService emailService) {
+            EmailService emailService,
+            ObjectMapper objectMapper) {
         this.attemptRepository = attemptRepository;
         this.auditRepository = auditRepository;
         this.properties = properties;
         this.emailService = emailService;
+        this.objectMapper = objectMapper;
     }
 
-    /** Falha se a conta estiver atualmente bloqueada. */
-    @Transactional(readOnly = true)
+    /**
+     * Falha se a conta estiver atualmente bloqueada.
+     *
+     * <p>{@code noRollbackFor}: como participante da transacao do chamador, lancar aqui marcaria a
+     * transacao externa como rollback-only. Desde a Sprint 34 o chamador <b>continua trabalhando</b>
+     * apos capturar (resolve o usuario para registrar a tentativa barrada), e uma transacao ja
+     * condenada e uma armadilha — basta alguem passar a engolir a excecao, ou envolver o login numa
+     * transacao maior que commite, para virar {@code UnexpectedRollbackException}. A decisao nao
+     * muda: o chamador repropaga e o rollback acontece na fronteira dele.
+     */
+    @Transactional(readOnly = true, noRollbackFor = ContaBloqueadaException.class)
     public void verificar(String username) {
-        if (estaBloqueada(username)) {
-            throw new ContaBloqueadaException(properties.getLockoutMinutes());
+        Optional<Duration> restante = tempoRestanteDeBloqueio(username);
+        if (restante.isPresent()) {
+            throw new ContaBloqueadaException(properties.getLockoutMinutes(), restante.get());
         }
     }
 
-    public boolean estaBloqueada(String username) {
+    /**
+     * Quanto falta do bloqueio vigente, ou vazio se a conta esta liberada.
+     *
+     * <p>Da Sprint 33 ate a Task 34.3 este metodo era {@code estaBloqueada} e devolvia
+     * {@code boolean}, descartando o instante que {@link PoliticaLockout} ja calculava — por isso o
+     * {@code 423} so sabia anunciar a duracao configurada. Quem decide continua sendo o dominio;
+     * aqui so se le o historico.
+     */
+    private Optional<Duration> tempoRestanteDeBloqueio(String username) {
         OffsetDateTime agora = OffsetDateTime.now();
         PoliticaLockout politica = politica();
-        return politica.eventoDeBloqueio(falhasRecentes(username, agora, politica), agora)
-                .isPresent();
+        return politica.tempoRestanteDeBloqueio(falhasRecentes(username, agora, politica), agora);
     }
 
     private List<OffsetDateTime> falhasRecentes(String username, OffsetDateTime agora, PoliticaLockout politica) {
         OffsetDateTime inicioDaLeitura = agora.minus(politica.janelaDeLeitura());
         return attemptRepository.buscarInstantesDeFalha(
-                username, STATUSES_FALHA, inicioDaLeitura, PageRequest.of(0, LIMITE_DE_LEITURA));
+                username, STATUSES_FALHA, inicioDaLeitura, PageRequest.of(0, politica.limiteDeLeitura()));
     }
 
-    private PoliticaLockout politica() {
+    /**
+     * A politica vigente, montada da configuracao. Publica desde a Task 34.5 para que
+     * {@code GET /auth/politica-lockout} anuncie <b>a mesma</b> politica que este servico aplica: se
+     * o endpoint derivasse da configuracao por conta propria, o dia em que a fonte da verdade mudar
+     * (parametro governado, politica por tenant, clamp de validacao) o anuncio continuaria correto
+     * na aparencia e errado no conteudo.
+     */
+    public PoliticaLockout politica() {
         return new PoliticaLockout(
                 properties.getMaxAttempts(),
                 Duration.ofMinutes(properties.getWindowMinutes()),
@@ -131,16 +151,30 @@ public class LockoutService {
                     .addKeyValue("durationMinutes", properties.getLockoutMinutes())
                     .log("Conta entrou em lockout");
             auditRepository.save(AuditLogSeguranca.registrar(
-                    TipoEventoSeguranca.LOCKOUT,
-                    usuarioId,
-                    null,
-                    null,
-                    "{\"username\":\"" + username + "\",\"lockoutMinutes\":" + properties.getLockoutMinutes() + "}"));
+                    TipoEventoSeguranca.LOCKOUT, usuarioId, null, null, detalhesDoBloqueio(username)));
             emailService.enviar(
                     username,
                     "Conta SEP bloqueada temporariamente",
                     "Detectamos varias tentativas de login. Sua conta esta bloqueada por "
                             + properties.getLockoutMinutes() + " minutos.");
+        }
+    }
+
+    /**
+     * O {@code username} vem do corpo da request e a coluna e {@code jsonb}: montar o documento por
+     * concatenacao deixava um username com aspas produzir JSON invalido, que o Postgres rejeita na
+     * conversao — derrubando a gravacao inteira do rastro (Sprint 34 Task 34.2). O {@code @Email} do
+     * DTO nao protege: a RFC admite local-part entre aspas.
+     */
+    private String detalhesDoBloqueio(String username) {
+        Map<String, Object> detalhes = new LinkedHashMap<>();
+        detalhes.put("username", username);
+        detalhes.put("lockoutMinutes", properties.getLockoutMinutes());
+        try {
+            return objectMapper.writeValueAsString(detalhes);
+        } catch (JsonProcessingException ex) {
+            log.warn("falha ao serializar detalhes de auditoria de lockout", ex);
+            return null;
         }
     }
 }
