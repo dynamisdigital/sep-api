@@ -75,7 +75,7 @@ public class ContratoController {
      * e um literal repetido nos dois pontos permitiria renomear so um deles — o contrato seguiria
      * anunciando o nome antigo sem nenhum teste notar (Sprint 34 Task 34.6).
      */
-    static final String HEADER_HASH_DOCUMENTO = "X-Document-Hash-Sha256";
+    public static final String HEADER_HASH_DOCUMENTO = "X-Document-Hash-Sha256";
 
     private final ConsultarContratoUseCase consultarContratoUseCase;
     private final RegistrarAceiteUseCase registrarAceiteUseCase;
