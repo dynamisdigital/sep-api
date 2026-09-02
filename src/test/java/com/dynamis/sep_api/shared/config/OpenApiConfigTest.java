@@ -15,6 +15,7 @@ import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -34,6 +35,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OpenApiConfigTest {
 
     private static final String API_DOCS = "/v3/api-docs";
+
+    private static final Set<String> METODOS_HTTP =
+            Set.of("get", "put", "post", "delete", "patch", "head", "options", "trace");
 
     @Autowired
     private WebApplicationContext context;
@@ -291,6 +295,111 @@ class OpenApiConfigTest {
                         .value("#/components/schemas/StatusFormalizacao"))
                 .andExpect(jsonPath("$.components.schemas.StatusAssinaturaResponse.properties.statusEnvelope.$ref")
                         .value("#/components/schemas/StatusEnvelope"));
+    }
+
+    /**
+     * <b>Assercao sistemica, e nao por endpoint</b> (Sprint 35 Task 35.8): toda operacao com
+     * identificador tipado no path precisa declarar {@code 400}, porque o
+     * {@code ApiExceptionHandler} devolve exatamente isso quando o valor nao parseia. O perimetro
+     * medido no Gate 35.0 era de <b>31 operacoes</b> alcancaveis e nao declaradas, em 19 controllers.
+     *
+     * <p>Assertar endpoint a endpoint deixaria o contrato correto hoje e errado no proximo endpoint
+     * escrito — que e como as 31 apareceram. Esta forma reprova o endpoint novo que nascer sem o
+     * status, e e o unico teste que pode: nenhum assert pontual cobre o que ainda nao existe.
+     *
+     * <p>O criterio de "path tipado" e o mesmo do customizer — parametro de path que <b>nao</b> e
+     * texto. Um {@code String} no path nao tem como falhar no parse.
+     */
+    @Test
+    void toda400AlcancavelPorPathVariableEstaDeclarada() throws Exception {
+        String documento = mockMvc()
+                .perform(get(API_DOCS))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Map<String, Map<String, Map<String, Object>>> paths = JsonPath.read(documento, "$.paths");
+        Set<String> semDeclaracao = new TreeSet<>();
+        int comIdentificadorTipado = 0;
+
+        for (Map.Entry<String, Map<String, Map<String, Object>>> rota : paths.entrySet()) {
+            for (Map.Entry<String, Map<String, Object>> operacao :
+                    rota.getValue().entrySet()) {
+                if (!METODOS_HTTP.contains(operacao.getKey())) {
+                    continue;
+                }
+                if (!temIdentificadorTipadoNoPath(documento, rota.getValue(), operacao.getValue())) {
+                    continue;
+                }
+                comIdentificadorTipado++;
+                Object respostas = operacao.getValue().get("responses");
+                if (!(respostas instanceof Map<?, ?> mapa) || !mapa.containsKey("400")) {
+                    semDeclaracao.add(operacao.getKey().toUpperCase(Locale.ROOT) + " " + rota.getKey());
+                }
+            }
+        }
+
+        assertThat(comIdentificadorTipado)
+                .as("se este numero cair a zero o teste vira vacuo e passa provando nada")
+                .isGreaterThan(50);
+        assertThat(semDeclaracao)
+                .as("operacoes que devolvem 400 por identificador malformado sem declarar o status")
+                .isEmpty();
+    }
+
+    /**
+     * "Tipado" e o criterio do customizer, lido aqui a partir do proprio documento: parametro de
+     * path cujo schema <b>nao</b> e {@code string} pura. Um {@code format: uuid} ou um {@code $ref}
+     * para enum falha no parse; {@code GET /governanca/parametros/{chave}} nao, porque a chave e
+     * texto livre — e por isso ele fica de fora, e nao por excecao escrita a mao.
+     */
+    @SuppressWarnings("unchecked")
+    private boolean temIdentificadorTipadoNoPath(String documento, Map<String, ?> rota, Map<String, Object> operacao) {
+        List<Map<String, Object>> parametros = new ArrayList<>();
+        adicionarParametros(parametros, rota.get("parameters"));
+        adicionarParametros(parametros, operacao.get("parameters"));
+        return parametros.stream()
+                .filter(parametro -> "path".equals(parametro.get("in")))
+                .map(parametro -> resolverSchema(documento, (Map<String, Object>) parametro.get("schema")))
+                .anyMatch(schema -> !ehTextoPuro(schema));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void adicionarParametros(List<Map<String, Object>> destino, Object origem) {
+        if (origem instanceof List<?> lista) {
+            lista.forEach(item -> destino.add((Map<String, Object>) item));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> resolverSchema(String documento, Map<String, Object> schema) {
+        Map<String, Object> atual = schema == null ? Map.of() : schema;
+        for (int salto = 0; salto < 5 && atual.get("$ref") instanceof String ref; salto++) {
+            atual = JsonPath.read(documento, "$.components.schemas." + ref.substring(ref.lastIndexOf('/') + 1));
+        }
+        return atual;
+    }
+
+    private boolean ehTextoPuro(Map<String, Object> schema) {
+        return "string".equals(schema.get("type")) && schema.get("format") == null && schema.get("enum") == null;
+    }
+
+    /**
+     * O irmao do webhook ja declarava o {@code 400} com descricao propria ("tipoChamada nao
+     * suportado"), e o customizer <b>nao pode</b> sobrescreve-la: descricao especifica e melhor
+     * diagnostico que a generica.
+     */
+    @Test
+    void customizerNaoSobrescreveDeclaracaoEscritaAMao() throws Exception {
+        mockMvc()
+                .perform(get(API_DOCS))
+                .andExpect(jsonPath("$.paths['/api/v1/backoffice/reprocessos/webhook/{webhookEventId}']"
+                                + ".post.responses.400.description")
+                        .value("Identificador do path em formato invalido (por exemplo, um UUID malformado)."))
+                .andExpect(jsonPath("$.paths['/api/v1/backoffice/reprocessos/provider/{tipoChamada}/{entidadeId}']"
+                                + ".post.responses.400.description")
+                        .value("tipoChamada nao suportado."));
     }
 
     /**
