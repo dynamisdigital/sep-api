@@ -23,6 +23,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,7 +80,6 @@ class LockoutServiceTest {
         assertThat(json.get("lockoutMinutes").asInt()).isEqualTo(properties.getLockoutMinutes());
     }
 
-    /** Falhas a cada {@code intervalo}, terminando agora (ordem decrescente, como o repository). */
     /**
      * <b>Teste que so o {@code Clock} injetado viabiliza</b> (Sprint 35 Task 35.6): a mesma conta,
      * com o mesmo historico de falhas, atravessa o fim do bloqueio sem que nada alem do relogio se
@@ -97,17 +97,16 @@ class LockoutServiceTest {
         when(repository.buscarInstantesDeFalha(eq("u@sep.test"), anyList(), any(), any()))
                 .thenReturn(falhas);
 
-        assertThatThrownBy(() -> service.verificar("u@sep.test"))
-                .as("no instante do bloqueio a conta esta barrada")
+        // Descricao no overload de 2 args, e nao em .as(): quando NADA e lancado — a falha que este
+        // teste de tres fases existe para achar — o .as() nem chega a ser aplicado, e a mensagem sai
+        // "Expecting code to raise a throwable" sem dizer qual fase quebrou.
+        assertThatThrownBy(() -> service.verificar("u@sep.test"), "no instante do bloqueio a conta esta barrada")
                 .isInstanceOf(ContaBloqueadaException.class);
 
         relogio.avancar(Duration.ofMinutes(properties.getLockoutMinutes()).minusMinutes(1));
-        assertThatThrownBy(() -> service.verificar("u@sep.test"))
-                .as("um minuto antes do fim ainda esta barrada")
-                .isInstanceOf(ContaBloqueadaException.class)
-                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.type(ContaBloqueadaException.class))
-                .extracting(ContaBloqueadaException::getTempoRestante)
-                .isEqualTo(Duration.ofMinutes(1));
+        assertThatThrownBy(() -> service.verificar("u@sep.test"), "um minuto antes do fim ainda esta barrada")
+                .isInstanceOfSatisfying(ContaBloqueadaException.class, ex -> assertThat(ex.getTempoRestante())
+                        .isEqualTo(Duration.ofMinutes(1)));
 
         relogio.avancar(Duration.ofMinutes(2));
         assertThatNoException()
@@ -115,19 +114,28 @@ class LockoutServiceTest {
                 .isThrownBy(() -> service.verificar("u@sep.test"));
     }
 
-    /** Relogio mutavel: o service guarda a referencia, entao trocar o {@code Clock} nao serviria. */
+    /**
+     * Relogio mutavel para que as tres fases atinjam <b>a mesma instancia</b> do service, com o
+     * <b>mesmo</b> historico stubado. {@code Clock.fixed} funcionaria reconstruindo o service por
+     * fase, mas ai o teste provaria que tres objetos diferentes discordam — nao que um objeto muda
+     * de veredito quando so o relogio anda.
+     */
     private static final class RelogioAjustavel extends Clock {
 
-        private Instant instante;
+        private final AtomicReference<Instant> instante;
         private final ZoneId zona;
 
         private RelogioAjustavel(Instant instante, ZoneId zona) {
+            this(new AtomicReference<>(instante), zona);
+        }
+
+        private RelogioAjustavel(AtomicReference<Instant> instante, ZoneId zona) {
             this.instante = instante;
             this.zona = zona;
         }
 
         void avancar(Duration duracao) {
-            instante = instante.plus(duracao);
+            instante.updateAndGet(atual -> atual.plus(duracao));
         }
 
         @Override
@@ -135,14 +143,20 @@ class LockoutServiceTest {
             return zona;
         }
 
+        /**
+         * Compartilha o instante com a copia, e nao um snapshot: o contrato de {@link Clock} diz que
+         * {@code withZone} devolve "uma copia deste relogio com outro fuso", e uma copia que congela
+         * seria um relogio parado. {@code millis()} nao precisa de override — o default ja delega a
+         * {@code instant()}.
+         */
         @Override
         public Clock withZone(ZoneId zona) {
-            return new RelogioAjustavel(instante, zona);
+            return new RelogioAjustavel(this.instante, zona);
         }
 
         @Override
         public Instant instant() {
-            return instante;
+            return instante.get();
         }
     }
 
@@ -307,7 +321,7 @@ class LockoutServiceTest {
      */
     @Test
     void avaliarPosFalhaNaoReemiteQuandoOBloqueioVemDeUmClusterAnterior() {
-        OffsetDateTime agora = OffsetDateTime.now();
+        OffsetDateTime agora = OffsetDateTime.now(relogio);
         List<OffsetDateTime> historico = new ArrayList<>();
         historico.add(agora);
         IntStream.range(0, properties.getMaxAttempts())

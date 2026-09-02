@@ -64,8 +64,14 @@ public class LockoutService {
      * lado, e o service deixa de ser a peca que so da para testar em tempo real.
      *
      * <p>Vem do {@code ClockConfig} do repo — {@code America/Sao_Paulo}, e nao UTC. O fuso nao muda o
-     * resultado aqui, porque toda comparacao e entre instantes, mas manter um relogio so no processo
-     * evita que dois componentes discordem sobre "agora".
+     * resultado, porque toda comparacao e entre instantes.
+     *
+     * <p><b>Cobre o lado da leitura, e so ele.</b> Quem <b>grava</b> o historico que este service le
+     * — {@code LoginAttempt.registrar} e {@code AuditLogSeguranca.de} — ainda carimba
+     * {@code OffsetDateTime.now()} do sistema. Os dois relogios so concordam porque ambos sao o do
+     * sistema, e por isso um IT de expiracao continua fora de alcance: sobrescrever este bean moveria
+     * o leitor sem mover o escritor, e o historico nasceria no futuro. Unificar a escrita e follow-up
+     * proprio (1 call site em {@code LoginAttempt}, 6 em {@code AuditLogSeguranca}).
      */
     private final Clock clock;
 

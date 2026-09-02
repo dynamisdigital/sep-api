@@ -251,6 +251,9 @@ class CelcoinKycProviderIT {
                         .withBody("{\"verification_id\":\"ext-idem\",\"status\":\"PROCESSING\"}")));
 
         // Caller (use case) grava chave deterministica no MDC antes da chamada.
+        // Literal de proposito (Sprint 35 Task 35.6): usar IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY
+        // faria os dois lados seguirem qualquer rename e a asserção viraria tautologia. Aqui o teste e
+        // de contrato: a chave e o que o interceptor le para montar o header Idempotency-Key.
         org.slf4j.MDC.put("idempotencyKey", "solicitacao-xyz:5");
         try {
             RespostaInicioVerificacao resp = provider.iniciarVerificacao(novaRequisicao(), "corr-7");
