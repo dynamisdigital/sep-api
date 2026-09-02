@@ -63,7 +63,20 @@ springdoc:
 
 server:
   port: 8080
-  forward-headers-strategy: framework # respeita X-Forwarded-* atras de proxy
+  # Sprint 35 Task 35.2: 'native' em vez de 'framework' PORQUE so o RemoteIpValve do Tomcat tem
+  # allowlist de proxy. Com 'framework' o ForwardedHeaderFilter do Spring honra X-Forwarded-For de
+  # QUALQUER origem, e a origem que alimenta o rate limit por IP e a trilha de login passa a ser
+  # escolhida pelo cliente. As duas linhas andam juntas: 'internal-proxies' e propriedade do
+  # RemoteIpValve e so tem efeito com 'native'; trocar so a estrategia pioraria.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Default: NAO confia em ninguem (vazio -> RemoteIpValve nunca processa o header). O CIDR do
+      # balanceador nao existe ate a Fase 5, e um default permissivo aqui reabre exatamente o
+      # bypass que esta Task fecha. Um valor largo demais mantem o bypass; estreito demais faz todo
+      # mundo compartilhar o IP do balanceador e o limite vira global — por isso e env var, nao
+      # constante. Regex Java, nao CIDR: ex. APP_TRUSTED_PROXIES='10\.0\.\d+\.\d+'.
+      internal-proxies: ${APP_TRUSTED_PROXIES:}
 
 # Propriedades de aplicacao (placeholders; valores reais via env vars)
 app:

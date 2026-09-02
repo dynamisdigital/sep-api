@@ -32,8 +32,9 @@ import java.util.Map;
  *
  * <p><b>Evicção</b> (Sprint 34 Task 34.4): ate a Sprint 33 os limitadores viviam num
  * {@code RateLimiterRegistry.ofDefaults()} com get-or-create por IP, <b>sem TTL nem teto</b>, e a
- * cardinalidade das chaves e escolhida pelo cliente (ver {@link #extrairIp}): um atacante variando
- * a origem enchia a heap sem nunca exceder limite nenhum. O registry deu lugar a um mapa LRU por
+ * cardinalidade das chaves era escolhida pelo cliente (ver {@link #extrairIp}, fechado na Sprint 35
+ * Task 35.2): um atacante variando a origem enchia a heap sem nunca exceder limite nenhum. O teto
+ * segue valendo — atras de proxy confiavel a chave ainda vem de texto encaminhado. O registry deu lugar a um mapa LRU por
  * <b>ordem de acesso</b>, limitado a {@link #MAX_LIMITADORES}.
  *
  * <p>LRU e nao expiracao por tempo porque aqui as duas quase coincidem sem precisar de relogio: a
@@ -139,15 +140,24 @@ public class RateLimitFilter extends OncePerRequestFilter {
     /**
      * Origem da request, usada como chave do limitador e como {@code ip} da trilha de login.
      *
-     * <p><b>Nao e confiavel</b>: com {@code server.forward-headers-strategy: framework} o
-     * {@code ForwardedHeaderFilter} do Spring roda antes desta cadeia, consome o
-     * {@code X-Forwarded-For} e copia o primeiro token — sem allowlist de proxy — para o
-     * {@code getRemoteAddr()}. O ramo do header abaixo cobre o caso sem aquele filtro; nos dois
-     * caminhos quem escolhe o valor e o cliente. Fechar isso e mudanca de configuracao
-     * ({@code forward-headers-strategy: native} com {@code server.tomcat.remoteip.internal-proxies}
-     * restrito ao CIDR do balanceador), nao de codigo, e segue como follow-up.
+     * <p><b>Le somente {@code getRemoteAddr()}</b> (Sprint 35 Task 35.2). O
+     * {@code X-Forwarded-For} nao e consultado aqui: quem decide se ele vale e o
+     * {@code RemoteIpValve} do Tomcat, ligado por {@code server.forward-headers-strategy: native},
+     * que so processa o header quando o <b>peer da conexao</b> casa
+     * {@code server.tomcat.remoteip.internal-proxies}. Vindo de proxy confiavel, o valve ja
+     * escreveu a origem real do cliente no {@code getRemoteAddr()}; vindo de qualquer outro lugar,
+     * o header e um campo que o cliente preencheu sozinho e e descartado.
      *
-     * <p>O que da para fazer aqui e limitar o <b>tamanho</b>: sem isso o teto de
+     * <p><b>Ler o header aqui anulava o allowlist</b>, e isso foi medido, nao deduzido: com
+     * {@code native} e allowlist vazio, o valve deixa o header intacto para o peer nao confiavel —
+     * ele so ignora o header, nao o remove — e a versao anterior deste metodo copiava o valor
+     * forjado assim mesmo. Ate a Sprint 34 o javadoc daqui afirmava que fechar o bypass era
+     * "mudanca de configuracao, nao de codigo"; era das duas.
+     * {@code OrigemForaDoAllowlistIT} trava o caso.
+     *
+     * <p>O corte por <b>tamanho</b> continua necessario mesmo lendo so o {@code getRemoteAddr()},
+     * porque atras de proxy confiavel o valor volta a ser texto vindo do header, agora escolhido
+     * pelo proxy: sem isso o teto de
      * {@link #MAX_LIMITADORES} entradas nao limita bytes, porque a chave e escolhida pelo cliente —
      * um token de 8 KB infla a memoria do mapa em mais de 20x. O corte tambem protege o
      * {@code LoginAttempt.ip}, coluna {@code VARCHAR(45)}: um valor maior aborta o insert do rastro
@@ -156,10 +166,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * mesmo balde {@code unknown} — mais estrito, nunca mais permissivo.
      */
     public static String extrairIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return normalizar(forwarded.split(",")[0].trim());
-        }
         return normalizar(request.getRemoteAddr());
     }
 
