@@ -15,8 +15,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Pageable;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -36,11 +39,14 @@ import static org.mockito.Mockito.when;
 
 class LockoutServiceTest {
 
+    private static final Instant INSTANTE_BASE = Instant.parse("2026-09-02T12:00:00Z");
+
     private LoginAttemptRepository repository;
     private AuditLogSegurancaRepository auditRepository;
     private EmailService emailService;
     private LockoutProperties properties;
     private LockoutService service;
+    private RelogioAjustavel relogio;
 
     @BeforeEach
     void setup() {
@@ -48,7 +54,9 @@ class LockoutServiceTest {
         auditRepository = mock(AuditLogSegurancaRepository.class);
         emailService = mock(EmailService.class);
         properties = new LockoutProperties();
-        service = new LockoutService(repository, auditRepository, properties, emailService, new ObjectMapper());
+        relogio = new RelogioAjustavel(INSTANTE_BASE, ZoneId.of("America/Sao_Paulo"));
+        service =
+                new LockoutService(repository, auditRepository, properties, emailService, new ObjectMapper(), relogio);
     }
 
     /**
@@ -72,8 +80,79 @@ class LockoutServiceTest {
     }
 
     /** Falhas a cada {@code intervalo}, terminando agora (ordem decrescente, como o repository). */
-    private static List<OffsetDateTime> falhasRecentes(int quantidade, Duration intervalo) {
-        return falhasAte(quantidade, OffsetDateTime.now(), intervalo);
+    /**
+     * <b>Teste que so o {@code Clock} injetado viabiliza</b> (Sprint 35 Task 35.6): a mesma conta,
+     * com o mesmo historico de falhas, atravessa o fim do bloqueio sem que nada alem do relogio se
+     * mova. Antes o service lia {@code OffsetDateTime.now()} direto, e a unica forma de observar a
+     * expiracao era esperar 30 minutos ou reescrever o historico para fingir que o tempo passou —
+     * que testa o calculo do teste, nao o do service.
+     *
+     * <p>Injetar {@code Clock} sem escrever este teste seria trocar acoplamento por cerimonia; e
+     * por ele que a injecao se paga.
+     */
+    @Test
+    void bloqueioExpiraQuandoORelogioAvanca() {
+        List<OffsetDateTime> falhas =
+                falhasAte(properties.getMaxAttempts(), OffsetDateTime.now(relogio), Duration.ofMinutes(1));
+        when(repository.buscarInstantesDeFalha(eq("u@sep.test"), anyList(), any(), any()))
+                .thenReturn(falhas);
+
+        assertThatThrownBy(() -> service.verificar("u@sep.test"))
+                .as("no instante do bloqueio a conta esta barrada")
+                .isInstanceOf(ContaBloqueadaException.class);
+
+        relogio.avancar(Duration.ofMinutes(properties.getLockoutMinutes()).minusMinutes(1));
+        assertThatThrownBy(() -> service.verificar("u@sep.test"))
+                .as("um minuto antes do fim ainda esta barrada")
+                .isInstanceOf(ContaBloqueadaException.class)
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.type(ContaBloqueadaException.class))
+                .extracting(ContaBloqueadaException::getTempoRestante)
+                .isEqualTo(Duration.ofMinutes(1));
+
+        relogio.avancar(Duration.ofMinutes(2));
+        assertThatNoException()
+                .as("passado o bloqueio, o MESMO historico deixa de barrar — so o relogio mudou")
+                .isThrownBy(() -> service.verificar("u@sep.test"));
+    }
+
+    /** Relogio mutavel: o service guarda a referencia, entao trocar o {@code Clock} nao serviria. */
+    private static final class RelogioAjustavel extends Clock {
+
+        private Instant instante;
+        private final ZoneId zona;
+
+        private RelogioAjustavel(Instant instante, ZoneId zona) {
+            this.instante = instante;
+            this.zona = zona;
+        }
+
+        void avancar(Duration duracao) {
+            instante = instante.plus(duracao);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zona;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zona) {
+            return new RelogioAjustavel(instante, zona);
+        }
+
+        @Override
+        public Instant instant() {
+            return instante;
+        }
+    }
+
+    /**
+     * Falhas ancoradas no <b>relogio do service</b>, e nao no relogio real. Depois da Task 35.6 os
+     * dois deixariam de concordar sobre "agora", e o historico nasceria no futuro em relacao ao que
+     * o service enxerga.
+     */
+    private List<OffsetDateTime> falhasRecentes(int quantidade, Duration intervalo) {
+        return falhasAte(quantidade, OffsetDateTime.now(relogio), intervalo);
     }
 
     /** Falhas a cada {@code intervalo}, terminando em {@code maisRecente} (ordem decrescente). */
@@ -108,14 +187,14 @@ class LockoutServiceTest {
      */
     @Test
     void verificarCarregaOTempoRestanteDoBloqueioENaoADuracaoConfigurada() {
-        OffsetDateTime evento = OffsetDateTime.now().minusMinutes(20);
+        OffsetDateTime evento = OffsetDateTime.now(relogio).minusMinutes(20);
         when(repository.buscarInstantesDeFalha(eq("locked@sep.test"), anyList(), any(), any()))
                 .thenReturn(falhasAte(properties.getMaxAttempts(), evento, Duration.ofMinutes(1)));
 
         assertThatThrownBy(() -> service.verificar("locked@sep.test"))
                 .isInstanceOfSatisfying(ContaBloqueadaException.class, ex -> assertThat(ex.getTempoRestante())
-                        .as("restam ~10 dos %d minutos configurados", properties.getLockoutMinutes())
-                        .isBetween(Duration.ofMinutes(9), Duration.ofMinutes(11)));
+                        .as("restam exatos 10 dos %d minutos configurados", properties.getLockoutMinutes())
+                        .isEqualTo(Duration.ofMinutes(10)));
     }
 
     /**
@@ -135,14 +214,14 @@ class LockoutServiceTest {
         when(repository.buscarInstantesDeFalha(any(), anyList(), any(), any())).thenReturn(List.of());
         Duration janelaEsperada = Duration.ofMinutes(properties.getWindowMinutes() + properties.getLockoutMinutes());
 
-        OffsetDateTime antes = OffsetDateTime.now();
         service.verificar("u@sep.test");
-        OffsetDateTime depois = OffsetDateTime.now();
 
         ArgumentCaptor<OffsetDateTime> inicio = ArgumentCaptor.forClass(OffsetDateTime.class);
         verify(repository).buscarInstantesDeFalha(eq("u@sep.test"), anyList(), inicio.capture(), any());
-        // Sem relogio injetavel, a unica asserção exata e o intervalo em que `now()` pode ter caido.
-        assertThat(inicio.getValue()).isBetween(antes.minus(janelaEsperada), depois.minus(janelaEsperada));
+        // Ate a Task 35.6 isto era um isBetween entre dois `now()` reais, porque o service lia o
+        // relogio do sistema e a asserção so podia cercar o instante. Com o Clock injetado a
+        // igualdade e exata — e um erro de 1ms na janela deixaria de passar despercebido.
+        assertThat(inicio.getValue()).isEqualTo(OffsetDateTime.now(relogio).minus(janelaEsperada));
     }
 
     /**

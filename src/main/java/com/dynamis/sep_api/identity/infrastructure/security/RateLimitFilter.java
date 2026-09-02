@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.identity.infrastructure.security;
 
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
+import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
 import com.dynamis.sep_api.shared.web.OrigemDaRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.ratelimiter.RateLimiter;
@@ -182,7 +183,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 "Too Many Requests",
                 "Limite de requisicoes excedido. Aguarde antes de tentar novamente.",
                 path,
-                MDC.get("correlationId"));
+                MDC.get(CorrelationIdFilter.MDC_KEY));
         objectMapper.writeValue(response.getOutputStream(), erro);
     }
 }

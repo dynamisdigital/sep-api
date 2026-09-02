@@ -11,6 +11,7 @@ import com.dynamis.sep_api.credito.domain.model.MovimentacaoOpenFinance;
 import com.dynamis.sep_api.credito.domain.vo.StatusConsentimento;
 import com.dynamis.sep_api.credito.infrastructure.persistence.ConsentimentoOpenFinanceRepository;
 import com.dynamis.sep_api.credito.infrastructure.persistence.MovimentacaoOpenFinanceRepository;
+import com.dynamis.sep_api.shared.integration.IdempotencyKeyInterceptor;
 import org.slf4j.MDC;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -40,8 +41,6 @@ import java.util.UUID;
  */
 @Service
 public class ConsultarMovimentacaoOpenFinanceUseCase {
-
-    private static final String MDC_IDEMPOTENCY_KEY = "idempotencyKey";
 
     private final ConsentimentoOpenFinanceRepository consentimentoRepository;
     private final MovimentacaoOpenFinanceRepository movimentacaoRepository;
@@ -85,16 +84,16 @@ public class ConsultarMovimentacaoOpenFinanceUseCase {
 
         String correlationId = UUID.randomUUID().toString();
         String idempotencyKey = "open-finance:movement:" + consentimento.getIdExternoCelcoin();
-        String mdcAnterior = MDC.get(MDC_IDEMPOTENCY_KEY);
-        MDC.put(MDC_IDEMPOTENCY_KEY, idempotencyKey);
+        String mdcAnterior = MDC.get(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY);
+        MDC.put(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY, idempotencyKey);
         MovimentacaoConsolidada consolidada;
         try {
             consolidada = provider.consultarMovimentacao(consentimento.getIdExternoCelcoin(), correlationId);
         } finally {
             if (mdcAnterior == null) {
-                MDC.remove(MDC_IDEMPOTENCY_KEY);
+                MDC.remove(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY);
             } else {
-                MDC.put(MDC_IDEMPOTENCY_KEY, mdcAnterior);
+                MDC.put(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY, mdcAnterior);
             }
         }
 

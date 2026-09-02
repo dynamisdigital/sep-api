@@ -15,6 +15,7 @@ import com.dynamis.sep_api.credito.domain.vo.StatusConsentimento;
 import com.dynamis.sep_api.credito.domain.vo.StatusProposta;
 import com.dynamis.sep_api.credito.infrastructure.persistence.ConsentimentoOpenFinanceRepository;
 import com.dynamis.sep_api.credito.infrastructure.persistence.PropostaCreditoRepository;
+import com.dynamis.sep_api.shared.integration.IdempotencyKeyInterceptor;
 import org.slf4j.MDC;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -46,8 +47,6 @@ public class IniciarConsentimentoOpenFinanceUseCase {
 
     private static final Set<StatusProposta> STATUS_ACEITOS =
             Set.of(StatusProposta.EM_ANALISE, StatusProposta.PRE_APROVADA, StatusProposta.PENDENCIA);
-
-    private static final String MDC_IDEMPOTENCY_KEY = "idempotencyKey";
 
     private final PropostaCreditoRepository propostaRepository;
     private final ConsentimentoOpenFinanceRepository consentimentoRepository;
@@ -100,8 +99,8 @@ public class IniciarConsentimentoOpenFinanceUseCase {
         // (provider Celcoin Finansystech retorna mesmo consent_id pra duplicatas).
         String correlationId = UUID.randomUUID().toString();
         String idempotencyKey = "open-finance:consent:" + consentimento.getId();
-        String mdcAnterior = MDC.get(MDC_IDEMPOTENCY_KEY);
-        MDC.put(MDC_IDEMPOTENCY_KEY, idempotencyKey);
+        String mdcAnterior = MDC.get(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY);
+        MDC.put(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY, idempotencyKey);
         RespostaConsentimento resposta;
         try {
             resposta = provider.iniciarConsentimento(
@@ -110,9 +109,9 @@ public class IniciarConsentimentoOpenFinanceUseCase {
                     correlationId);
         } finally {
             if (mdcAnterior == null) {
-                MDC.remove(MDC_IDEMPOTENCY_KEY);
+                MDC.remove(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY);
             } else {
-                MDC.put(MDC_IDEMPOTENCY_KEY, mdcAnterior);
+                MDC.put(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY, mdcAnterior);
             }
         }
 
