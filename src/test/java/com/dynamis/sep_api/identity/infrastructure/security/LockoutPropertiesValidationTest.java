@@ -28,9 +28,10 @@ class LockoutPropertiesValidationTest {
     @Test
     void defaults_bootPassa() {
         runner.run(contexto -> {
-            assertThat(contexto).hasNotFailed();
-            assertThat(contexto.getBean(LockoutProperties.class).getMaxAttempts())
-                    .isEqualTo(LockoutProperties.DEFAULT_MAX_ATTEMPTS);
+            LockoutProperties propriedades = contexto.getBean(LockoutProperties.class);
+            assertThat(propriedades.getMaxAttempts()).isEqualTo(LockoutProperties.DEFAULT_MAX_ATTEMPTS);
+            assertThat(propriedades.getWindowMinutes()).isEqualTo(15);
+            assertThat(propriedades.getLockoutMinutes()).isEqualTo(30);
         });
     }
 
@@ -40,7 +41,12 @@ class LockoutPropertiesValidationTest {
                         "app.security.lockout.max-attempts=3",
                         "app.security.lockout.window-minutes=10",
                         "app.security.lockout.lockout-minutes=20")
-                .run(contexto -> assertThat(contexto).hasNotFailed());
+                .run(contexto -> {
+                    LockoutProperties propriedades = contexto.getBean(LockoutProperties.class);
+                    assertThat(propriedades.getMaxAttempts()).isEqualTo(3);
+                    assertThat(propriedades.getWindowMinutes()).isEqualTo(10);
+                    assertThat(propriedades.getLockoutMinutes()).isEqualTo(20);
+                });
     }
 
     @Test
@@ -72,16 +78,24 @@ class LockoutPropertiesValidationTest {
 
     @Test
     void valorNegativo_derrubaOBoot() {
-        runner.withPropertyValues("app.security.lockout.lockout-minutes=-1")
-                .run(contexto -> assertThat(contexto).hasFailed());
+        runner.withPropertyValues("app.security.lockout.max-attempts=-1").run(contexto -> assertThat(contexto)
+                .getFailure()
+                .rootCause()
+                .isInstanceOf(BindValidationException.class)
+                .hasMessageContaining("maxAttempts"));
     }
 
     /**
      * O criterio que decidiu o mecanismo (Step 035.1.1): a validacao declarativa roda depois do
      * bind, entao enxerga as formas que o relaxed binding aceita. A forma camelCase e o nome do
-     * campo no POJO — a que da vontade de escrever num {@code application-prod.yml} —, e a variavel
-     * de ambiente e a forma que um deploy usa. Se a validacao casasse chave exata, os dois
-     * overrides passariam despercebidos e o boot subiria com politica invalida.
+     * campo no POJO, a que da vontade de escrever num {@code application-prod.yml}. Se a validacao
+     * casasse chave exata, esse override passaria despercebido e o boot subiria com politica
+     * invalida.
+     *
+     * <p>O knob de deploy <b>nao</b> e este: o {@code application.yml} resolve
+     * {@code APP_LOCKOUT_WINDOW_MINUTES} para a chave kebab-case, ja coberta por
+     * {@link #windowMinutesZero_derrubaOBoot()}. O que estes dois testes cobrem e a outra porta —
+     * a chave canonica, que o relaxed binding aceita sem passar pelo {@code ${...}}.
      */
     @Test
     void enxergaOverrideEmCamelCase() {
@@ -92,6 +106,13 @@ class LockoutPropertiesValidationTest {
                 .hasMessageContaining("windowMinutes"));
     }
 
+    /**
+     * Precisa de {@link SystemEnvironmentPropertySource} de verdade: e a <b>classe</b> que resolve
+     * {@code MAIUSCULA_COM_UNDERSCORE}, nao o Boot. Com um {@code MapPropertySource} de mesma chave
+     * o teste fica verde provando nada — foi o que aconteceu na primeira versao. O nome canonico
+     * faz o {@code addFirst} substituir o {@code systemEnvironment} real do contexto em vez de
+     * empilhar sobre ele, o que aqui e o isolamento desejado.
+     */
     @Test
     void enxergaOverrideEmFormatoDeVariavelDeAmbiente() {
         runner.withInitializer(contexto -> contexto.getEnvironment()
