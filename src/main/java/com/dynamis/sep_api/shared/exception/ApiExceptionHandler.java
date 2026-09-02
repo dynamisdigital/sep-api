@@ -13,11 +13,13 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -27,6 +29,8 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Duration;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Tratamento centralizado de erros da API SEP — handler consolidado da Sprint 4.
@@ -98,6 +102,49 @@ public class ApiExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponseDto> handleNoResource(NoResourceFoundException ex, HttpServletRequest request) {
         return build(HttpStatus.NOT_FOUND, "Not Found", "Recurso nao encontrado", request);
+    }
+
+    /**
+     * Metodo HTTP nao suportado na rota (Sprint 35 Task 35.3). Ate aqui caia no {@code Exception} de
+     * fallback e virava {@code 500}: o servidor anunciava falha propria para um erro do cliente, e o
+     * corpo trazia "Consulte o suporte com o traceId" — pedindo suporte para quem so precisa trocar o
+     * verbo.
+     *
+     * <p>Fica junto dos handlers de roteamento ({@code NoHandlerFoundException},
+     * {@code NoResourceFoundException}) porque a natureza e a mesma: a request nao casou nenhum
+     * handler. O que muda e que aqui o <b>caminho</b> existe.
+     *
+     * <p>Emite {@code Allow}, exigido pela RFC 9110 §15.5.6 no {@code 405}, quando o Spring souber
+     * quais metodos a rota aceita. <b>Nao</b> entra em {@code app.cors.exposed-headers}: chamar o
+     * verbo errado e defeito de integracao, nenhum fluxo de browser ramifica por ele, e clientes de
+     * API e proxies leem o header sem depender de CORS. Expor por precaucao seria superficie sem
+     * consumidor.
+     *
+     * <p>Alcance real, medido: os {@code permitAll} de API do {@code SecurityConfig} sao por metodo,
+     * entao um verbo errado numa rota publica para em {@code 401} antes do dispatcher. O {@code 405}
+     * chega para request autenticada e para os paths cujo matcher nao fixa metodo.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponseDto> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        Set<HttpMethod> suportados = ex.getSupportedHttpMethods();
+        String mensagem = suportados == null || suportados.isEmpty()
+                ? "Metodo " + ex.getMethod() + " nao suportado nesta rota"
+                : "Metodo " + ex.getMethod() + " nao suportado nesta rota; use " + formatarMetodos(suportados);
+        ResponseEntity<ErrorResponseDto> resposta =
+                build(HttpStatus.METHOD_NOT_ALLOWED, "Method Not Allowed", mensagem, request);
+        ResponseEntity.BodyBuilder builder =
+                ResponseEntity.status(resposta.getStatusCode()).headers(resposta.getHeaders());
+        if (suportados != null && !suportados.isEmpty()) {
+            builder.allow(suportados.toArray(new HttpMethod[0]));
+        }
+        return builder.body(resposta.getBody());
+    }
+
+    /** Ordem estavel: {@code getSupportedHttpMethods} devolve um {@code Set}, e mensagem de erro que
+     * muda de ordem entre chamadas nao e diagnostico, e ruido. */
+    private static String formatarMetodos(Set<HttpMethod> metodos) {
+        return metodos.stream().map(HttpMethod::name).sorted().collect(Collectors.joining(", "));
     }
 
     @ExceptionHandler(DomainException.class)
