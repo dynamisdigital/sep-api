@@ -40,9 +40,9 @@ class MetodoNaoSuportadoIT {
         assertThat(resposta.jsonPath().getString("error")).isEqualTo("Method Not Allowed");
         assertThat(resposta.jsonPath().getString("path")).isEqualTo(ROTA_SOMENTE_GET);
         assertThat(resposta.jsonPath().getString("message"))
-                .as("a mensagem diz o que fazer, nao 'consulte o suporte'")
-                .contains("POST")
-                .contains("GET");
+                .as("a mensagem diz o que fazer, nao 'consulte o suporte'; a string inteira e contrato"
+                        + " de produto, entao nao se assere por pedaco")
+                .isEqualTo("Metodo POST nao suportado nesta rota. Metodos aceitos: GET");
         assertThat(resposta.jsonPath().getString("traceId")).isNotBlank();
     }
 
@@ -54,8 +54,11 @@ class MetodoNaoSuportadoIT {
         assertThat(resposta.header("Allow")).isNotNull().contains("GET");
     }
 
-    /** O caminho feliz continua funcionando — a guarda existe porque o teste acima passaria igual se
-     * a rota tivesse simplesmente deixado de existir, virando {@code 404} mal interpretado. */
+    /**
+     * Fixa a premissa do gatilho. Se a rota sumir — {@code springdoc.api-docs.enabled: false} ou path
+     * trocado —, os dois testes acima falham por {@code 404}, e o primeiro falha sob um {@code as()}
+     * que culpa o fallback generico. Esta e a unica falha que nomeia a causa real.
+     */
     @Test
     void oMesmoCaminhoComOVerboCertoSegueRespondendo() {
         Response resposta = RestAssured.given().port(porta).get(ROTA_SOMENTE_GET);
