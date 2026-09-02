@@ -104,7 +104,7 @@ public class LockoutService {
     public void verificar(String username) {
         Optional<Duration> restante = tempoRestanteDeBloqueio(username);
         if (restante.isPresent()) {
-            throw new ContaBloqueadaException(properties.getLockoutMinutes(), restante.get());
+            throw new ContaBloqueadaException(restante.get());
         }
     }
 

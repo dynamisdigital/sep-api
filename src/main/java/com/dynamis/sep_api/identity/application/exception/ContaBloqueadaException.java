@@ -29,18 +29,37 @@ public final class ContaBloqueadaException extends RuntimeException {
     private final Duration tempoRestante;
 
     /**
-     * @param lockoutMinutes duracao <b>configurada</b> do bloqueio, que a mensagem publica como
-     *     enunciado da politica
-     * @param tempoRestante quanto falta <b>deste</b> bloqueio (Sprint 34 Task 34.3). Os dois diferem:
-     *     um bloqueio que ja correu metade do tempo anuncia a mesma politica e uma espera menor.
-     *     <p>E {@link Duration}, e nao segundos, por dois motivos: arredondar para o inteiro do
-     *     {@code Retry-After} e regra de transporte e pertence ao handler; e dois numeros adjacentes
-     *     em unidades diferentes, com {@code int} alargando para {@code long} em silencio, deixariam
-     *     {@code (1800, 30)} compilar limpo e produzir "Tente novamente em 1800 minutos".
+     * @param tempoRestante quanto falta <b>deste</b> bloqueio. A mensagem publica esse valor, e nao a
+     *     duracao configurada da politica (Sprint 35 Task 35.7).
+     *     <p>Ate a Sprint 34 o construtor recebia os <b>dois</b> numeros e a mensagem anunciava a
+     *     politica, com o argumento de que politica e restante sao fatos diferentes. Sao mesmo — mas
+     *     a frase nao enuncia politica, ela <b>manda o usuario esperar</b>: "Tente novamente em 30
+     *     minutos" com 2 minutos restantes pede uma espera 15x maior que a real. Quem le so o corpo
+     *     (integracoes, e o {@code sep-mobile} quando propagar a mensagem) nao tem como saber disso.
+     *     <p>Medido em 2026-09-02: <b>nenhum consumidor exibe esta mensagem hoje</b> — o
+     *     {@code sep-app} reescreve a frase a partir do {@code Retry-After} e o {@code sep-mobile}
+     *     descarta o {@code HttpErrorResponse} na navegacao. Alinhar nao muda tela nenhuma agora; o
+     *     valor esta em nao deixar uma afirmacao falsa no contrato.
+     *     <p>Com um numero so, o risco de tipo que motivava o par tambem some: nao ha mais como
+     *     trocar minutos por segundos entre dois argumentos adjacentes.
      */
-    public ContaBloqueadaException(int lockoutMinutes, Duration tempoRestante) {
-        super("Conta bloqueada temporariamente. Tente novamente em " + lockoutMinutes + " minutos.");
+    public ContaBloqueadaException(Duration tempoRestante) {
+        super(mensagemDe(tempoRestante));
         this.tempoRestante = tempoRestante;
+    }
+
+    /**
+     * Arredonda <b>para cima</b>, pelo mesmo motivo do {@code Retry-After} no handler: informar menos
+     * do que falta convida o usuario a voltar ainda dentro do bloqueio. Os dois numeros ficam
+     * coerentes por construcao.
+     */
+    private static String mensagemDe(Duration tempoRestante) {
+        long minutos = (Math.max(0, tempoRestante.toSeconds()) + 59) / 60;
+        if (minutos == 0) {
+            return "Conta bloqueada temporariamente. Tente novamente em instantes.";
+        }
+        return "Conta bloqueada temporariamente. Tente novamente em " + minutos
+                + (minutos == 1 ? " minuto." : " minutos.");
     }
 
     public Duration getTempoRestante() {

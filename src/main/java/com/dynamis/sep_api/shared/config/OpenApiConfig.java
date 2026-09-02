@@ -3,6 +3,8 @@ package com.dynamis.sep_api.shared.config;
 import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp;
 import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUpEstrito;
 import com.dynamis.sep_api.identity.infrastructure.security.StepUpEnforcementAspect;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.core.jackson.ModelResolver;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
@@ -26,6 +28,21 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class OpenApiConfig implements WebMvcConfigurer {
 
     private static final String SECURITY_SCHEME_NAME = "bearerAuth";
+
+    /**
+     * Publica enums como schema nomeado em {@code components/schemas}, com {@code $ref} nos usos, em
+     * vez de repetir a lista de valores inline em cada campo (Sprint 35 Task 35.7).
+     *
+     * <p>{@code enumsAsRef} e campo <b>estatico</b> do {@code ModelResolver} do swagger-core, e nao
+     * uma property do springdoc — por isso a configuracao e um bean e nao uma linha de
+     * {@code application.yml}. O {@code ObjectMapper} vem do contexto para o resolver enxergar as
+     * mesmas regras de serializacao que o runtime aplica.
+     */
+    @Bean
+    public ModelResolver modelResolver(ObjectMapper objectMapper) {
+        ModelResolver.enumsAsRef = true;
+        return new ModelResolver(objectMapper);
+    }
 
     @Bean
     public OpenAPI sepOpenAPI() {

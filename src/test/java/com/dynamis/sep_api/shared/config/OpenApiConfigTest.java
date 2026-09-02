@@ -258,8 +258,14 @@ class OpenApiConfigTest {
      * schema e publico e {@code StatusFormalizacao} ja cresceu uma vez (Sprint 11) sem checkpoint na
      * fronteira web, publicar um valor novo tem que custar uma edicao deliberada aqui.
      *
-     * <p>Trocar o campo de volta por {@code String} tambem fica vermelho: sem enum tipado a chave
-     * {@code enum} some do schema e o jsonPath nao resolve.
+     * <p>Trocar o campo de volta por {@code String} tambem fica vermelho: sem enum tipado o schema
+     * nomeado nao existe e o jsonPath nao resolve.
+     *
+     * <p><b>Sprint 35 Task 35.7</b>: os valores sairam de dentro de cada propriedade e passaram a
+     * viver uma vez so em {@code components/schemas}, com {@code $ref} nos usos. O teste ficou mais
+     * forte, e nao apenas realocado — agora assere <b>as duas metades</b>: que o schema nomeado
+     * carrega a lista literal, e que a propriedade aponta para <b>ele</b>. Antes, um campo religado
+     * ao enum errado continuaria verde desde que a lista batesse.
      */
     @Test
     void enumsDeContratoEAssinaturaPublicadosNoSchema() throws Exception {
@@ -269,15 +275,22 @@ class OpenApiConfigTest {
 
         mockMvc()
                 .perform(get(API_DOCS))
-                .andExpect(jsonPath("$.components.schemas.ContratoResponse.properties.tipo.enum")
+                .andExpect(jsonPath("$.components.schemas.TipoContrato.enum")
                         .value(containsInAnyOrder("MUTUO", "CCB", "OUTROS")))
-                .andExpect(jsonPath("$.components.schemas.ContratoResponse.properties.status.enum")
+                .andExpect(jsonPath("$.components.schemas.StatusFormalizacao.enum")
                         .value(containsInAnyOrder(statusFormalizacao)))
-                .andExpect(jsonPath("$.components.schemas.StatusAssinaturaResponse.properties.statusContrato.enum")
-                        .value(containsInAnyOrder(statusFormalizacao)))
-                .andExpect(jsonPath("$.components.schemas.StatusAssinaturaResponse.properties.statusEnvelope.enum")
+                .andExpect(jsonPath("$.components.schemas.StatusEnvelope.enum")
                         .value(containsInAnyOrder(
-                                "RASCUNHO", "ENVIADO", "VISUALIZADO", "ASSINADO", "RECUSADO", "EXPIRADO")));
+                                "RASCUNHO", "ENVIADO", "VISUALIZADO", "ASSINADO", "RECUSADO", "EXPIRADO")))
+                .andExpect(jsonPath("$.components.schemas.ContratoResponse.properties.tipo.$ref")
+                        .value("#/components/schemas/TipoContrato"))
+                .andExpect(jsonPath("$.components.schemas.ContratoResponse.properties.status.$ref")
+                        .value("#/components/schemas/StatusFormalizacao"))
+                // A mesma lista servia duas propriedades; com $ref elas passam a compartilhar UM schema.
+                .andExpect(jsonPath("$.components.schemas.StatusAssinaturaResponse.properties.statusContrato.$ref")
+                        .value("#/components/schemas/StatusFormalizacao"))
+                .andExpect(jsonPath("$.components.schemas.StatusAssinaturaResponse.properties.statusEnvelope.$ref")
+                        .value("#/components/schemas/StatusEnvelope"));
     }
 
     /**
