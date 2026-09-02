@@ -36,10 +36,14 @@ public final class ContaBloqueadaException extends RuntimeException {
      *     a frase nao enuncia politica, ela <b>manda o usuario esperar</b>: "Tente novamente em 30
      *     minutos" com 2 minutos restantes pede uma espera 15x maior que a real. Quem le so o corpo
      *     (integracoes, e o {@code sep-mobile} quando propagar a mensagem) nao tem como saber disso.
-     *     <p>Medido em 2026-09-02: <b>nenhum consumidor exibe esta mensagem hoje</b> — o
-     *     {@code sep-app} reescreve a frase a partir do {@code Retry-After} e o {@code sep-mobile}
-     *     descarta o {@code HttpErrorResponse} na navegacao. Alinhar nao muda tela nenhuma agora; o
-     *     valor esta em nao deixar uma afirmacao falsa no contrato.
+     *     <p><b>Correcao de 2026-09-02</b>: a primeira versao desta nota dizia que nenhum consumidor
+     *     exibe a mensagem. Falso. O {@code sep-app} a mostra <b>verbatim</b> em
+     *     {@code /login/verify-totp} ({@code verify-totp.component.ts:81}, que sequer le o
+     *     {@code Retry-After}) e em {@code /login} <b>quando o header falta</b>
+     *     ({@code login.component.ts:59}); so no caminho normal do {@code /login} o header ganha. O
+     *     {@code sep-mobile} descarta o {@code HttpErrorResponse} na navegacao e nunca a mostra.
+     *     Alinhar <b>melhora a tela de TOTP hoje</b>, alem de fechar a afirmacao falsa para
+     *     integracoes.
      *     <p>Com um numero so, o risco de tipo que motivava o par tambem some: nao ha mais como
      *     trocar minutos por segundos entre dois argumentos adjacentes.
      */
@@ -50,11 +54,15 @@ public final class ContaBloqueadaException extends RuntimeException {
 
     /**
      * Arredonda <b>para cima</b>, pelo mesmo motivo do {@code Retry-After} no handler: informar menos
-     * do que falta convida o usuario a voltar ainda dentro do bloqueio. Os dois numeros ficam
-     * coerentes por construcao.
+     * do que falta convida o usuario a voltar ainda dentro do bloqueio.
+     *
+     * <p>Os dois arredondam em <b>unidades diferentes</b> — o header em segundos, esta frase em
+     * minutos —, entao nao sao o mesmo numero: com 30s restantes o header diz {@code 30} e o corpo
+     * diz "1 minuto". A garantia e mais fraca e suficiente: o corpo nunca anuncia menos que o
+     * restante arredondado para minutos inteiros.
      */
     private static String mensagemDe(Duration tempoRestante) {
-        long minutos = (Math.max(0, tempoRestante.toSeconds()) + 59) / 60;
+        long minutos = Math.ceilDiv(Math.max(0L, tempoRestante.toSeconds()), 60);
         if (minutos == 0) {
             return "Conta bloqueada temporariamente. Tente novamente em instantes.";
         }

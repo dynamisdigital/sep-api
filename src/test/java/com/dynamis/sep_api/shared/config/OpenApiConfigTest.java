@@ -298,6 +298,31 @@ class OpenApiConfigTest {
     }
 
     /**
+     * <b>Este teste existe porque a Task 35.7 shipou verde sem ele.</b> O bean de {@code ModelResolver}
+     * entrou sem {@code openapi31}, e um resolver em modo 3.0 dentro de um documento 3.1 apaga em
+     * silencio todo keyword que o 3.0 proibe como irmao de {@code $ref} — 21 descriptions e 17
+     * examples, medido depois do fato.
+     *
+     * <p>Ancora numa propriedade que e {@code $ref} de <b>objeto</b>, e nao de enum, de proposito: o
+     * modo do resolver e do documento inteiro, entao o pino nao pode depender do item que a Task
+     * mudou. E a {@code description} escolhida documenta <b>nulidade</b>, que e o que o consumidor
+     * nao tem como inferir do schema.
+     */
+    @Test
+    void descricaoDePropriedadeRefSobreviveAoResolver() throws Exception {
+        mockMvc()
+                .perform(get(API_DOCS))
+                .andExpect(jsonPath("$.openapi").value(org.hamcrest.Matchers.startsWith("3.1")))
+                .andExpect(jsonPath("$.components.schemas.ContratoResponse.properties.versaoVigente.description")
+                        .value("Versao mais recente do contrato; null se ainda nao gerada"))
+                .andExpect(jsonPath("$.components.schemas.PropostaResponse.properties.parecer.description")
+                        .value("Parecer mais recente (null se ainda nao houve parecer)"))
+                .andExpect(jsonPath("$.components.schemas.StatusAssinaturaResponse.properties.statusEnvelope"
+                                + ".description")
+                        .value("Status do envelope no provider (null se nao houver envelope)"));
+    }
+
+    /**
      * <b>Assercao sistemica, e nao por endpoint</b> (Sprint 35 Task 35.8): toda operacao com
      * identificador tipado no path precisa declarar {@code 400}, porque o
      * {@code ApiExceptionHandler} devolve exatamente isso quando o valor nao parseia. O perimetro

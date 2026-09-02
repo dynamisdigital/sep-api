@@ -4,6 +4,7 @@ import com.dynamis.sep_api.backoffice.domain.vo.StatusReprocesso;
 import com.dynamis.sep_api.backoffice.domain.vo.TipoChamadaProvider;
 import com.dynamis.sep_api.shared.audit.EntidadeAuditavel;
 import com.fasterxml.uuid.Generators;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -34,6 +35,14 @@ import java.util.UUID;
 @Table(name = "reprocesso")
 public class Reprocesso extends EntidadeAuditavel {
 
+    /**
+     * {@code @Schema(name)} porque o swagger-core nomeia componentes pelo <b>nome simples</b>, e desde
+     * a Sprint 35 Task 35.7 os enums viram schema nomeado em {@code components/schemas}. Sem isto
+     * este enum aninhado ocuparia a chave {@code Tipo} num namespace plano de 152 entradas, e
+     * {@code defineModel} e last-writer-wins <b>sem aviso</b>: o proximo {@code enum Tipo} de outro
+     * modulo sobrescreveria este em silencio.
+     */
+    @Schema(name = "TipoReprocesso")
     public enum Tipo {
         WEBHOOK,
         PROVIDER

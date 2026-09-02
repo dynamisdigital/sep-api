@@ -72,8 +72,10 @@ class ContaBloqueadaExceptionTest {
     }
 
     /**
-     * Bloqueio ja vencido, ou com menos de um segundo, nao pode virar "em 0 minutos" — sairia como
-     * instrucao absurda. Vira "em instantes", que e verdadeiro e acionavel.
+     * Guarda <b>defensiva</b>, e nao caso vivo: {@code PoliticaLockout.eventoDeBloqueio} exige
+     * {@code isAfter} estrito, entao um restante menor ou igual a zero nunca chega ao construtor.
+     * Existe porque o valor vem de fora da classe e "em 0 minutos" seria instrucao absurda; com
+     * menos de um segundo a frase vira "em instantes", que e verdadeira e acionavel.
      */
     @Test
     void restanteAbaixoDeUmSegundoNaoAnunciaZero() {

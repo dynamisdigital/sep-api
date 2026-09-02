@@ -3,7 +3,6 @@ package com.dynamis.sep_api.shared.config;
 import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp;
 import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUpEstrito;
 import com.dynamis.sep_api.identity.infrastructure.security.StepUpEnforcementAspect;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.core.jackson.ModelResolver;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -14,6 +13,7 @@ import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import jakarta.annotation.PostConstruct;
 import org.springdoc.core.customizers.OperationCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,21 +35,6 @@ public class OpenApiConfig implements WebMvcConfigurer {
 
     private static final String SECURITY_SCHEME_NAME = "bearerAuth";
 
-    /**
-     * Publica enums como schema nomeado em {@code components/schemas}, com {@code $ref} nos usos, em
-     * vez de repetir a lista de valores inline em cada campo (Sprint 35 Task 35.7).
-     *
-     * <p>{@code enumsAsRef} e campo <b>estatico</b> do {@code ModelResolver} do swagger-core, e nao
-     * uma property do springdoc — por isso a configuracao e um bean e nao uma linha de
-     * {@code application.yml}. O {@code ObjectMapper} vem do contexto para o resolver enxergar as
-     * mesmas regras de serializacao que o runtime aplica.
-     */
-    @Bean
-    public ModelResolver modelResolver(ObjectMapper objectMapper) {
-        ModelResolver.enumsAsRef = true;
-        return new ModelResolver(objectMapper);
-    }
-
     @Bean
     public OpenAPI sepOpenAPI() {
         return new OpenAPI()
@@ -63,6 +48,39 @@ public class OpenApiConfig implements WebMvcConfigurer {
                                         .type(SecurityScheme.Type.HTTP)
                                         .scheme("bearer")
                                         .bearerFormat("JWT")));
+    }
+
+    /**
+     * Publica enums como schema nomeado em {@code components/schemas}, com {@code $ref} nos usos, em
+     * vez de repetir a lista de valores inline em cada campo (Sprint 35 Task 35.7).
+     *
+     * <p><b>Seta o estatico e NAO substitui o {@code ModelResolver}.</b> A primeira versao registrava
+     * um bean proprio de resolver, e isso custou caro duas vezes — o registrar do springdoc
+     * <b>troca</b> o resolver dele pelo seu, e o dele vem configurado de um jeito que nao da para
+     * reproduzir de fora:
+     *
+     * <ul>
+     *   <li>sem {@code openapi31(true)}, um resolver em modo 3.0 dentro de um documento 3.1 apagava
+     *       em silencio <b>21 descriptions e 17 examples</b> — oito deles em propriedades que
+     *       documentavam nulidade e nada tinham a ver com enum;
+     *   <li>com {@code openapi31(true)}, o {@code components.securitySchemes} inteiro sumia, e com
+     *       ele o botao Authorize da Swagger UI.
+     * </ul>
+     *
+     * <p>Ambos medidos no documento gerado, nao deduzidos. O caminho que nao tem esse custo e nao
+     * tocar no resolver: {@code enumsAsRef} e lido em {@code shouldResolveEnumAsRef}, <b>durante a
+     * resolucao</b> e nao na construcao (conferido no bytecode do swagger-core 2.2.36), entao basta
+     * o valor estar setado antes da primeira chamada a {@code /v3/api-docs}.
+     *
+     * <p>E campo estatico do swagger-core, e nao property do springdoc — por isso codigo e nao
+     * {@code application.yml}. O swagger expoe tambem {@code -Denums-as-ref}, lido por
+     * <b>presenca</b> ({@code =false} tambem liga), mais fragil por depender do comando de execucao.
+     * Consequencia de ser estatico: uma vez ligado vale para todos os contextos Spring da mesma JVM,
+     * inclusive os de teste que nao importam esta classe.
+     */
+    @PostConstruct
+    void publicarEnumsPorReferencia() {
+        ModelResolver.enumsAsRef = true;
     }
 
     /**
@@ -113,27 +131,6 @@ public class OpenApiConfig implements WebMvcConfigurer {
                         && !CharSequence.class.isAssignableFrom(parametro.getParameterType()));
     }
 
-    /**
-     * Declara {@code X-Step-Up-Token} nos 24 endpoints anotados (Sprint 34 Task 34.6).
-     *
-     * <p>O aspect le o header por {@code RequestContextHolder}, e nao como {@code @RequestHeader} na
-     * assinatura, entao o springdoc nao tem como inferi-lo — a lacuna que o {@code contract:check} do
-     * {@code sep-app} carregava desde a F-Sprint 19, com {@code appliesTo: "*"} silenciando 18
-     * endpoints de uma vez. Um customizer lendo a propria anotacao fecha os 24 e <b>nao dessincroniza
-     * do aspect</b>: o nome vem de {@link StepUpEnforcementAspect#HEADER}, a mesma constante que a
-     * validacao usa. Declarar {@code @Parameter} nos 24 pontos ja nasceria sujeita a drift — e o
-     * proprio motivo de a lacuna existir.
-     *
-     * <p>{@code required} distingue as duas anotacoes, que <b>nao</b> sao equivalentes:
-     * {@link RequireStepUpEstrito} nao tem bypass e sempre exige o token, enquanto
-     * {@link RequireStepUp} libera a chamada quando o usuario nao tem MFA habilitado (migracao
-     * pre-MFA da Sprint 5) — para esses, o header e condicional, e marca-lo obrigatorio faria o
-     * contrato mentir contra um cliente legitimo.
-     *
-     * <p>Funciona mesmo onde a anotacao esta escrita por nome totalmente qualificado inline
-     * ({@code CobrancaController} e partes de {@code UsuarioController}/{@code MfaController}):
-     * {@code getMethodAnnotation} resolve o tipo, nao o texto.
-     */
     /**
      * Declara {@code X-Step-Up-Token} nos 24 endpoints anotados (Sprint 34 Task 34.6).
      *
