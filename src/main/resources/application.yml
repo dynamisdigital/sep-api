@@ -382,12 +382,6 @@ resilience4j:
         timeoutDuration: 30s
       zenvia-sms:
         timeoutDuration: 30s
-  ratelimiter:
-    configs:
-      default:
-        limitForPeriod: 5
-        limitRefreshPeriod: 60s
-        timeoutDuration: 0
 
 logging:
   level:
