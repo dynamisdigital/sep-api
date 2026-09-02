@@ -20,6 +20,7 @@ import com.dynamis.sep_api.contratos.web.mapper.ContratoWebMapper;
 import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUpEstrito;
 import com.dynamis.sep_api.identity.infrastructure.security.UsuarioAutenticado;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
+import com.dynamis.sep_api.shared.web.OrigemDaRequest;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -440,12 +441,22 @@ public class ContratoController {
     }
 
     /**
-     * Extrai o IP do request. Usa {@code X-Forwarded-For} apenas se o servidor estiver atras de um
-     * proxy confiavel — comportamento ainda nao configurado no projeto, entao caimos em {@code
-     * getRemoteAddr()} pra evitar IP spoof via header arbitrario. Quando o reverse proxy AWS
-     * entrar na Epic 16, este metodo ganha integracao com {@code ForwardedHeaderFilter}.
+     * Origem da request para a trilha de aceite/download, pelo mesmo desenho de
+     * {@code RateLimitFilter.extrairIp} (Sprint 35 Task 35.2): le somente o {@code getRemoteAddr()},
+     * porque quem decide se o {@code X-Forwarded-For} vale e o {@code RemoteIpValve}, via
+     * {@code server.tomcat.remoteip.internal-proxies}. Ler o header aqui anularia esse allowlist.
+     *
+     * <p><b>Nao trocar por {@code ForwardedHeaderFilter}</b> quando o balanceador entrar na Fase 5 —
+     * o registro anterior aqui prometia exatamente isso, e e o componente <b>sem</b> allowlist de
+     * proxy, ou seja o bypass que a Sprint 35 fechou. O que a Fase 5 muda e o valor de
+     * {@code APP_TRUSTED_PROXIES}, nao o mecanismo.
+     *
+     * <p>O corte de {@link OrigemDaRequest} nao e decorativo: atras de proxy confiavel o
+     * {@code getRemoteAddr()} carrega texto encaminhado, que o valve nao valida como IP, e este
+     * valor termina em {@code audit_log_seguranca.ip} ({@code VARCHAR(45)}) por um listener
+     * {@code AFTER_COMMIT} — um valor maior perderia a evidencia sem desfazer a operacao.
      */
     private static String extrairIp(HttpServletRequest request) {
-        return request.getRemoteAddr();
+        return OrigemDaRequest.normalizar(request.getRemoteAddr());
     }
 }

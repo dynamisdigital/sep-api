@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.identity.infrastructure.security;
 
+import com.dynamis.sep_api.shared.web.OrigemDaRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.servlet.FilterChain;
@@ -108,9 +109,9 @@ class RateLimitFilterTest {
 
     /**
      * Sprint 34 Task 34.4: o mapa de limitadores para de crescer sem limite. Ate a Sprint 33 era um
-     * {@code RateLimiterRegistry} com get-or-create por IP e sem teto — e como {@code extrairIp}
-     * confia no {@code X-Forwarded-For} sem allowlist, quem escolhia quantas chaves criar era o
-     * cliente.
+     * {@code RateLimiterRegistry} com get-or-create por IP e sem teto — e como o {@code extrairIp}
+     * da epoca confiava no {@code X-Forwarded-For} sem allowlist (fechado na Sprint 35 Task 35.2),
+     * quem escolhia quantas chaves criar era o cliente.
      */
     @Test
     void mapaDeLimitadoresRespeitaOTeto() throws Exception {
@@ -205,9 +206,14 @@ class RateLimitFilterTest {
      */
     @Test
     void origemMaiorQueOLimiteViraBaldeUnico() {
-        MockHttpServletRequest req = req("/p", "POST", "b".repeat(RateLimitFilter.MAX_TAMANHO_IP + 1));
+        String logoAcimaDoLimite = "a".repeat(OrigemDaRequest.MAX_TAMANHO + 1);
+        String bemMaior = "b".repeat(9000);
 
-        assertThat(RateLimitFilter.extrairIp(req)).isEqualTo("unknown");
+        assertThat(RateLimitFilter.extrairIp(req("/p", "POST", logoAcimaDoLimite)))
+                .as("duas origens grandes e diferentes precisam colapsar no MESMO balde, senao o teto"
+                        + " de entradas nao limita bytes")
+                .isEqualTo(RateLimitFilter.extrairIp(req("/p", "POST", bemMaior)))
+                .isEqualTo("unknown");
     }
 
     @Test
@@ -215,7 +221,7 @@ class RateLimitFilterTest {
         String ipv6 = "0000:0000:0000:0000:0000:ffff:192.168.100.228";
         assertThat(ipv6.length())
                 .as("o IPv6 com mapeamento IPv4 no maior tamanho possivel nao pode ser cortado")
-                .isEqualTo(RateLimitFilter.MAX_TAMANHO_IP);
+                .isEqualTo(OrigemDaRequest.MAX_TAMANHO);
 
         assertThat(RateLimitFilter.extrairIp(req("/p", "POST", ipv6))).isEqualTo(ipv6);
     }

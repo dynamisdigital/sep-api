@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.identity.infrastructure.security;
 
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
+import com.dynamis.sep_api.shared.web.OrigemDaRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.ratelimiter.RateLimiterConfig;
@@ -34,8 +35,8 @@ import java.util.Map;
  * {@code RateLimiterRegistry.ofDefaults()} com get-or-create por IP, <b>sem TTL nem teto</b>, e a
  * cardinalidade das chaves era escolhida pelo cliente (ver {@link #extrairIp}, fechado na Sprint 35
  * Task 35.2): um atacante variando a origem enchia a heap sem nunca exceder limite nenhum. O teto
- * segue valendo — atras de proxy confiavel a chave ainda vem de texto encaminhado. O registry deu lugar a um mapa LRU por
- * <b>ordem de acesso</b>, limitado a {@link #MAX_LIMITADORES}.
+ * segue valendo — atras de proxy confiavel a chave ainda vem de texto encaminhado. O registry deu
+ * lugar a um mapa LRU por <b>ordem de acesso</b>, limitado a {@link #MAX_LIMITADORES}.
  *
  * <p>LRU e nao expiracao por tempo porque aqui as duas quase coincidem sem precisar de relogio: a
  * entrada mais antiga em acesso e a que passou mais tempo sem consumir permissao, ou seja a que tem
@@ -64,7 +65,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
     static final int MAX_LIMITADORES = 10_000;
 
     /** Comprimento maximo de um IPv6 com mapeamento IPv4 e zona — e o mesmo de {@code LoginAttempt.ip}. */
-    static final int MAX_TAMANHO_IP = 45;
 
     /** Janela do limitador, e tambem o {@code Retry-After} do {@code 429} — ver {@link #escreverErro429}. */
     private static final Duration PERIODO_DE_REFRESH = Duration.ofMinutes(1);
@@ -155,22 +155,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * "mudanca de configuracao, nao de codigo"; era das duas.
      * {@code OrigemForaDoAllowlistIT} trava o caso.
      *
-     * <p>O corte por <b>tamanho</b> continua necessario mesmo lendo so o {@code getRemoteAddr()},
-     * porque atras de proxy confiavel o valor volta a ser texto vindo do header, agora escolhido
-     * pelo proxy: sem isso o teto de
-     * {@link #MAX_LIMITADORES} entradas nao limita bytes, porque a chave e escolhida pelo cliente —
-     * um token de 8 KB infla a memoria do mapa em mais de 20x. O corte tambem protege o
-     * {@code LoginAttempt.ip}, coluna {@code VARCHAR(45)}: um valor maior aborta o insert do rastro
-     * dentro do {@code REQUIRES_NEW} e devolve 500 sem deixar registro. 45 e o comprimento maximo de
-     * um IPv6 com mapeamento IPv4 e zona, e o mesmo da coluna. Valores acima disso caem todos no
-     * mesmo balde {@code unknown} — mais estrito, nunca mais permissivo.
+     * <p>O corte por tamanho vive em {@link OrigemDaRequest} e continua necessario mesmo lendo so o
+     * {@code getRemoteAddr()}: atras de proxy confiavel o valor volta a ser texto encaminhado, e sem
+     * corte o teto de {@link #MAX_LIMITADORES} entradas limita a quantidade de chaves mas nao os
+     * bytes — um token de 8 KB infla a memoria do mapa em mais de 20x.
      */
     public static String extrairIp(HttpServletRequest request) {
-        return normalizar(request.getRemoteAddr());
-    }
-
-    private static String normalizar(String origem) {
-        return origem == null || origem.isBlank() || origem.length() > MAX_TAMANHO_IP ? "unknown" : origem;
+        return OrigemDaRequest.normalizar(request.getRemoteAddr());
     }
 
     /**
