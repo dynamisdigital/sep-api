@@ -11,18 +11,18 @@ import java.time.Duration;
 public final class ContaBloqueadaException extends RuntimeException {
 
     /**
-     * Codigo de erro estavel do bloqueio de conta. <b>Sem consumidor em {@code src/main} — de
-     * proposito, e isto nao e codigo morto.</b>
+     * Codigo de erro estavel do bloqueio de conta.
      *
-     * <p>A Sprint 35 Task 35.5 chegou a planejar a remocao, com a justificativa correta para o
-     * momento em que foi escrita: nao havia consumidor. A Spec 036 §Conflito cancelou a remocao — a
-     * Sprint 36 publica {@code codigo} no corpo do erro (Task 36.4) e o {@code build()} do
-     * {@code ApiExceptionHandler} le daqui. Remover para recriar duas sprints depois e churn que
-     * paga dois ciclos de PR.
+     * <p><b>Por que esta classe carrega constante e {@link #getCodigo()} proprios em vez de herdar
+     * o {@code codigo}</b>: {@link com.dynamis.sep_api.shared.exception.DomainException} e
+     * {@code sealed} e nao a permite, entao {@code ContaBloqueadaException} fica fora daquela
+     * hierarquia e precisa do par. Isto vale independentemente de sprint.
      *
-     * <p>Este comentario existe porque o levantamento ja classificou a constante como morta uma vez,
-     * pelo criterio de "sem consumidor hoje". O criterio correto e outro: sem consumidor <b>e</b> sem
-     * spec publicada que lhe de um.
+     * <p><b>Sem consumidor em {@code src/main} ate a Sprint 36 Task 36.4</b>, que publica o codigo
+     * no corpo do {@code 423}: o {@code handleLocked} le por {@link #getCodigo()} e o {@code build()}
+     * propaga. A Task 35.5 chegou a planejar a remocao por "nao ha consumidor", e a Spec 036
+     * §Conflito cancelou. Criterio que fica: sem consumidor <b>e</b> sem spec publicada que lhe de
+     * um — so o primeiro nao basta.
      */
     public static final String CODIGO = "AUTH-423-001";
 
@@ -47,6 +47,7 @@ public final class ContaBloqueadaException extends RuntimeException {
         return tempoRestante;
     }
 
+    /** Ver a nota em {@link #CODIGO}: e por este getter que a Sprint 36 le o codigo. */
     public String getCodigo() {
         return CODIGO;
     }

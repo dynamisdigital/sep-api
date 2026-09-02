@@ -47,6 +47,33 @@ class LoginAttemptRepositoryTest {
         this.usuarioId = usuario.getId();
     }
 
+    /**
+     * A metade duravel do teste que a Task 35.5 removeu junto com {@code countByIpAndJanela}: a
+     * query morreu, mas a afirmacao sobre <b>nulidade</b> nao era sobre ela.
+     *
+     * <p>Tentativa com username inexistente e gravada com {@code usuarioId} nulo
+     * ({@code AutenticarUsuarioUseCase:87}), e a coluna e nula por design em duas frentes — o
+     * {@code V4} nao poe {@code NOT NULL} e o {@code V5} faz {@code ON DELETE SET NULL}, que
+     * <b>exige</b> a nulidade. Quebrar isso derruba <b>todo</b> login de usuario inexistente com
+     * 500, porque o registro roda em {@code REQUIRES_NEW} e a violacao escapa.
+     *
+     * <p><b>Qual mutacao este teste mata, medido</b>: {@code @NotNull} no campo, ou {@code NOT NULL}
+     * na coluna por migration. <b>Nao</b> mata {@code @Column(nullable = false)} sozinho — com
+     * {@code ddl-auto: validate} o Flyway e dono do schema e essa anotacao so afeta geracao de DDL,
+     * que nunca roda aqui. Registrado porque a diferenca nao e obvia e convida a confiar em guarda
+     * que nao guarda.
+     */
+    @Test
+    void tentativaDeUsernameInexistentePersisteComUsuarioIdNulo() {
+        LoginAttempt salva = repository.saveAndFlush(LoginAttempt.registrar(
+                null, "outro@sep.test", "10.0.0.1", "ua", LoginAttemptStatus.USUARIO_INEXISTENTE));
+
+        assertThat(repository.findById(salva.getId()))
+                .get()
+                .extracting(LoginAttempt::getUsuarioId, LoginAttempt::getStatus)
+                .containsExactly(null, LoginAttemptStatus.USUARIO_INEXISTENTE);
+    }
+
     @Test
     void buscarInstantesDeFalhaFiltraStatusEOrdenaDoMaisRecente() {
         registrarFalha(LoginAttemptStatus.SENHA_INVALIDA);
