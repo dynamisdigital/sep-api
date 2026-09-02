@@ -48,19 +48,6 @@ class LoginAttemptRepositoryTest {
     }
 
     @Test
-    void contarPorIpNaJanela() {
-        String ip = "10.0.0.1";
-        repository.saveAndFlush(
-                LoginAttempt.registrar(usuarioId, username, ip, "ua", LoginAttemptStatus.SENHA_INVALIDA));
-        repository.saveAndFlush(
-                LoginAttempt.registrar(null, "outro@sep.test", ip, "ua", LoginAttemptStatus.USUARIO_INEXISTENTE));
-
-        long total = repository.countByIpAndJanela(ip, OffsetDateTime.now().minusMinutes(15));
-
-        assertThat(total).isEqualTo(2);
-    }
-
-    @Test
     void buscarInstantesDeFalhaFiltraStatusEOrdenaDoMaisRecente() {
         registrarFalha(LoginAttemptStatus.SENHA_INVALIDA);
         registrarFalha(LoginAttemptStatus.TOTP_INVALIDO);

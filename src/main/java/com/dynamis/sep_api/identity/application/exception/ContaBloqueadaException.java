@@ -10,6 +10,20 @@ import java.time.Duration;
  */
 public final class ContaBloqueadaException extends RuntimeException {
 
+    /**
+     * Codigo de erro estavel do bloqueio de conta. <b>Sem consumidor em {@code src/main} — de
+     * proposito, e isto nao e codigo morto.</b>
+     *
+     * <p>A Sprint 35 Task 35.5 chegou a planejar a remocao, com a justificativa correta para o
+     * momento em que foi escrita: nao havia consumidor. A Spec 036 §Conflito cancelou a remocao — a
+     * Sprint 36 publica {@code codigo} no corpo do erro (Task 36.4) e o {@code build()} do
+     * {@code ApiExceptionHandler} le daqui. Remover para recriar duas sprints depois e churn que
+     * paga dois ciclos de PR.
+     *
+     * <p>Este comentario existe porque o levantamento ja classificou a constante como morta uma vez,
+     * pelo criterio de "sem consumidor hoje". O criterio correto e outro: sem consumidor <b>e</b> sem
+     * spec publicada que lhe de um.
+     */
     public static final String CODIGO = "AUTH-423-001";
 
     private final Duration tempoRestante;
