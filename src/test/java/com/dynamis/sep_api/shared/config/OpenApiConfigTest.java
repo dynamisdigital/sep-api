@@ -15,6 +15,7 @@ import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -34,6 +35,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OpenApiConfigTest {
 
     private static final String API_DOCS = "/v3/api-docs";
+
+    private static final Set<String> METODOS_HTTP =
+            Set.of("get", "put", "post", "delete", "patch", "head", "options", "trace");
 
     @Autowired
     private WebApplicationContext context;
@@ -258,8 +262,14 @@ class OpenApiConfigTest {
      * schema e publico e {@code StatusFormalizacao} ja cresceu uma vez (Sprint 11) sem checkpoint na
      * fronteira web, publicar um valor novo tem que custar uma edicao deliberada aqui.
      *
-     * <p>Trocar o campo de volta por {@code String} tambem fica vermelho: sem enum tipado a chave
-     * {@code enum} some do schema e o jsonPath nao resolve.
+     * <p>Trocar o campo de volta por {@code String} tambem fica vermelho: sem enum tipado o schema
+     * nomeado nao existe e o jsonPath nao resolve.
+     *
+     * <p><b>Sprint 35 Task 35.7</b>: os valores sairam de dentro de cada propriedade e passaram a
+     * viver uma vez so em {@code components/schemas}, com {@code $ref} nos usos. O teste ficou mais
+     * forte, e nao apenas realocado — agora assere <b>as duas metades</b>: que o schema nomeado
+     * carrega a lista literal, e que a propriedade aponta para <b>ele</b>. Antes, um campo religado
+     * ao enum errado continuaria verde desde que a lista batesse.
      */
     @Test
     void enumsDeContratoEAssinaturaPublicadosNoSchema() throws Exception {
@@ -269,15 +279,152 @@ class OpenApiConfigTest {
 
         mockMvc()
                 .perform(get(API_DOCS))
-                .andExpect(jsonPath("$.components.schemas.ContratoResponse.properties.tipo.enum")
+                .andExpect(jsonPath("$.components.schemas.TipoContrato.enum")
                         .value(containsInAnyOrder("MUTUO", "CCB", "OUTROS")))
-                .andExpect(jsonPath("$.components.schemas.ContratoResponse.properties.status.enum")
+                .andExpect(jsonPath("$.components.schemas.StatusFormalizacao.enum")
                         .value(containsInAnyOrder(statusFormalizacao)))
-                .andExpect(jsonPath("$.components.schemas.StatusAssinaturaResponse.properties.statusContrato.enum")
-                        .value(containsInAnyOrder(statusFormalizacao)))
-                .andExpect(jsonPath("$.components.schemas.StatusAssinaturaResponse.properties.statusEnvelope.enum")
+                .andExpect(jsonPath("$.components.schemas.StatusEnvelope.enum")
                         .value(containsInAnyOrder(
-                                "RASCUNHO", "ENVIADO", "VISUALIZADO", "ASSINADO", "RECUSADO", "EXPIRADO")));
+                                "RASCUNHO", "ENVIADO", "VISUALIZADO", "ASSINADO", "RECUSADO", "EXPIRADO")))
+                .andExpect(jsonPath("$.components.schemas.ContratoResponse.properties.tipo.$ref")
+                        .value("#/components/schemas/TipoContrato"))
+                .andExpect(jsonPath("$.components.schemas.ContratoResponse.properties.status.$ref")
+                        .value("#/components/schemas/StatusFormalizacao"))
+                // A mesma lista servia duas propriedades; com $ref elas passam a compartilhar UM schema.
+                .andExpect(jsonPath("$.components.schemas.StatusAssinaturaResponse.properties.statusContrato.$ref")
+                        .value("#/components/schemas/StatusFormalizacao"))
+                .andExpect(jsonPath("$.components.schemas.StatusAssinaturaResponse.properties.statusEnvelope.$ref")
+                        .value("#/components/schemas/StatusEnvelope"));
+    }
+
+    /**
+     * <b>Este teste existe porque a Task 35.7 shipou verde sem ele.</b> O bean de {@code ModelResolver}
+     * entrou sem {@code openapi31}, e um resolver em modo 3.0 dentro de um documento 3.1 apaga em
+     * silencio todo keyword que o 3.0 proibe como irmao de {@code $ref} — 21 descriptions e 17
+     * examples, medido depois do fato.
+     *
+     * <p>Ancora numa propriedade que e {@code $ref} de <b>objeto</b>, e nao de enum, de proposito: o
+     * modo do resolver e do documento inteiro, entao o pino nao pode depender do item que a Task
+     * mudou. E a {@code description} escolhida documenta <b>nulidade</b>, que e o que o consumidor
+     * nao tem como inferir do schema.
+     */
+    @Test
+    void descricaoDePropriedadeRefSobreviveAoResolver() throws Exception {
+        mockMvc()
+                .perform(get(API_DOCS))
+                .andExpect(jsonPath("$.openapi").value(org.hamcrest.Matchers.startsWith("3.1")))
+                .andExpect(jsonPath("$.components.schemas.ContratoResponse.properties.versaoVigente.description")
+                        .value("Versao mais recente do contrato; null se ainda nao gerada"))
+                .andExpect(jsonPath("$.components.schemas.PropostaResponse.properties.parecer.description")
+                        .value("Parecer mais recente (null se ainda nao houve parecer)"))
+                .andExpect(jsonPath("$.components.schemas.StatusAssinaturaResponse.properties.statusEnvelope"
+                                + ".description")
+                        .value("Status do envelope no provider (null se nao houver envelope)"));
+    }
+
+    /**
+     * <b>Assercao sistemica, e nao por endpoint</b> (Sprint 35 Task 35.8): toda operacao com
+     * identificador tipado no path precisa declarar {@code 400}, porque o
+     * {@code ApiExceptionHandler} devolve exatamente isso quando o valor nao parseia. O perimetro
+     * medido no Gate 35.0 era de <b>31 operacoes</b> alcancaveis e nao declaradas, em 19 controllers.
+     *
+     * <p>Assertar endpoint a endpoint deixaria o contrato correto hoje e errado no proximo endpoint
+     * escrito — que e como as 31 apareceram. Esta forma reprova o endpoint novo que nascer sem o
+     * status, e e o unico teste que pode: nenhum assert pontual cobre o que ainda nao existe.
+     *
+     * <p>O criterio de "path tipado" e o mesmo do customizer — parametro de path que <b>nao</b> e
+     * texto. Um {@code String} no path nao tem como falhar no parse.
+     */
+    @Test
+    void toda400AlcancavelPorPathVariableEstaDeclarada() throws Exception {
+        String documento = mockMvc()
+                .perform(get(API_DOCS))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Map<String, Map<String, Map<String, Object>>> paths = JsonPath.read(documento, "$.paths");
+        Set<String> semDeclaracao = new TreeSet<>();
+        int comIdentificadorTipado = 0;
+
+        for (Map.Entry<String, Map<String, Map<String, Object>>> rota : paths.entrySet()) {
+            for (Map.Entry<String, Map<String, Object>> operacao :
+                    rota.getValue().entrySet()) {
+                if (!METODOS_HTTP.contains(operacao.getKey())) {
+                    continue;
+                }
+                if (!temIdentificadorTipadoNoPath(documento, rota.getValue(), operacao.getValue())) {
+                    continue;
+                }
+                comIdentificadorTipado++;
+                Object respostas = operacao.getValue().get("responses");
+                if (!(respostas instanceof Map<?, ?> mapa) || !mapa.containsKey("400")) {
+                    semDeclaracao.add(operacao.getKey().toUpperCase(Locale.ROOT) + " " + rota.getKey());
+                }
+            }
+        }
+
+        assertThat(comIdentificadorTipado)
+                .as("se este numero cair a zero o teste vira vacuo e passa provando nada")
+                .isGreaterThan(50);
+        assertThat(semDeclaracao)
+                .as("operacoes que devolvem 400 por identificador malformado sem declarar o status")
+                .isEmpty();
+    }
+
+    /**
+     * "Tipado" e o criterio do customizer, lido aqui a partir do proprio documento: parametro de
+     * path cujo schema <b>nao</b> e {@code string} pura. Um {@code format: uuid} ou um {@code $ref}
+     * para enum falha no parse; {@code GET /governanca/parametros/{chave}} nao, porque a chave e
+     * texto livre — e por isso ele fica de fora, e nao por excecao escrita a mao.
+     */
+    @SuppressWarnings("unchecked")
+    private boolean temIdentificadorTipadoNoPath(String documento, Map<String, ?> rota, Map<String, Object> operacao) {
+        List<Map<String, Object>> parametros = new ArrayList<>();
+        adicionarParametros(parametros, rota.get("parameters"));
+        adicionarParametros(parametros, operacao.get("parameters"));
+        return parametros.stream()
+                .filter(parametro -> "path".equals(parametro.get("in")))
+                .map(parametro -> resolverSchema(documento, (Map<String, Object>) parametro.get("schema")))
+                .anyMatch(schema -> !ehTextoPuro(schema));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void adicionarParametros(List<Map<String, Object>> destino, Object origem) {
+        if (origem instanceof List<?> lista) {
+            lista.forEach(item -> destino.add((Map<String, Object>) item));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> resolverSchema(String documento, Map<String, Object> schema) {
+        Map<String, Object> atual = schema == null ? Map.of() : schema;
+        for (int salto = 0; salto < 5 && atual.get("$ref") instanceof String ref; salto++) {
+            atual = JsonPath.read(documento, "$.components.schemas." + ref.substring(ref.lastIndexOf('/') + 1));
+        }
+        return atual;
+    }
+
+    private boolean ehTextoPuro(Map<String, Object> schema) {
+        return "string".equals(schema.get("type")) && schema.get("format") == null && schema.get("enum") == null;
+    }
+
+    /**
+     * O irmao do webhook ja declarava o {@code 400} com descricao propria ("tipoChamada nao
+     * suportado"), e o customizer <b>nao pode</b> sobrescreve-la: descricao especifica e melhor
+     * diagnostico que a generica.
+     */
+    @Test
+    void customizerNaoSobrescreveDeclaracaoEscritaAMao() throws Exception {
+        mockMvc()
+                .perform(get(API_DOCS))
+                .andExpect(jsonPath("$.paths['/api/v1/backoffice/reprocessos/webhook/{webhookEventId}']"
+                                + ".post.responses.400.description")
+                        .value("Identificador do path em formato invalido (por exemplo, um UUID malformado)."))
+                .andExpect(jsonPath("$.paths['/api/v1/backoffice/reprocessos/provider/{tipoChamada}/{entidadeId}']"
+                                + ".post.responses.400.description")
+                        .value("tipoChamada nao suportado."));
     }
 
     /**

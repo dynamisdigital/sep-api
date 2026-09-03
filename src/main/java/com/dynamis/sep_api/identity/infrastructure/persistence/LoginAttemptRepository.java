@@ -37,8 +37,5 @@ public interface LoginAttemptRepository extends JpaRepository<LoginAttempt, UUID
             @Param("inicioJanela") OffsetDateTime inicioJanela,
             Pageable limite);
 
-    @Query("SELECT COUNT(l) FROM LoginAttempt l " + "WHERE l.ip = :ip " + "AND l.dataTentativa >= :inicioJanela")
-    long countByIpAndJanela(@Param("ip") String ip, @Param("inicioJanela") OffsetDateTime inicioJanela);
-
     List<LoginAttempt> findByUsuarioId(UUID usuarioId);
 }

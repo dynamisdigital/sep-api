@@ -54,14 +54,15 @@ class ApiExceptionHandlerTest {
     }
 
     /**
-     * Sprint 34 Task 34.3: o {@code 423} publica o tempo restante no {@code Retry-After}. Os dois
-     * numeros divergem de proposito — a {@code message} enuncia a politica (30 minutos) e o header
-     * diz quando voltar (615s) —, entao um header derivado da duracao configurada fica vermelho.
+     * Sprint 34 Task 34.3: o {@code 423} publica o tempo restante no {@code Retry-After}. A Sprint 35
+     * Task 35.7 fez o <b>corpo</b> anunciar o mesmo bloqueio, entao os dois numeros deixaram de
+     * divergir: 615s no header e 11 minutos na frase. Um header derivado da duracao configurada
+     * continua ficando vermelho aqui.
      */
     @Test
     void contaBloqueadaMapeiaPara423ComRetryAfterDoTempoRestante() {
         Mockito.when(request.getRequestURI()).thenReturn("/api/v1/auth/login");
-        ContaBloqueadaException ex = new ContaBloqueadaException(30, Duration.ofSeconds(615));
+        ContaBloqueadaException ex = new ContaBloqueadaException(Duration.ofSeconds(615));
 
         ResponseEntity<ErrorResponseDto> response = handler.handleLocked(ex, request);
 
@@ -69,7 +70,11 @@ class ApiExceptionHandlerTest {
         assertThat(response.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("615");
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().status()).isEqualTo(423);
-        assertThat(response.getBody().message()).contains("30");
+        assertThat(response.getBody().message())
+                .as("Sprint 35 Task 35.7: corpo e header passam a anunciar o MESMO bloqueio — 615s"
+                        + " arredondado para cima sao 11 minutos. Antes o corpo dizia 30, a politica"
+                        + " configurada, e um consumidor que so lesse o corpo esperava 3x demais")
+                .isEqualTo("Conta bloqueada temporariamente. Tente novamente em 11 minutos.");
         assertThat(response.getBody().path()).isEqualTo("/api/v1/auth/login");
     }
 

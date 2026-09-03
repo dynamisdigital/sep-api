@@ -1,6 +1,8 @@
 package com.dynamis.sep_api.identity.infrastructure.security;
 
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
+import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
+import com.dynamis.sep_api.shared.web.OrigemDaRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.ratelimiter.RateLimiterConfig;
@@ -32,9 +34,10 @@ import java.util.Map;
  *
  * <p><b>Evicção</b> (Sprint 34 Task 34.4): ate a Sprint 33 os limitadores viviam num
  * {@code RateLimiterRegistry.ofDefaults()} com get-or-create por IP, <b>sem TTL nem teto</b>, e a
- * cardinalidade das chaves e escolhida pelo cliente (ver {@link #extrairIp}): um atacante variando
- * a origem enchia a heap sem nunca exceder limite nenhum. O registry deu lugar a um mapa LRU por
- * <b>ordem de acesso</b>, limitado a {@link #MAX_LIMITADORES}.
+ * cardinalidade das chaves era escolhida pelo cliente (ver {@link #extrairIp}, fechado na Sprint 35
+ * Task 35.2): um atacante variando a origem enchia a heap sem nunca exceder limite nenhum. O teto
+ * segue valendo — atras de proxy confiavel a chave ainda vem de texto encaminhado. O registry deu
+ * lugar a um mapa LRU por <b>ordem de acesso</b>, limitado a {@link #MAX_LIMITADORES}.
  *
  * <p>LRU e nao expiracao por tempo porque aqui as duas quase coincidem sem precisar de relogio: a
  * entrada mais antiga em acesso e a que passou mais tempo sem consumir permissao, ou seja a que tem
@@ -63,7 +66,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
     static final int MAX_LIMITADORES = 10_000;
 
     /** Comprimento maximo de um IPv6 com mapeamento IPv4 e zona — e o mesmo de {@code LoginAttempt.ip}. */
-    static final int MAX_TAMANHO_IP = 45;
 
     /** Janela do limitador, e tambem o {@code Retry-After} do {@code 429} — ver {@link #escreverErro429}. */
     private static final Duration PERIODO_DE_REFRESH = Duration.ofMinutes(1);
@@ -139,32 +141,28 @@ public class RateLimitFilter extends OncePerRequestFilter {
     /**
      * Origem da request, usada como chave do limitador e como {@code ip} da trilha de login.
      *
-     * <p><b>Nao e confiavel</b>: com {@code server.forward-headers-strategy: framework} o
-     * {@code ForwardedHeaderFilter} do Spring roda antes desta cadeia, consome o
-     * {@code X-Forwarded-For} e copia o primeiro token — sem allowlist de proxy — para o
-     * {@code getRemoteAddr()}. O ramo do header abaixo cobre o caso sem aquele filtro; nos dois
-     * caminhos quem escolhe o valor e o cliente. Fechar isso e mudanca de configuracao
-     * ({@code forward-headers-strategy: native} com {@code server.tomcat.remoteip.internal-proxies}
-     * restrito ao CIDR do balanceador), nao de codigo, e segue como follow-up.
+     * <p><b>Le somente {@code getRemoteAddr()}</b> (Sprint 35 Task 35.2). O
+     * {@code X-Forwarded-For} nao e consultado aqui: quem decide se ele vale e o
+     * {@code RemoteIpValve} do Tomcat, ligado por {@code server.forward-headers-strategy: native},
+     * que so processa o header quando o <b>peer da conexao</b> casa
+     * {@code server.tomcat.remoteip.internal-proxies}. Vindo de proxy confiavel, o valve ja
+     * escreveu a origem real do cliente no {@code getRemoteAddr()}; vindo de qualquer outro lugar,
+     * o header e um campo que o cliente preencheu sozinho e e descartado.
      *
-     * <p>O que da para fazer aqui e limitar o <b>tamanho</b>: sem isso o teto de
-     * {@link #MAX_LIMITADORES} entradas nao limita bytes, porque a chave e escolhida pelo cliente —
-     * um token de 8 KB infla a memoria do mapa em mais de 20x. O corte tambem protege o
-     * {@code LoginAttempt.ip}, coluna {@code VARCHAR(45)}: um valor maior aborta o insert do rastro
-     * dentro do {@code REQUIRES_NEW} e devolve 500 sem deixar registro. 45 e o comprimento maximo de
-     * um IPv6 com mapeamento IPv4 e zona, e o mesmo da coluna. Valores acima disso caem todos no
-     * mesmo balde {@code unknown} — mais estrito, nunca mais permissivo.
+     * <p><b>Ler o header aqui anulava o allowlist</b>, e isso foi medido, nao deduzido: com
+     * {@code native} e allowlist vazio, o valve deixa o header intacto para o peer nao confiavel —
+     * ele so ignora o header, nao o remove — e a versao anterior deste metodo copiava o valor
+     * forjado assim mesmo. Ate a Sprint 34 o javadoc daqui afirmava que fechar o bypass era
+     * "mudanca de configuracao, nao de codigo"; era das duas.
+     * {@code OrigemForaDoAllowlistIT} trava o caso.
+     *
+     * <p>O corte por tamanho vive em {@link OrigemDaRequest} e continua necessario mesmo lendo so o
+     * {@code getRemoteAddr()}: atras de proxy confiavel o valor volta a ser texto encaminhado, e sem
+     * corte o teto de {@link #MAX_LIMITADORES} entradas limita a quantidade de chaves mas nao os
+     * bytes — um token de 8 KB infla a memoria do mapa em mais de 20x.
      */
     public static String extrairIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return normalizar(forwarded.split(",")[0].trim());
-        }
-        return normalizar(request.getRemoteAddr());
-    }
-
-    private static String normalizar(String origem) {
-        return origem == null || origem.isBlank() || origem.length() > MAX_TAMANHO_IP ? "unknown" : origem;
+        return OrigemDaRequest.normalizar(request.getRemoteAddr());
     }
 
     /**
@@ -185,7 +183,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 "Too Many Requests",
                 "Limite de requisicoes excedido. Aguarde antes de tentar novamente.",
                 path,
-                MDC.get("correlationId"));
+                MDC.get(CorrelationIdFilter.MDC_KEY));
         objectMapper.writeValue(response.getOutputStream(), erro);
     }
 }

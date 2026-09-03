@@ -13,11 +13,13 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -27,6 +29,10 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Duration;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Tratamento centralizado de erros da API SEP — handler consolidado da Sprint 4.
@@ -98,6 +104,74 @@ public class ApiExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponseDto> handleNoResource(NoResourceFoundException ex, HttpServletRequest request) {
         return build(HttpStatus.NOT_FOUND, "Not Found", "Recurso nao encontrado", request);
+    }
+
+    /**
+     * Metodo HTTP nao suportado na rota (Sprint 35 Task 35.3). Ate aqui caia no {@code Exception} de
+     * fallback e virava {@code 500}: o servidor anunciava falha propria para um erro do cliente, e o
+     * corpo trazia "Consulte o suporte com o traceId" — pedindo suporte para quem so precisa trocar o
+     * verbo.
+     *
+     * <p>Fica junto dos handlers de roteamento ({@code NoHandlerFoundException},
+     * {@code NoResourceFoundException}) porque a natureza e a mesma: a request nao casou nenhum
+     * handler. O que muda e que aqui o <b>caminho</b> existe.
+     *
+     * <p>Emite {@code Allow}, exigido pela RFC 9110 §15.5.6 no {@code 405}, quando o Spring souber
+     * quais metodos a rota aceita. <b>Nao</b> entra em {@code app.cors.exposed-headers}, e o motivo
+     * que nao envelhece nao e "nenhum front ramifica por ele" — e que o <b>corpo ja carrega a mesma
+     * lista</b> em {@code message}, entao um consumidor de browser exibe ou ramifica sem depender de
+     * CORS. Expor o header seria superficie sem ganho.
+     *
+     * <p>Alcance: os {@code permitAll} de API do {@code SecurityConfig} sao por metodo, entao um verbo
+     * errado numa rota publica para em {@code 401} antes do dispatcher — medido. O {@code 405}
+     * observado por teste e o dos paths cujo matcher nao fixa metodo; para rota autenticada ele
+     * decorre do mesmo caminho de dispatch, e isso <b>nao</b> esta coberto por teste.
+     *
+     * <p>Loga em {@code WARN}, e nao em silencio: antes desta Task o caso passava pelo
+     * {@code handleGeneric} e deixava rastro em {@code ERROR}. Erro de cliente nao merece {@code ERROR},
+     * mas uma rajada de {@code 405} e justamente o sinal de integracao quebrada — mesmo criterio do
+     * {@code handleDataIntegrity}.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponseDto> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        List<HttpMethod> aceitos = metodosAceitos(ex);
+        String mensagem = aceitos.isEmpty()
+                ? "Metodo " + ex.getMethod() + " nao suportado nesta rota"
+                : "Metodo " + ex.getMethod() + " nao suportado nesta rota. Metodos aceitos: "
+                        + aceitos.stream().map(HttpMethod::name).collect(Collectors.joining(", "));
+        log.atWarn()
+                .addKeyValue("event", "method_not_allowed")
+                .addKeyValue("metodo", ex.getMethod())
+                .addKeyValue("path", request.getRequestURI())
+                .log("Metodo HTTP nao suportado na rota");
+        ResponseEntity<ErrorResponseDto> resposta =
+                build(HttpStatus.METHOD_NOT_ALLOWED, "Method Not Allowed", mensagem, request);
+        if (aceitos.isEmpty()) {
+            return resposta;
+        }
+        return ResponseEntity.status(resposta.getStatusCode())
+                .headers(resposta.getHeaders())
+                .allow(aceitos.toArray(new HttpMethod[0]))
+                .body(resposta.getBody());
+    }
+
+    /**
+     * Ordena uma vez e alimenta <b>o corpo e o header</b> com a mesma lista: sem isso a resposta podia
+     * dizer "GET, POST" no {@code message} e {@code Allow: POST,GET}, duas ordens para o mesmo fato.
+     *
+     * <p>A ordenacao nao existe porque a ordem do Spring seja instavel — nao e: o
+     * {@code getSupportedHttpMethods} devolve {@code LinkedHashSet} preenchido na ordem do array
+     * interno, e {@code null} quando nao ha metodos. Existe para a mensagem nao mudar quando alguem
+     * reordenar os {@code @…Mapping} do controller.
+     */
+    private static List<HttpMethod> metodosAceitos(HttpRequestMethodNotSupportedException ex) {
+        Set<HttpMethod> suportados = ex.getSupportedHttpMethods();
+        return suportados == null
+                ? List.of()
+                : suportados.stream()
+                        .sorted(Comparator.comparing(HttpMethod::name))
+                        .toList();
     }
 
     @ExceptionHandler(DomainException.class)

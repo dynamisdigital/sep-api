@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
  * gerado.
  *
  * <p>O ID e exposto na resposta no mesmo header e e usado em logs estruturados (Logback pattern do
- * {@code application.yml}) e propagado para chamadas a providers externos (ver {@link
+ * {@code logback-spring.xml}) e propagado para chamadas a providers externos (ver {@link
  * RestClientFactory}).
  */
 @Component

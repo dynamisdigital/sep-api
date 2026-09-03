@@ -13,6 +13,7 @@ import com.dynamis.sep_api.escrow.infrastructure.adapter.celcoin.dto.CelcoinCont
 import com.dynamis.sep_api.escrow.infrastructure.adapter.celcoin.dto.CelcoinWalletRequest;
 import com.dynamis.sep_api.escrow.infrastructure.adapter.celcoin.dto.CelcoinWalletResponse;
 import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
+import com.dynamis.sep_api.shared.integration.IdempotencyKeyInterceptor;
 import com.dynamis.sep_api.shared.integration.RestClientFactory;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -221,12 +222,12 @@ public class CelcoinEscrowProvider implements EscrowProvider {
 
         static MDCBridge set(String correlationId, String idempotencyKey) {
             String correlationAnterior = MDC.get(CorrelationIdFilter.MDC_KEY);
-            String idempotencyAnterior = MDC.get("idempotencyKey");
+            String idempotencyAnterior = MDC.get(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY);
             if (correlationId != null && !correlationId.isBlank()) {
                 MDC.put(CorrelationIdFilter.MDC_KEY, correlationId);
             }
             if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-                MDC.put("idempotencyKey", idempotencyKey);
+                MDC.put(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY, idempotencyKey);
             }
             return new MDCBridge(correlationAnterior, idempotencyAnterior);
         }
@@ -234,7 +235,7 @@ public class CelcoinEscrowProvider implements EscrowProvider {
         @Override
         public void close() {
             restaurar(CorrelationIdFilter.MDC_KEY, correlationAnterior);
-            restaurar("idempotencyKey", idempotencyAnterior);
+            restaurar(IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY, idempotencyAnterior);
         }
 
         private static void restaurar(String chave, String anterior) {
