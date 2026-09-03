@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
@@ -57,17 +58,36 @@ public class LockoutService {
     private final EmailService emailService;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Relogio injetado (Sprint 35 Task 35.6). A Sprint 33 extraiu {@link PoliticaLockout} como value
+     * object puro justamente para decidir bloqueio sem relogio nem banco; este campo fecha o outro
+     * lado, e o service deixa de ser a peca que so da para testar em tempo real.
+     *
+     * <p>Vem do {@code ClockConfig} do repo — {@code America/Sao_Paulo}, e nao UTC. O fuso nao muda o
+     * resultado, porque toda comparacao e entre instantes.
+     *
+     * <p><b>Cobre o lado da leitura, e so ele.</b> Quem <b>grava</b> o historico que este service le
+     * — {@code LoginAttempt.registrar} e {@code AuditLogSeguranca.de} — ainda carimba
+     * {@code OffsetDateTime.now()} do sistema. Os dois relogios so concordam porque ambos sao o do
+     * sistema, e por isso um IT de expiracao continua fora de alcance: sobrescrever este bean moveria
+     * o leitor sem mover o escritor, e o historico nasceria no futuro. Unificar a escrita e follow-up
+     * proprio (1 call site em {@code LoginAttempt}, 6 em {@code AuditLogSeguranca}).
+     */
+    private final Clock clock;
+
     public LockoutService(
             LoginAttemptRepository attemptRepository,
             AuditLogSegurancaRepository auditRepository,
             LockoutProperties properties,
             EmailService emailService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            Clock clock) {
         this.attemptRepository = attemptRepository;
         this.auditRepository = auditRepository;
         this.properties = properties;
         this.emailService = emailService;
         this.objectMapper = objectMapper;
+        this.clock = clock;
     }
 
     /**
@@ -84,7 +104,7 @@ public class LockoutService {
     public void verificar(String username) {
         Optional<Duration> restante = tempoRestanteDeBloqueio(username);
         if (restante.isPresent()) {
-            throw new ContaBloqueadaException(properties.getLockoutMinutes(), restante.get());
+            throw new ContaBloqueadaException(restante.get());
         }
     }
 
@@ -97,7 +117,7 @@ public class LockoutService {
      * aqui so se le o historico.
      */
     private Optional<Duration> tempoRestanteDeBloqueio(String username) {
-        OffsetDateTime agora = OffsetDateTime.now();
+        OffsetDateTime agora = OffsetDateTime.now(clock);
         PoliticaLockout politica = politica();
         return politica.tempoRestanteDeBloqueio(falhasRecentes(username, agora, politica), agora);
     }
@@ -141,7 +161,7 @@ public class LockoutService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void avaliarPosFalha(UUID usuarioId, String username) {
-        OffsetDateTime agora = OffsetDateTime.now();
+        OffsetDateTime agora = OffsetDateTime.now(clock);
         PoliticaLockout politica = politica();
         List<OffsetDateTime> falhas = falhasRecentes(username, agora, politica);
         Optional<OffsetDateTime> evento = politica.eventoDeBloqueio(falhas, agora);

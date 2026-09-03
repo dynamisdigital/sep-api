@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.identity.infrastructure.security;
 
+import com.dynamis.sep_api.shared.web.OrigemDaRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.servlet.FilterChain;
@@ -108,9 +109,9 @@ class RateLimitFilterTest {
 
     /**
      * Sprint 34 Task 34.4: o mapa de limitadores para de crescer sem limite. Ate a Sprint 33 era um
-     * {@code RateLimiterRegistry} com get-or-create por IP e sem teto — e como {@code extrairIp}
-     * confia no {@code X-Forwarded-For} sem allowlist, quem escolhia quantas chaves criar era o
-     * cliente.
+     * {@code RateLimiterRegistry} com get-or-create por IP e sem teto — e como o {@code extrairIp}
+     * da epoca confiava no {@code X-Forwarded-For} sem allowlist (fechado na Sprint 35 Task 35.2),
+     * quem escolhia quantas chaves criar era o cliente.
      */
     @Test
     void mapaDeLimitadoresRespeitaOTeto() throws Exception {
@@ -194,19 +195,24 @@ class RateLimitFilterTest {
     }
 
     /**
-     * O teto limita entradas, nao bytes — e a chave e escolhida pelo cliente. Sem cortar por
-     * tamanho, 10.000 chaves de 8 KB valem mais de 80 MB em vez dos ~4 MB anunciados, e o valor
-     * ainda estouraria o {@code VARCHAR(45)} de {@code login_attempt.ip}, abortando o rastro.
+     * O teto limita entradas, nao bytes. Sem cortar por tamanho, 10.000 chaves de 8 KB valem mais de
+     * 80 MB em vez dos ~4 MB anunciados, e o valor ainda estouraria o {@code VARCHAR(45)} de
+     * {@code login_attempt.ip}, abortando o rastro.
+     *
+     * <p>O corte segue necessario depois da Sprint 35 Task 35.2, que fez {@code extrairIp} ler so o
+     * {@code getRemoteAddr()}: atras de proxy confiavel quem escreve ali e o {@code RemoteIpValve},
+     * com texto vindo do {@code X-Forwarded-For} — origem de rede deixou de ser o cliente, mas nao
+     * virou um socket.
      */
     @Test
     void origemMaiorQueOLimiteViraBaldeUnico() {
-        MockHttpServletRequest doHeader = req("/p", "POST", "1.1.1.1");
-        doHeader.addHeader("X-Forwarded-For", "a".repeat(RateLimitFilter.MAX_TAMANHO_IP + 1));
-        MockHttpServletRequest doRemoteAddr = req("/p", "POST", "b".repeat(RateLimitFilter.MAX_TAMANHO_IP + 1));
+        String logoAcimaDoLimite = "a".repeat(OrigemDaRequest.MAX_TAMANHO + 1);
+        String bemMaior = "b".repeat(9000);
 
-        assertThat(RateLimitFilter.extrairIp(doHeader)).isEqualTo("unknown");
-        assertThat(RateLimitFilter.extrairIp(doRemoteAddr))
-                .as("com forward-headers-strategy=framework o valor chega pelo getRemoteAddr()")
+        assertThat(RateLimitFilter.extrairIp(req("/p", "POST", logoAcimaDoLimite)))
+                .as("duas origens grandes e diferentes precisam colapsar no MESMO balde, senao o teto"
+                        + " de entradas nao limita bytes")
+                .isEqualTo(RateLimitFilter.extrairIp(req("/p", "POST", bemMaior)))
                 .isEqualTo("unknown");
     }
 
@@ -215,16 +221,23 @@ class RateLimitFilterTest {
         String ipv6 = "0000:0000:0000:0000:0000:ffff:192.168.100.228";
         assertThat(ipv6.length())
                 .as("o IPv6 com mapeamento IPv4 no maior tamanho possivel nao pode ser cortado")
-                .isEqualTo(RateLimitFilter.MAX_TAMANHO_IP);
+                .isEqualTo(OrigemDaRequest.MAX_TAMANHO);
 
         assertThat(RateLimitFilter.extrairIp(req("/p", "POST", ipv6))).isEqualTo(ipv6);
     }
 
+    /**
+     * Sprint 35 Task 35.2 — inverte o teste anterior, que travava o comportamento vulneravel. Quem
+     * decide se o {@code X-Forwarded-For} vale e o {@code RemoteIpValve}, pelo allowlist de proxy;
+     * consultar o header aqui anulava esse allowlist, porque para o peer nao confiavel o valve
+     * <b>ignora</b> o header mas nao o remove. {@code OrigemForaDoAllowlistIT} cobre o mesmo pelo
+     * fio, com o valve de verdade.
+     */
     @Test
-    void extrairIpUsaXForwardedForQuandoPresente() {
-        MockHttpServletRequest r = req("/p", "GET", "1.1.1.1");
+    void extrairIpIgnoraXForwardedFor() {
+        MockHttpServletRequest r = req("/p", "GET", "10.1.2.3");
         r.addHeader("X-Forwarded-For", "203.0.113.10, 10.0.0.1");
 
-        assertThat(RateLimitFilter.extrairIp(r)).isEqualTo("203.0.113.10");
+        assertThat(RateLimitFilter.extrairIp(r)).isEqualTo("10.1.2.3");
     }
 }

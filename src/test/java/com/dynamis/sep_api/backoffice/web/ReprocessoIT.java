@@ -127,6 +127,38 @@ class ReprocessoIT {
         return webhookRepository.saveAndFlush(ev).getId();
     }
 
+    /**
+     * Lado de <b>runtime</b> da Sprint 35 Task 35.8: identificador do path que nao parseia como UUID
+     * devolve {@code 400} com o corpo de erro padronizado.
+     *
+     * <p>Este teste sozinho <b>nao</b> prova a Task — o {@code 400} ja acontecia antes dela, e o
+     * defeito era de <b>contrato</b>: o OpenAPI nao publicava o status. Quem cobre aquele lado e o
+     * {@code OpenApiConfigTest.toda400AlcancavelPorPathVariableEstaDeclarada}. Aqui se trava a outra
+     * metade: que o status declarado corresponde ao que o servico faz, e nao a uma promessa vazia.
+     */
+    @Test
+    void reprocessarWebhook_comIdentificadorMalformadoDevolve400() {
+        Autenticado op = criarELogar(Role.BACKOFFICE, true);
+
+        RestAssured.given()
+                .header("Authorization", "Bearer " + op.token())
+                .header("X-Step-Up-Token", emitirStepUp(op.id()))
+                .contentType(ContentType.JSON)
+                .body("{}")
+                .when()
+                .post("/api/v1/backoffice/reprocessos/webhook/{id}", "nao-e-uuid")
+                .then()
+                .statusCode(400)
+                .body("status", org.hamcrest.Matchers.equalTo(400))
+                .body("error", org.hamcrest.Matchers.equalTo("Bad Request"))
+                .body("message", org.hamcrest.Matchers.containsString("webhookEventId"))
+                .body("path", org.hamcrest.Matchers.equalTo("/api/v1/backoffice/reprocessos/webhook/nao-e-uuid"));
+
+        assertThat(reprocessoRepository.count())
+                .as("identificador invalido nao pode registrar reprocesso")
+                .isZero();
+    }
+
     @Test
     void reprocessarWebhook_persisteRegistroComSucesso() {
         Autenticado op = criarELogar(Role.BACKOFFICE, true);

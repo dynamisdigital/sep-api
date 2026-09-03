@@ -186,6 +186,9 @@ class CelcoinOpenFinanceProviderIT {
                                         .withBody(
                                                 "{\"consent_id\":\"ext-idem\",\"authorization_url\":\"https://celcoin/authz/idem\",\"expires_at\":\"2026-06-18T12:00:00-03:00\"}")));
 
+        // Literal de proposito (Sprint 35 Task 35.6): usar IdempotencyKeyInterceptor.MDC_IDEMPOTENCY_KEY
+        // faria os dois lados seguirem qualquer rename e a asserção viraria tautologia. Aqui o teste e
+        // de contrato: a chave e o que o interceptor le para montar o header Idempotency-Key.
         org.slf4j.MDC.put("idempotencyKey", "open-finance:consent:prop-xyz:1");
         try {
             RespostaConsentimento resp = provider.iniciarConsentimento(novaRequisicao(), "corr-idem");

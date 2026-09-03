@@ -12,7 +12,7 @@ import java.io.IOException;
 
 /**
  * Interceptor que adiciona o header {@code Idempotency-Key} a chamadas HTTP outbound a providers
- * externos. A chave e lida do MDC (chave {@code idempotencyKey}); o caller e responsavel por
+ * externos. A chave e lida do MDC (chave {@value #MDC_IDEMPOTENCY_KEY}); o caller e responsavel por
  * colocar o valor antes da chamada.
  *
  * <p>Tambem propaga {@link CorrelationIdFilter#HEADER} para o provider, util para correlacionar

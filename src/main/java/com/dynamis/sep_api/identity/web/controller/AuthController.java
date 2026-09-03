@@ -80,9 +80,10 @@ public class AuthController {
             summary = "Consultar politica de bloqueio de conta",
             description = "Somente leitura e sem autenticacao: quem precisa do valor esta bloqueado e, por definicao,"
                     + " nao tem sessao. Serve a pagina de conta bloqueada, que renderiza sem ter recebido resposta de"
-                    + " API e por isso fixava a duracao no texto. lockoutMinutes ja e publicado pela message do 423; os"
-                    + " outros dois, apenas pelo /v3/api-docs, e com os defaults fixos no codigo — aqui vem o valor"
-                    + " efetivo do ambiente.")
+                    + " API e por isso fixava a duracao no texto. Desde a Sprint 35 a message do 423 anuncia o tempo"
+                    + " RESTANTE, nao a duracao configurada, entao os tres valores da politica so sao legiveis aqui —"
+                    + " o /v3/api-docs traz apenas os defaults fixos no codigo, e aqui vem o valor efetivo do"
+                    + " ambiente.")
     @ApiResponses({
         @ApiResponse(
                 responseCode = "200",

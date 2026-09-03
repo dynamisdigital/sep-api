@@ -11,8 +11,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * renderiza sem ter recebido resposta de API — o {@code errorInterceptor} do web navega e descarta o
  * erro —, entao ate a Sprint 33 fixava "30 minutos" no texto.
  *
- * <p>Do que passa a ser publico, apenas {@code lockoutMinutes} ja saia na {@code message} do
- * {@code 423}. Os outros dois so eram legiveis no {@code /v3/api-docs} — que e {@code permitAll} e
+ * <p>Ate a Sprint 34, {@code lockoutMinutes} tambem saia na {@code message} do {@code 423}; a
+ * Sprint 35 Task 35.7 fez aquela frase anunciar o tempo <b>restante</b>, entao os <b>tres</b> valores
+ * da politica so sao publicados aqui. Antes disso, os outros dois so eram legiveis no
+ * {@code /v3/api-docs} — que e {@code permitAll} e
  * fica habilitado em producao —, onde a descricao do {@code 423} enuncia "5 falhas em 15 min" com os
  * <b>defaults fixos no codigo</b>. O incremento real deste endpoint e refletir o valor <b>efetivo</b>
  * do ambiente em vez do default. Aceito: os numeros sao de baixa entropia, o lockout e por conta

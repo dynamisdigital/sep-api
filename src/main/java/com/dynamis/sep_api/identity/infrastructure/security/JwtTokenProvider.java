@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.identity.infrastructure.security;
 
+import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
 import io.jsonwebtoken.Claims;
@@ -73,7 +74,7 @@ public class JwtTokenProvider {
     public String gerarToken(Usuario usuario) {
         Instant agora = Instant.now();
         Instant expiracao = agora.plusSeconds(expirationSeconds);
-        String correlationId = MDC.get("correlationId");
+        String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
         log.debug("Emitindo JWT para usuario {} (correlationId={})", usuario.getId(), correlationId);
         var builder = Jwts.builder()
                 .subject(usuario.getId().toString())
@@ -97,7 +98,7 @@ public class JwtTokenProvider {
             Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token);
             return true;
         } catch (Exception ex) {
-            String correlationId = MDC.get("correlationId");
+            String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
             log.debug(
                     "Token JWT rejeitado: {} (correlationId={})", ex.getClass().getSimpleName(), correlationId);
             return false;

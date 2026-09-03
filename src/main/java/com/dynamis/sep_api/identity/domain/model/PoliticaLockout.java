@@ -20,6 +20,12 @@ public record PoliticaLockout(int maxAttempts, Duration janelaDeteccao, Duration
      * Rejeita configuracao que desligaria o lockout em silencio: com duracao negativa o limite de
      * validade cai no futuro e nada bloqueia; com janela negativa nenhuma janela fecha. Um lockout
      * fail-open sem log e pior que um boot que falha.
+     *
+     * <p>As duracoes aceitam <b>zero</b> aqui de proposito — o record e um value object e nao
+     * conhece unidade de configuracao. Zero, porem, tambem desliga o lockout na pratica, entao o
+     * piso efetivo e um minuto e vem de fora: {@code LockoutProperties} valida os tres campos com
+     * {@code @Min(1)} no boot (Sprint 35 Task 35.1). Nao ler este construtor como se zero fosse
+     * politica suportada.
      */
     public PoliticaLockout {
         if (maxAttempts < 1) {

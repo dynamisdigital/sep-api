@@ -7,6 +7,7 @@ import com.dynamis.sep_api.onboarding.application.port.out.dto.ResultadoKycProvi
 import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.dto.CelcoinKycRequest;
 import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.dto.CelcoinKycResponse;
 import com.dynamis.sep_api.onboarding.infrastructure.adapter.celcoin.dto.CelcoinKycResultadoResponse;
+import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
 import com.dynamis.sep_api.shared.integration.RestClientFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -150,9 +151,9 @@ public class CelcoinKycProvider implements KycProvider {
         }
 
         static MDCBridge set(String correlationId) {
-            String anterior = MDC.get(com.dynamis.sep_api.shared.integration.CorrelationIdFilter.MDC_KEY);
+            String anterior = MDC.get(CorrelationIdFilter.MDC_KEY);
             if (correlationId != null && !correlationId.isBlank()) {
-                MDC.put(com.dynamis.sep_api.shared.integration.CorrelationIdFilter.MDC_KEY, correlationId);
+                MDC.put(CorrelationIdFilter.MDC_KEY, correlationId);
             }
             return new MDCBridge(anterior);
         }
@@ -160,9 +161,9 @@ public class CelcoinKycProvider implements KycProvider {
         @Override
         public void close() {
             if (correlationAnterior == null) {
-                MDC.remove(com.dynamis.sep_api.shared.integration.CorrelationIdFilter.MDC_KEY);
+                MDC.remove(CorrelationIdFilter.MDC_KEY);
             } else {
-                MDC.put(com.dynamis.sep_api.shared.integration.CorrelationIdFilter.MDC_KEY, correlationAnterior);
+                MDC.put(CorrelationIdFilter.MDC_KEY, correlationAnterior);
             }
         }
     }

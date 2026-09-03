@@ -63,7 +63,20 @@ springdoc:
 
 server:
   port: 8080
-  forward-headers-strategy: framework # respeita X-Forwarded-* atras de proxy
+  # Sprint 35 Task 35.2: 'native' em vez de 'framework' PORQUE so o RemoteIpValve do Tomcat tem
+  # allowlist de proxy. Com 'framework' o ForwardedHeaderFilter do Spring honra X-Forwarded-For de
+  # QUALQUER origem, e a origem que alimenta o rate limit por IP e a trilha de login passa a ser
+  # escolhida pelo cliente. As duas linhas andam juntas: 'internal-proxies' e propriedade do
+  # RemoteIpValve e so tem efeito com 'native'; trocar so a estrategia pioraria.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Default: NAO confia em ninguem (vazio -> RemoteIpValve nunca processa o header). O CIDR do
+      # balanceador nao existe ate a Fase 5, e um default permissivo aqui reabre exatamente o
+      # bypass que esta Task fecha. Um valor largo demais mantem o bypass; estreito demais faz todo
+      # mundo compartilhar o IP do balanceador e o limite vira global — por isso e env var, nao
+      # constante. Regex Java, nao CIDR: ex. APP_TRUSTED_PROXIES='10\.0\.\d+\.\d+'.
+      internal-proxies: ${APP_TRUSTED_PROXIES:}
 
 # Propriedades de aplicacao (placeholders; valores reais via env vars)
 app:
@@ -246,6 +259,14 @@ app:
     # O RateLimitFilter roda antes do controller; se os dois valessem 5, a 6a tentativa — a unica
     # capaz de responder 423 — seria barrada com 429 e o usuario legitimo nunca saberia que a conta
     # esta bloqueada. Quem protege a conta e o lockout; o rate limit protege o servico.
+    #
+    # ESTAS sao as duas chaves efetivas do rate limit de login/TOTP. O RateLimitFilter monta
+    # RateLimiterConfig.custom() a partir daqui e instancia por RateLimiter.of, a fabrica estatica —
+    # nao passa por registry. Logo, configurar resilience4j.ratelimiter.* NAO afeta o login: era
+    # justamente um bloco assim, sem consumidor, que a Sprint 35 Task 35.4 removeu.
+    # Corolario para quem for usar o Resilience4j de verdade: um @RateLimiter novo precisa declarar
+    # o proprio resilience4j.ratelimiter.instances.<nome>. Sem instance, ele cai no default da
+    # biblioteca (50 permissoes / 500ns), que na pratica e nao limitar nada.
     rate-limit:
       login-per-minute-per-ip: ${APP_RATE_LIMIT_LOGIN:10}
       totp-verify-per-minute-per-ip: ${APP_RATE_LIMIT_TOTP_VERIFY:10}
@@ -369,12 +390,6 @@ resilience4j:
         timeoutDuration: 30s
       zenvia-sms:
         timeoutDuration: 30s
-  ratelimiter:
-    configs:
-      default:
-        limitForPeriod: 5
-        limitRefreshPeriod: 60s
-        timeoutDuration: 0
 
 logging:
   level:

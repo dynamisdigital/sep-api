@@ -6,6 +6,7 @@ import com.dynamis.sep_api.cobranca.application.usecase.EscalarCobrancaUseCase;
 import com.dynamis.sep_api.cobranca.domain.event.ParcelaAtrasouEvent;
 import com.dynamis.sep_api.cobranca.domain.model.ParcelaCobranca;
 import com.dynamis.sep_api.cobranca.infrastructure.persistence.ParcelaCobrancaRepository;
+import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
 import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository;
 import org.slf4j.Logger;
@@ -73,7 +74,7 @@ public class ParcelaAtrasouListener {
                 .map(Usuario::getUsername)
                 .orElse(null);
         EscalarCobrancaCommand command = new EscalarCobrancaCommand(
-                event.parcelaId(), 0, email, null, variaveis(event), MDC.get("correlationId"));
+                event.parcelaId(), 0, email, null, variaveis(event), MDC.get(CorrelationIdFilter.MDC_KEY));
         useCase.escalar(command);
     }
 
