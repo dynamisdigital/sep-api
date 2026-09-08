@@ -221,7 +221,8 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(ContaBloqueadaException.class)
     public ResponseEntity<ErrorResponseDto> handleLocked(ContaBloqueadaException ex, HttpServletRequest request) {
-        ResponseEntity<ErrorResponseDto> resposta = build(HttpStatus.LOCKED, "Locked", ex.getMessage(), request);
+        ResponseEntity<ErrorResponseDto> resposta =
+                build(HttpStatus.LOCKED, "Locked", ex.getMessage(), request, ex.getCodigo());
         return ResponseEntity.status(resposta.getStatusCode())
                 .headers(resposta.getHeaders())
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(segundosAteLiberar(ex.getTempoRestante())))
@@ -306,18 +307,37 @@ public class ApiExceptionHandler {
         return build(status, error, ex.getMessage(), request);
     }
 
+    /**
+     * As duas excecoes de reprocesso ficam fora do {@code switch} selado — nao herdam de
+     * {@link DomainException} —, mas <b>nao</b> sao inalcancaveis, como a Spec 036 §Ancora 5 supunha.
+     * Cada uma tem {@code CODIGO} publico e handler dedicado, entao o codigo e lido da constante da
+     * propria excecao (Sprint 36 Task 36.4).
+     *
+     * <p>Ler a constante, e nao repetir o literal, e o que impede o handler de virar uma segunda
+     * definicao do codigo. As doze colisoes que o Gate 36.0 mediu nasceram exatamente assim.
+     */
     @ExceptionHandler(com.dynamis.sep_api.backoffice.domain.exception.LimiteReprocessoExcedidoException.class)
     public ResponseEntity<ErrorResponseDto> handleLimiteReprocesso(
             com.dynamis.sep_api.backoffice.domain.exception.LimiteReprocessoExcedidoException ex,
             HttpServletRequest request) {
-        return build(HttpStatus.TOO_MANY_REQUESTS, "Too Many Requests", ex.getMessage(), request);
+        return build(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "Too Many Requests",
+                ex.getMessage(),
+                request,
+                com.dynamis.sep_api.backoffice.domain.exception.LimiteReprocessoExcedidoException.CODIGO);
     }
 
     @ExceptionHandler(com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException.class)
     public ResponseEntity<ErrorResponseDto> handleTipoReprocesso(
             com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException ex,
             HttpServletRequest request) {
-        return build(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request);
+        return build(
+                HttpStatus.BAD_REQUEST,
+                "Bad Request",
+                ex.getMessage(),
+                request,
+                com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException.CODIGO);
     }
 
     @ExceptionHandler(Exception.class)
