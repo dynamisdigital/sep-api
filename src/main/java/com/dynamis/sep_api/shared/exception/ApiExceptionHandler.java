@@ -174,6 +174,16 @@ public class ApiExceptionHandler {
                         .toList();
     }
 
+    /**
+     * Unico ponto em que a taxonomia de erro do dominio atravessa a fronteira HTTP (Sprint 36 Task
+     * 36.2). Ate aqui o {@code codigo} era construido no dominio e descartado nesta linha: os ~103
+     * identificadores tinham zero consumidores em {@code src/main}.
+     *
+     * <p>O {@code switch} decide status e o {@code getCodigo()} decide identidade, e sao coisas
+     * independentes de proposito: dois subtipos distintos compartilham status (nenhum hoje, mas nada
+     * impede) e dois codigos do mesmo subtipo compartilham status por definicao. Por isso o codigo
+     * nao sai do {@code switch}.
+     */
     @ExceptionHandler(DomainException.class)
     public ResponseEntity<ErrorResponseDto> handleDomain(DomainException ex, HttpServletRequest request) {
         HttpStatus status =
@@ -184,7 +194,7 @@ public class ApiExceptionHandler {
                     case AcessoNegadoException ignored -> HttpStatus.FORBIDDEN;
                     case OperacaoNaoProcessavelException ignored -> HttpStatus.UNPROCESSABLE_ENTITY;
                 };
-        return build(status, status.getReasonPhrase(), ex.getMessage(), request);
+        return build(status, status.getReasonPhrase(), ex.getMessage(), request, ex.getCodigo());
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -316,10 +326,22 @@ public class ApiExceptionHandler {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", FALLBACK_500_MESSAGE, request);
     }
 
+    /** Corpo sem codigo — os 13 handlers cuja condicao nao tem identificador de dominio publicado. */
     private ResponseEntity<ErrorResponseDto> build(
             HttpStatus status, String error, String message, HttpServletRequest request) {
+        return build(status, error, message, request, null);
+    }
+
+    /**
+     * Ponto unico de montagem do corpo <b>dentro deste handler</b>. Nao e o ponto unico da aplicacao:
+     * o Gate 36.0 mediu mais quatro construcoes de {@link ErrorResponseDto} em filtros e entry points
+     * do Spring Security, que escrevem direto na response e nunca chegam ao
+     * {@code @RestControllerAdvice}. Elas seguem sem codigo, por decisao registrada na spec.
+     */
+    private ResponseEntity<ErrorResponseDto> build(
+            HttpStatus status, String error, String message, HttpServletRequest request, String codigo) {
         ErrorResponseDto body = ErrorResponseDto.of(
-                status.value(), error, message, request.getRequestURI(), MDC.get(CorrelationIdFilter.MDC_KEY));
+                status.value(), error, message, request.getRequestURI(), MDC.get(CorrelationIdFilter.MDC_KEY), codigo);
         return ResponseEntity.status(status).body(body);
     }
 }
