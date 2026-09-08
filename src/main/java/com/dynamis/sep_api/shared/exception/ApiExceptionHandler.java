@@ -176,8 +176,8 @@ public class ApiExceptionHandler {
 
     /**
      * Unico ponto em que a taxonomia de erro do dominio atravessa a fronteira HTTP (Sprint 36 Task
-     * 36.2). Ate aqui o {@code codigo} era construido no dominio e descartado nesta linha: os ~103
-     * identificadores tinham zero consumidores em {@code src/main}.
+     * 36.2). Ate aqui o {@code codigo} era construido no dominio e descartado nesta linha: os
+     * <b>133</b> identificadores medidos no Gate 36.0 tinham zero consumidores em {@code src/main}.
      *
      * <p>O {@code switch} decide status e o {@code getCodigo()} decide identidade, e sao coisas
      * independentes de proposito: dois subtipos distintos compartilham status (nenhum hoje, mas nada

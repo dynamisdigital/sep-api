@@ -25,15 +25,21 @@ import java.util.regex.Pattern;
  * <p><b>Acrescentar codigo e compativel; renomear codigo publicado e mudanca de contrato.</b> Depois
  * desta sprint o par {@code codigo + traceId} e o identificador que o usuario reporta ao suporte.
  *
- * <p>Fora do catalogo ficam 46 codigos: 16 por colisao e 30 por formato, cada um registrado com
- * motivo em {@code CONTRATOS.md}. Os dois grupos sao o escopo da Sprint 37.
+ * <p>Fora do catalogo ficam 53 codigos: 23 por colisao e 30 por formato, cada um registrado com
+ * motivo em {@code docs-SEP/repos/sep-api/CODIGOS-DE-ERRO.md}. Os dois grupos sao o escopo da
+ * Sprint 37.
+ *
+ * <p><b>Sete dos 23 entraram no code review de fechamento</b>, e sao de um tipo que a primeira
+ * versao desta sprint nao media: colidem <b>dentro da mesma classe</b>. O caso que os nomeia e
+ * {@code ONB-400-004}, constante batizada {@code CODIGO_TAMANHO_EXCEDIDO} e lancada tambem para
+ * "conteudo do documento e obrigatorio". A particao contava classes donas, e classe nao implica
+ * condicao — ver {@code ParticaoDeCodigosErroTest}.
  */
 public final class CatalogoCodigosErro {
 
     private static final Pattern CANONICO = Pattern.compile("^[A-Z]{3,4}-[0-9]{3}-[0-9]{3}$");
 
     private static final Set<String> PUBLICADOS = validar(List.of(
-            "ASN-400-001",
             "ASN-400-002",
             "ASN-400-003",
             "AUTH-400-101",
@@ -95,31 +101,25 @@ public final class CatalogoCodigosErro {
             "MFA-400-004",
             "MFA-409-001",
             "ONB-400-001",
-            "ONB-400-002",
             "ONB-400-003",
-            "ONB-400-004",
             "ONB-400-005",
             "ONB-400-009",
             "ONB-400-010",
             "ONB-400-011",
             "ONB-400-012",
             "ONB-400-013",
-            "ONB-400-014",
-            "ONB-400-015",
             "ONB-400-016",
             "ONB-400-018",
             "ONB-404-002",
             "ONB-409-001",
             "ONB-409-002",
             "PIX-400-001",
-            "PIX-400-002",
             "PIX-404-001",
             "USR-403-001",
             "USR-403-002",
             "USR-404-001",
             "USR-409-001",
-            "WHK-400-001",
-            "WHK-400-002"));
+            "WHK-400-001"));
 
     private CatalogoCodigosErro() {}
 
