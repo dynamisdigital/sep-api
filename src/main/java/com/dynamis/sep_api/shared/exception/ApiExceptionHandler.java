@@ -361,7 +361,34 @@ public class ApiExceptionHandler {
     private ResponseEntity<ErrorResponseDto> build(
             HttpStatus status, String error, String message, HttpServletRequest request, String codigo) {
         ErrorResponseDto body = ErrorResponseDto.of(
-                status.value(), error, message, request.getRequestURI(), MDC.get(CorrelationIdFilter.MDC_KEY), codigo);
+                status.value(),
+                error,
+                message,
+                request.getRequestURI(),
+                MDC.get(CorrelationIdFilter.MDC_KEY),
+                somenteSePublicado(codigo));
         return ResponseEntity.status(status).body(body);
+    }
+
+    /**
+     * O perimetro vale no fio, e nao so no documento (Sprint 36 Task 36.6).
+     *
+     * <p>Nem todo codigo que o dominio carrega pode ser publicado: dos 133 medidos no Gate 36.0, 46
+     * ficaram fora por colisao ou formato. Varios deles vivem em subtipos de {@link DomainException}
+     * e chegam aqui normalmente — {@code OwnershipPropostaException} carrega {@code CRD-403-001}, que
+     * significa "proposta de outro tomador" no modulo credito e "credora de outro dono" no credores.
+     *
+     * <p>Sem este filtro o corpo entregaria um valor que o {@code enum} do OpenAPI nao declara: a
+     * resposta violaria o proprio schema publicado, e o cliente receberia um identificador ambiguo
+     * como se fosse estavel. A §Decisao tecnica principal da Spec 036 e explicita — codigo que falha
+     * em qualquer um dos tres criterios <b>simplesmente nao emite codigo</b>, e o campo, sendo
+     * opcional, absorve isso sem regressao para ninguem.
+     *
+     * <p>Fica aqui, e nao em cada handler, porque a regra e a mesma para todos e porque o
+     * {@link CatalogoCodigosErro} ja e a fonte unica do que o contrato declara: um so lugar governa
+     * documento e fio.
+     */
+    private static String somenteSePublicado(String codigo) {
+        return codigo != null && CatalogoCodigosErro.publicados().contains(codigo) ? codigo : null;
     }
 }

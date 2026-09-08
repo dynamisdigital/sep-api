@@ -51,21 +51,21 @@ class DomainExceptionCodigoNoCorpoTest {
     static Stream<Arguments> subtiposSelados() {
         return Stream.of(
                 Arguments.of(
-                        new ValidacaoException("USR-400-001", "senha atual incorreta"),
+                        new ValidacaoException("GOV-400-001", "valor de parametro invalido"),
                         HttpStatus.BAD_REQUEST,
-                        "USR-400-001"),
+                        "GOV-400-001"),
                 Arguments.of(
-                        new RecursoNaoEncontradoException("ONB-404-001", "onboarding nao encontrado"),
+                        new RecursoNaoEncontradoException("USR-404-001", "usuario nao encontrado"),
                         HttpStatus.NOT_FOUND,
-                        "ONB-404-001"),
+                        "USR-404-001"),
                 Arguments.of(
                         new ConflitoException("COB-409-001", "parcela em estado invalido"),
                         HttpStatus.CONFLICT,
                         "COB-409-001"),
                 Arguments.of(
-                        new AcessoNegadoException("CRD-403-001", "proposta de outro tomador"),
+                        new AcessoNegadoException("USR-403-001", "recurso de outro usuario"),
                         HttpStatus.FORBIDDEN,
-                        "CRD-403-001"),
+                        "USR-403-001"),
                 Arguments.of(
                         new OperacaoNaoProcessavelException("CTR-422-001", "contrato nao assinado"),
                         HttpStatus.UNPROCESSABLE_ENTITY,
