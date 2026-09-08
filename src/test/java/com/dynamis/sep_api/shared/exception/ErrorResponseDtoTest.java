@@ -1,11 +1,13 @@
 package com.dynamis.sep_api.shared.exception;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.json.JsonTest;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -48,11 +50,11 @@ class ErrorResponseDtoTest {
         ErrorResponseDto corpo =
                 ErrorResponseDto.of(400, "Bad Request", "Requisicao invalida", "/api/v1/usuarios", "trace-2");
 
-        String json = objectMapper.writeValueAsString(corpo);
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(corpo));
 
-        assertThat(objectMapper.readTree(json).has("codigo")).isFalse();
-        assertThat(objectMapper.readTree(json).properties())
-                .extracting(java.util.Map.Entry::getKey)
+        assertThat(json.has("codigo")).isFalse();
+        assertThat(json.properties())
+                .extracting(Map.Entry::getKey)
                 .containsExactlyInAnyOrder("timestamp", "status", "error", "message", "path", "traceId");
     }
 

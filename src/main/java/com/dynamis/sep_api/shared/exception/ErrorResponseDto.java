@@ -38,6 +38,7 @@ public record ErrorResponseDto(
         return of(status, error, message, path, traceId, null);
     }
 
+    /** Corpo com codigo publicado. Unico caminho pelo qual a taxonomia de erro chega ao fio. */
     public static ErrorResponseDto of(
             int status, String error, String message, String path, String traceId, String codigo) {
         return new ErrorResponseDto(OffsetDateTime.now(), status, error, message, path, traceId, codigo);
