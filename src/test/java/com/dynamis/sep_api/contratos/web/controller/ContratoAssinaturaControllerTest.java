@@ -293,8 +293,14 @@ class ContratoAssinaturaControllerTest {
         verify(consultarStatusAssinaturaUseCase, never()).executar(any());
     }
 
+    /**
+     * O {@code codigo} e assertado aqui, no caminho HTTP real, e nao num teste da constante: a
+     * constante e {@code private}, e provar que ela existe nao prova que ela atravessa o fio (Sprint
+     * 36 Task 36.3). O valor {@code CTR-422-004} substituiu {@code CTR-422-CCB-001}, unica forma nao
+     * canonica dentro do subconjunto publicavel medido no Gate 36.0.
+     */
     @Test
-    void postAssinarFalhaCcbRetorna422() throws Exception {
+    void postAssinarFalhaCcbRetorna422ComCodigoCanonico() throws Exception {
         UsuarioAutenticado p = autenticar(UUID.randomUUID(), Role.FINANCEIRO);
         when(stepUpTokenService.validarEConsumir(anyString())).thenReturn(Optional.of(p.id()));
         UUID contratoId = UUID.randomUUID();
@@ -302,7 +308,9 @@ class ContratoAssinaturaControllerTest {
                 .thenThrow(new CcbGeracaoException("Falha ao gerar PDF da CCB", new RuntimeException("io")));
 
         mockMvc.perform(post("/api/v1/contratos/{id}/assinar", contratoId).header("X-Step-Up-Token", "tok"))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.codigo").value("CTR-422-004"))
+                .andExpect(jsonPath("$.status").value(422));
     }
 
     @Test

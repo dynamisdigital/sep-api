@@ -3,10 +3,12 @@ package com.dynamis.sep_api.shared.config;
 import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUp;
 import com.dynamis.sep_api.identity.infrastructure.security.RequireStepUpEstrito;
 import com.dynamis.sep_api.identity.infrastructure.security.StepUpEnforcementAspect;
+import com.dynamis.sep_api.shared.exception.CatalogoCodigosErro;
 import io.swagger.v3.core.jackson.ModelResolver;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.parameters.HeaderParameter;
 import io.swagger.v3.oas.models.responses.ApiResponse;
@@ -14,6 +16,7 @@ import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import jakarta.annotation.PostConstruct;
+import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springdoc.core.customizers.OperationCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,6 +37,8 @@ import java.util.Arrays;
 public class OpenApiConfig implements WebMvcConfigurer {
 
     private static final String SECURITY_SCHEME_NAME = "bearerAuth";
+
+    private static final String SCHEMA_DE_ERRO = "ErrorResponseDto";
 
     @Bean
     public OpenAPI sepOpenAPI() {
@@ -170,6 +175,45 @@ public class OpenApiConfig implements WebMvcConfigurer {
                                             + " habilitado (bypass de migracao pre-MFA).")
                     .schema(new StringSchema()));
             return operation;
+        };
+    }
+
+    /**
+     * Publica o catalogo de codigos de erro <b>uma unica vez</b>, no schema comum
+     * {@code ErrorResponseDto} de {@code components} (Sprint 36 Task 36.5).
+     *
+     * <p><b>Por que {@code OpenApiCustomizer} e nao {@code OperationCustomizer}.</b> O criterio da
+     * spec e publicacao unica em {@code components}; um customizer de operacao teria de tocar as 106
+     * operacoes para escrever a mesma lista, e o {@code @Schema(allowableValues)} no record nao serve
+     * porque exigiria constante de compilacao e transformaria o catalogo em segunda lista, mantida a
+     * mao. Aqui a fonte e {@link CatalogoCodigosErro}, e o documento deriva dela.
+     *
+     * <p><b>O resolver nao e substituido.</b> Este bean edita o documento <i>depois</i> de pronto, e
+     * nao intercepta a resolucao de schemas. A Sprint 35 Task 35.7 mediu o custo do outro caminho:
+     * um {@code ModelResolver} proprio sem {@code openapi31} apagou 21 {@code description} e 17
+     * {@code example} em silencio, e com {@code openapi31} apagou o {@code securitySchemes} inteiro.
+     *
+     * <p>O campo continua <b>opcional</b>: nao entra em {@code required}. Handler sem taxonomia segue
+     * omitindo a propriedade, e cliente que ignora o campo nao quebra.
+     */
+    @Bean
+    public OpenApiCustomizer catalogoDeCodigosDeErroCustomizer() {
+        return openApi -> {
+            if (openApi.getComponents() == null || openApi.getComponents().getSchemas() == null) {
+                return;
+            }
+            Schema<?> erro = openApi.getComponents().getSchemas().get(SCHEMA_DE_ERRO);
+            if (erro == null || erro.getProperties() == null) {
+                return;
+            }
+            // O swagger-core modela propriedade como Schema cru; sem o tipo concreto o
+            // addEnumItemObject fica inalcancavel por wildcard capture.
+            @SuppressWarnings("unchecked")
+            Schema<Object> codigo = (Schema<Object>) erro.getProperties().get("codigo");
+            if (codigo == null) {
+                return;
+            }
+            CatalogoCodigosErro.publicados().forEach(codigo::addEnumItemObject);
         };
     }
 
