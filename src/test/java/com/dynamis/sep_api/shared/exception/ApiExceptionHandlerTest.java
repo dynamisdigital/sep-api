@@ -1,5 +1,8 @@
 package com.dynamis.sep_api.shared.exception;
 
+import com.dynamis.sep_api.backoffice.domain.exception.LimiteReprocessoExcedidoException;
+import com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException;
+import com.dynamis.sep_api.backoffice.domain.vo.TipoChamadaProvider;
 import com.dynamis.sep_api.identity.application.exception.ContaBloqueadaException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
@@ -113,5 +116,58 @@ class ApiExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().message()).doesNotContain("RuntimeException");
         assertThat(response.getBody().message()).doesNotContain("at com.dynamis");
+    }
+
+    /**
+     * Sprint 36 Task 36.4. <b>Deliberadamente separado</b> de
+     * {@link #contaBloqueadaMapeiaPara423ComRetryAfterDoTempoRestante()}: o codigo e o
+     * {@code Retry-After} sao independentes, e provar isso exige que uma regressao em um nao possa
+     * ser mascarada pelo teste do outro. Aqui nao se asserta o header, e la nao se asserta o codigo.
+     *
+     * <p>{@code ContaBloqueadaException} nao herda de {@code DomainException} — a hierarquia e
+     * {@code sealed} e nao a permite —, entao ela carrega constante e getter proprios. A Task 35.5
+     * chegou a planejar a remocao dos dois por "nao ha consumidor"; este teste e o consumidor.
+     */
+    @Test
+    void contaBloqueadaPublicaOCodigoNoCorpo() {
+        Mockito.when(request.getRequestURI()).thenReturn("/api/v1/auth/login");
+        ContaBloqueadaException ex = new ContaBloqueadaException(Duration.ofSeconds(615));
+
+        ResponseEntity<ErrorResponseDto> response = handler.handleLocked(ex, request);
+
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().codigo()).isEqualTo("AUTH-423-001");
+        assertThat(response.getBody().status()).isEqualTo(423);
+        assertThat(response.getBody().path()).isEqualTo("/api/v1/auth/login");
+    }
+
+    /**
+     * Sprint 36 Task 36.4. Os dois {@code BOF-*} ficam fora do {@code switch} selado, mas nao sao
+     * inalcancaveis como a Spec 036 §Ancora 5 supunha: cada um tem {@code CODIGO} publico e
+     * {@code @ExceptionHandler} dedicado, entao o handler le a constante da propria excecao. Nao ha
+     * literal duplicado aqui nem visibilidade alargada.
+     */
+    @Test
+    void limiteReprocessoPublicaOProprioCodigoNo429() {
+        Mockito.when(request.getRequestURI()).thenReturn("/api/v1/backoffice/reprocessos");
+        var ex = new LimiteReprocessoExcedidoException("entidade-1");
+
+        ResponseEntity<ErrorResponseDto> response = handler.handleLimiteReprocesso(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().codigo()).isEqualTo("BOF-429-001");
+    }
+
+    @Test
+    void tipoReprocessoNaoSuportadoPublicaOProprioCodigoNo400() {
+        Mockito.when(request.getRequestURI()).thenReturn("/api/v1/backoffice/reprocessos");
+        var ex = new TipoReprocessoNaoSuportadoException(TipoChamadaProvider.KYC);
+
+        ResponseEntity<ErrorResponseDto> response = handler.handleTipoReprocesso(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().codigo()).isEqualTo("BOF-400-002");
     }
 }

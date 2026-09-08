@@ -174,6 +174,16 @@ public class ApiExceptionHandler {
                         .toList();
     }
 
+    /**
+     * Unico ponto em que a taxonomia de erro do dominio atravessa a fronteira HTTP (Sprint 36 Task
+     * 36.2). Ate aqui o {@code codigo} era construido no dominio e descartado nesta linha: os
+     * <b>133</b> identificadores medidos no Gate 36.0 tinham zero consumidores em {@code src/main}.
+     *
+     * <p>O {@code switch} decide status e o {@code getCodigo()} decide identidade, e sao coisas
+     * independentes de proposito: dois subtipos distintos compartilham status (nenhum hoje, mas nada
+     * impede) e dois codigos do mesmo subtipo compartilham status por definicao. Por isso o codigo
+     * nao sai do {@code switch}.
+     */
     @ExceptionHandler(DomainException.class)
     public ResponseEntity<ErrorResponseDto> handleDomain(DomainException ex, HttpServletRequest request) {
         HttpStatus status =
@@ -184,7 +194,7 @@ public class ApiExceptionHandler {
                     case AcessoNegadoException ignored -> HttpStatus.FORBIDDEN;
                     case OperacaoNaoProcessavelException ignored -> HttpStatus.UNPROCESSABLE_ENTITY;
                 };
-        return build(status, status.getReasonPhrase(), ex.getMessage(), request);
+        return build(status, status.getReasonPhrase(), ex.getMessage(), request, ex.getCodigo());
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -211,7 +221,8 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(ContaBloqueadaException.class)
     public ResponseEntity<ErrorResponseDto> handleLocked(ContaBloqueadaException ex, HttpServletRequest request) {
-        ResponseEntity<ErrorResponseDto> resposta = build(HttpStatus.LOCKED, "Locked", ex.getMessage(), request);
+        ResponseEntity<ErrorResponseDto> resposta =
+                build(HttpStatus.LOCKED, "Locked", ex.getMessage(), request, ex.getCodigo());
         return ResponseEntity.status(resposta.getStatusCode())
                 .headers(resposta.getHeaders())
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(segundosAteLiberar(ex.getTempoRestante())))
@@ -296,18 +307,37 @@ public class ApiExceptionHandler {
         return build(status, error, ex.getMessage(), request);
     }
 
+    /**
+     * As duas excecoes de reprocesso ficam fora do {@code switch} selado — nao herdam de
+     * {@link DomainException} —, mas <b>nao</b> sao inalcancaveis, como a Spec 036 §Ancora 5 supunha.
+     * Cada uma tem {@code CODIGO} publico e handler dedicado, entao o codigo e lido da constante da
+     * propria excecao (Sprint 36 Task 36.4).
+     *
+     * <p>Ler a constante, e nao repetir o literal, e o que impede o handler de virar uma segunda
+     * definicao do codigo. As doze colisoes que o Gate 36.0 mediu nasceram exatamente assim.
+     */
     @ExceptionHandler(com.dynamis.sep_api.backoffice.domain.exception.LimiteReprocessoExcedidoException.class)
     public ResponseEntity<ErrorResponseDto> handleLimiteReprocesso(
             com.dynamis.sep_api.backoffice.domain.exception.LimiteReprocessoExcedidoException ex,
             HttpServletRequest request) {
-        return build(HttpStatus.TOO_MANY_REQUESTS, "Too Many Requests", ex.getMessage(), request);
+        return build(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "Too Many Requests",
+                ex.getMessage(),
+                request,
+                com.dynamis.sep_api.backoffice.domain.exception.LimiteReprocessoExcedidoException.CODIGO);
     }
 
     @ExceptionHandler(com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException.class)
     public ResponseEntity<ErrorResponseDto> handleTipoReprocesso(
             com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException ex,
             HttpServletRequest request) {
-        return build(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request);
+        return build(
+                HttpStatus.BAD_REQUEST,
+                "Bad Request",
+                ex.getMessage(),
+                request,
+                com.dynamis.sep_api.backoffice.domain.exception.TipoReprocessoNaoSuportadoException.CODIGO);
     }
 
     @ExceptionHandler(Exception.class)
@@ -316,10 +346,49 @@ public class ApiExceptionHandler {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", FALLBACK_500_MESSAGE, request);
     }
 
+    /** Corpo sem codigo — os 13 handlers cuja condicao nao tem identificador de dominio publicado. */
     private ResponseEntity<ErrorResponseDto> build(
             HttpStatus status, String error, String message, HttpServletRequest request) {
+        return build(status, error, message, request, null);
+    }
+
+    /**
+     * Ponto unico de montagem do corpo <b>dentro deste handler</b>. Nao e o ponto unico da aplicacao:
+     * o Gate 36.0 mediu mais quatro construcoes de {@link ErrorResponseDto} em filtros e entry points
+     * do Spring Security, que escrevem direto na response e nunca chegam ao
+     * {@code @RestControllerAdvice}. Elas seguem sem codigo, por decisao registrada na spec.
+     */
+    private ResponseEntity<ErrorResponseDto> build(
+            HttpStatus status, String error, String message, HttpServletRequest request, String codigo) {
         ErrorResponseDto body = ErrorResponseDto.of(
-                status.value(), error, message, request.getRequestURI(), MDC.get(CorrelationIdFilter.MDC_KEY));
+                status.value(),
+                error,
+                message,
+                request.getRequestURI(),
+                MDC.get(CorrelationIdFilter.MDC_KEY),
+                somenteSePublicado(codigo));
         return ResponseEntity.status(status).body(body);
+    }
+
+    /**
+     * O perimetro vale no fio, e nao so no documento (Sprint 36 Task 36.6).
+     *
+     * <p>Nem todo codigo que o dominio carrega pode ser publicado: dos 133 medidos no Gate 36.0, 46
+     * ficaram fora por colisao ou formato. Varios deles vivem em subtipos de {@link DomainException}
+     * e chegam aqui normalmente — {@code OwnershipPropostaException} carrega {@code CRD-403-001}, que
+     * significa "proposta de outro tomador" no modulo credito e "credora de outro dono" no credores.
+     *
+     * <p>Sem este filtro o corpo entregaria um valor que o {@code enum} do OpenAPI nao declara: a
+     * resposta violaria o proprio schema publicado, e o cliente receberia um identificador ambiguo
+     * como se fosse estavel. A §Decisao tecnica principal da Spec 036 e explicita — codigo que falha
+     * em qualquer um dos tres criterios <b>simplesmente nao emite codigo</b>, e o campo, sendo
+     * opcional, absorve isso sem regressao para ninguem.
+     *
+     * <p>Fica aqui, e nao em cada handler, porque a regra e a mesma para todos e porque o
+     * {@link CatalogoCodigosErro} ja e a fonte unica do que o contrato declara: um so lugar governa
+     * documento e fio.
+     */
+    private static String somenteSePublicado(String codigo) {
+        return codigo != null && CatalogoCodigosErro.publicados().contains(codigo) ? codigo : null;
     }
 }
