@@ -180,7 +180,8 @@ class OnboardingPessoaControllerTest {
         mockMvc.perform(multipart("/api/v1/onboarding/pessoa/{id}/documentos", solicitacaoId)
                         .file(vazio)
                         .param("tipo", "RG"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("ONB-400-017"));
         verify(enviarDocumentoUseCase, never()).executar(any(), any(), anyBoolean(), any());
     }
 

@@ -65,20 +65,23 @@ class IniciarOnboardingPessoaUseCaseTest {
     @Test
     void rejeitaCpfInvalidoComoValidacaoException() {
         assertThatThrownBy(() -> useCase.executar(UUID.randomUUID(), "11111111111", "Joao", LocalDate.of(1990, 1, 1)))
-                .isInstanceOf(ValidacaoException.class);
+                .isInstanceOf(ValidacaoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "ONB-400-002");
     }
 
     @Test
     void rejeitaCpfNuloComoValidacaoException() {
         assertThatThrownBy(() -> useCase.executar(UUID.randomUUID(), null, "Joao", LocalDate.of(1990, 1, 1)))
                 .isInstanceOf(ValidacaoException.class)
-                .hasMessageContaining("obrigatorio");
+                .hasFieldOrPropertyWithValue("codigo", "ONB-400-002")
+                .hasMessage("CPF e obrigatorio");
     }
 
     @Test
     void rejeitaCpfEmBrancoComoValidacaoException() {
         assertThatThrownBy(() -> useCase.executar(UUID.randomUUID(), "   ", "Joao", LocalDate.of(1990, 1, 1)))
                 .isInstanceOf(ValidacaoException.class)
-                .hasMessageContaining("obrigatorio");
+                .hasFieldOrPropertyWithValue("codigo", "ONB-400-002")
+                .hasMessage("CPF e obrigatorio");
     }
 }

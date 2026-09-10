@@ -9,7 +9,7 @@ import com.dynamis.sep_api.shared.exception.ConflitoException;
  */
 public class ChaveIdempotenciaConflitanteException extends ConflitoException {
 
-    public static final String CODIGO = "COB-409-002";
+    public static final String CODIGO = "COB-409-004";
 
     public ChaveIdempotenciaConflitanteException(String mensagem) {
         super(CODIGO, mensagem);
