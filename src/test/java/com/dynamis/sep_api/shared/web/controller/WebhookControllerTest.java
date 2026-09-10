@@ -109,6 +109,20 @@ class WebhookControllerTest {
     }
 
     @Test
+    void bodyEmBrancoRetorna400() throws Exception {
+        mockMvc.perform(post("/api/v1/webhooks/celcoin/pagamento_recebido")
+                        .header("Idempotency-Key", "k1")
+                        .header("X-Webhook-Signature", "deadbeef")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("   "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-004"))
+                .andExpect(jsonPath("$.message").value("Body do webhook e obrigatorio"));
+        verify(signatureValidator, never()).isValid(anyString(), anyString(), anyString());
+        verify(registrarWebhookEventUseCase, never()).executar(any(), any(), any(), any(), any());
+    }
+
+    @Test
     void assinaturaInvalidaRetorna401() throws Exception {
         when(signatureValidator.isValid(anyString(), anyString(), anyString())).thenReturn(false);
 

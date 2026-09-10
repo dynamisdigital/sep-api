@@ -153,6 +153,24 @@ class AssinaturaWebhookControllerTest {
         verify(signatureValidator, never()).isValid(anyString(), anyString(), anyString());
     }
 
+    /**
+     * Segmento vazio nem casa a rota; o caminho vivo do ASN-400-001 e o segmento so com espaco, que o
+     * Spring decodifica de {@code %20} para {@code " "}.
+     */
+    @Test
+    void retorna400QuandoProviderEmBranco() throws Exception {
+        mockMvc.perform(post("/api/v1/webhooks/assinatura/{provider}", " ")
+                        .header("Idempotency-Key", "idem-blank")
+                        .header("Content-Hmac", "sha256=abc")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(PAYLOAD_SIGN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("ASN-400-001"))
+                .andExpect(jsonPath("$.message").value("Path param {provider} eh obrigatorio"));
+
+        verify(signatureValidator, never()).isValid(anyString(), anyString(), anyString());
+    }
+
     @Test
     void retorna400QuandoProviderNaoSuportado() throws Exception {
         mockMvc.perform(post("/api/v1/webhooks/assinatura/d4sign")

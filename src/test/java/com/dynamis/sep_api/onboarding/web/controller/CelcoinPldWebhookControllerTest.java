@@ -88,6 +88,35 @@ class CelcoinPldWebhookControllerTest {
     }
 
     @Test
+    void retorna400SemQualquerSignature() throws Exception {
+        mockMvc.perform(post("/api/v1/webhooks/celcoin/pld")
+                        .header("Idempotency-Key", "idem-pld-4")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(PAYLOAD))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-003"))
+                .andExpect(jsonPath("$.message")
+                        .value("Header X-Webhook-Signature (ou X-Celcoin-Signature) e obrigatorio"));
+
+        verify(processarCallbackUseCase, never()).executar(anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void retorna400SeBodyEmBranco() throws Exception {
+        mockMvc.perform(post("/api/v1/webhooks/celcoin/pld")
+                        .header("Idempotency-Key", "idem-pld-5")
+                        .header("X-Webhook-Signature", "abc")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("   "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-004"))
+                .andExpect(jsonPath("$.message").value("Body do webhook e obrigatorio"));
+
+        verify(signatureValidator, never()).isValid(anyString(), anyString(), anyString());
+        verify(processarCallbackUseCase, never()).executar(anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
     void retorna401SeAssinaturaInvalida() throws Exception {
         when(signatureValidator.isValid(anyString(), anyString(), anyString())).thenReturn(false);
 

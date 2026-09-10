@@ -115,6 +115,21 @@ class CelcoinKybWebhookControllerTest {
     }
 
     @Test
+    void retorna400SeBodyEmBranco() throws Exception {
+        mockMvc.perform(post("/api/v1/webhooks/celcoin/kyb")
+                        .header("Idempotency-Key", "idem-kyb-6")
+                        .header("X-Webhook-Signature", "abc")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("   "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-004"))
+                .andExpect(jsonPath("$.message").value("Body do webhook e obrigatorio"));
+
+        verify(signatureValidator, never()).isValid(anyString(), anyString(), anyString());
+        verify(processarCallbackUseCase, never()).executar(anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
     void retorna401SeAssinaturaInvalida() throws Exception {
         when(signatureValidator.isValid(anyString(), anyString(), anyString())).thenReturn(false);
 
