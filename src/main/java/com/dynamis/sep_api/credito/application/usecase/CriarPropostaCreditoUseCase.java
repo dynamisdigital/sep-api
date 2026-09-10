@@ -9,8 +9,8 @@ import com.dynamis.sep_api.credito.domain.vo.Money;
 import com.dynamis.sep_api.credito.infrastructure.persistence.PropostaCreditoRepository;
 import com.dynamis.sep_api.onboarding.application.query.ConsultarOnboardingParaCreditoQuery;
 import com.dynamis.sep_api.onboarding.application.query.OnboardingResumoCredito;
+import com.dynamis.sep_api.onboarding.domain.exception.OnboardingNaoEncontradoException;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
-import com.dynamis.sep_api.shared.exception.RecursoNaoEncontradoException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,9 +49,7 @@ public class CriarPropostaCreditoUseCase {
     public PropostaCredito executar(CriarPropostaCreditoCommand cmd) {
         OnboardingResumoCredito resumo = onboardingQuery
                 .consultarPorId(cmd.solicitacaoOnboardingId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException(
-                        "ONB-404-001",
-                        "Solicitacao de onboarding " + cmd.solicitacaoOnboardingId() + " nao encontrada"));
+                .orElseThrow(() -> new OnboardingNaoEncontradoException(cmd.solicitacaoOnboardingId()));
 
         if (!resumo.usuarioId().equals(cmd.tomadorId())) {
             throw new OwnershipPropostaException("Solicitacao de onboarding pertence a outro tomador");

@@ -25,9 +25,9 @@ import java.util.regex.Pattern;
  * <p><b>Acrescentar codigo e compativel; renomear codigo publicado e mudanca de contrato.</b> Depois
  * desta sprint o par {@code codigo + traceId} e o identificador que o usuario reporta ao suporte.
  *
- * <p>Fora do catalogo ficam 53 codigos: 23 por colisao e 30 por formato, cada um registrado com
- * motivo em {@code docs-SEP/repos/sep-api/CODIGOS-DE-ERRO.md}. Os dois grupos sao o escopo da
- * Sprint 37.
+ * <p>Fora do catalogo ficam os codigos que falham no perimetro, cada um registrado com motivo em
+ * {@code docs-SEP/repos/sep-api/CODIGOS-DE-ERRO.md}. A Sprint 37 (ADR 0020) os normaliza e publica os
+ * que ficam aptos — por isso este texto nao carrega contagem: ela muda a cada Task.
  *
  * <p><b>Sete dos 23 entraram no code review de fechamento</b>, e sao de um tipo que a primeira
  * versao desta sprint nao media: colidem <b>dentro da mesma classe</b>. O caso que os nomeia e
@@ -103,6 +103,7 @@ public final class CatalogoCodigosErro {
             "ONB-400-001",
             "ONB-400-003",
             "ONB-400-005",
+            "ONB-400-008",
             "ONB-400-009",
             "ONB-400-010",
             "ONB-400-011",
@@ -110,6 +111,7 @@ public final class CatalogoCodigosErro {
             "ONB-400-013",
             "ONB-400-016",
             "ONB-400-018",
+            "ONB-404-001",
             "ONB-404-002",
             "ONB-409-001",
             "ONB-409-002",
