@@ -40,6 +40,7 @@ public final class CatalogoCodigosErro {
     private static final Pattern CANONICO = Pattern.compile("^[A-Z]{3,4}-[0-9]{3}-[0-9]{3}$");
 
     private static final Set<String> PUBLICADOS = validar(List.of(
+            "ASN-400-001",
             "ASN-400-002",
             "ASN-400-003",
             "AUTH-400-101",
@@ -107,6 +108,7 @@ public final class CatalogoCodigosErro {
             "ONB-400-003",
             "ONB-400-004",
             "ONB-400-005",
+            "ONB-400-006",
             "ONB-400-007",
             "ONB-400-008",
             "ONB-400-009",
@@ -132,7 +134,10 @@ public final class CatalogoCodigosErro {
             "USR-403-002",
             "USR-404-001",
             "USR-409-001",
-            "WHK-400-001"));
+            "WHK-400-001",
+            "WHK-400-003",
+            "WHK-400-004",
+            "WHK-400-005"));
 
     private CatalogoCodigosErro() {}
 

@@ -24,6 +24,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = AssinaturaWebhookController.class)
@@ -145,7 +146,9 @@ class AssinaturaWebhookControllerTest {
                         .header("Idempotency-Key", "idem-no-sig")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(PAYLOAD_SIGN))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-003"))
+                .andExpect(jsonPath("$.message").value("Header Content-Hmac (ou X-Webhook-Signature) e obrigatorio"));
 
         verify(signatureValidator, never()).isValid(anyString(), anyString(), anyString());
     }
@@ -157,7 +160,8 @@ class AssinaturaWebhookControllerTest {
                         .header("Content-Hmac", "sha256=abc")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(PAYLOAD_SIGN))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("ASN-400-002"));
 
         verify(signatureValidator, never()).isValid(anyString(), anyString(), anyString());
     }
@@ -169,7 +173,9 @@ class AssinaturaWebhookControllerTest {
                         .header("Content-Hmac", "sha256=abc")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("   "))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-004"))
+                .andExpect(jsonPath("$.message").value("Body do webhook e obrigatorio"));
 
         verify(signatureValidator, never()).isValid(anyString(), anyString(), anyString());
         verify(processarUseCase, never())
@@ -184,7 +190,8 @@ class AssinaturaWebhookControllerTest {
                         .header("Content-Hmac", "sha256=abc")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(bodyGigante))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("ASN-400-003"));
 
         verify(signatureValidator, never()).isValid(anyString(), anyString(), anyString());
         verify(processarUseCase, never())
@@ -198,7 +205,9 @@ class AssinaturaWebhookControllerTest {
                         .header("Content-Hmac", "sha256=abc")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("not-json"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-005"))
+                .andExpect(jsonPath("$.message").value("Body do webhook nao e JSON valido"));
 
         verify(processarUseCase, never())
                 .executar(anyString(), anyString(), anyString(), anyString(), anyString(), any());

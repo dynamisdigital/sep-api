@@ -96,9 +96,9 @@ class CatalogoCodigosErroContratoTest {
 
     /**
      * Nenhum codigo excluido pelo perimetro pode vazar para o contrato. Os quatro abaixo sao um de
-     * cada motivo medido no Gate: colisao entre modulos, colisao entre use case e webhook, sufixo
-     * semantico do modulo Pix e prefixo de duas letras. A Sprint 37 publica ou renomeia codigos desta
-     * amostra a cada Task (o ONB-400-007 original foi publicado na 37.3a); a Task 37.7 a substitui por
+     * cada motivo medido no Gate: colisao entre modulos, codigo aposentado (os de webhook sairam na
+     * 37.3b), sufixo semantico do modulo Pix e prefixo de duas letras. A Sprint 37 publica ou renomeia codigos desta
+     * amostra a cada Task (o ONB-400-007 foi publicado na 37.3a e o ONB-400-006 na 37.3b); a Task 37.7 a substitui por
      * uma verificacao que nao dependa de lista fixa.
      */
     @Test
@@ -106,7 +106,7 @@ class CatalogoCodigosErroContratoTest {
         List<String> doDocumento = JsonPath.read(documento(), CODIGO + ".enum");
 
         assertThat(doDocumento)
-                .doesNotContain("CRD-403-001", "ONB-400-006", "PIX-404-CHAVE", "OF-400-001")
+                .doesNotContain("CRD-403-001", "WHK-400-002", "PIX-404-CHAVE", "OF-400-001")
                 .doesNotContain("CTR-422-CCB-001");
     }
 

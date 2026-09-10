@@ -24,6 +24,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = CelcoinPldWebhookController.class)
@@ -79,7 +80,9 @@ class CelcoinPldWebhookControllerTest {
                         .header("X-Webhook-Signature", "abc")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(PAYLOAD))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-003"))
+                .andExpect(jsonPath("$.message").value("Header Idempotency-Key e obrigatorio"));
 
         verify(processarCallbackUseCase, never()).executar(anyString(), anyString(), anyString(), any());
     }
@@ -120,6 +123,8 @@ class CelcoinPldWebhookControllerTest {
                         .header("X-Webhook-Signature", "abc")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("not json"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-005"))
+                .andExpect(jsonPath("$.message").value("Body do webhook nao e JSON valido"));
     }
 }

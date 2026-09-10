@@ -3,7 +3,8 @@ package com.dynamis.sep_api.pix.web.controller;
 import com.dynamis.sep_api.pix.application.usecase.ProcessarWebhookPixUseCase;
 import com.dynamis.sep_api.shared.application.port.out.WebhookSignatureValidator;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
-import com.dynamis.sep_api.shared.exception.ValidacaoException;
+import com.dynamis.sep_api.shared.exception.WebhookBodyObrigatorioException;
+import com.dynamis.sep_api.shared.exception.WebhookHeaderObrigatorioException;
 import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -35,7 +36,6 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "webhooks", description = "Webhook Pix Celcoin (HMAC + idempotencia)")
 public class PixWebhookController {
 
-    static final String CODIGO_HEADER_OBRIGATORIO = "PIX-400-002";
     static final String PROVIDER_HMAC = "celcoin-pix";
 
     private final WebhookSignatureValidator signatureValidator;
@@ -71,11 +71,10 @@ public class PixWebhookController {
         String signature = signaturePadrao != null && !signaturePadrao.isBlank() ? signaturePadrao : signatureAlias;
 
         if (signature == null || signature.isBlank()) {
-            throw new ValidacaoException(
-                    CODIGO_HEADER_OBRIGATORIO, "Header X-Webhook-Signature (ou X-Celcoin-Signature) e obrigatorio");
+            throw new WebhookHeaderObrigatorioException("X-Webhook-Signature (ou X-Celcoin-Signature)");
         }
         if (payload == null || payload.isBlank()) {
-            throw new ValidacaoException(CODIGO_HEADER_OBRIGATORIO, "Body do webhook e obrigatorio");
+            throw new WebhookBodyObrigatorioException();
         }
 
         if (!signatureValidator.isValid(PROVIDER_HMAC, payload, signature)) {
