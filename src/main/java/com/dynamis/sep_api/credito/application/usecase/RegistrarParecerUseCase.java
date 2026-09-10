@@ -4,8 +4,8 @@ import com.dynamis.sep_api.credito.application.dto.RegistrarParecerCommand;
 import com.dynamis.sep_api.credito.domain.event.ParecerRegistradoEvent;
 import com.dynamis.sep_api.credito.domain.event.PropostaAprovadaEvent;
 import com.dynamis.sep_api.credito.domain.event.PropostaRejeitadaEvent;
-import com.dynamis.sep_api.credito.domain.exception.PropostaInvalidaException;
 import com.dynamis.sep_api.credito.domain.exception.PropostaNaoEncontradaException;
+import com.dynamis.sep_api.credito.domain.exception.StatusPropostaInvalidoException;
 import com.dynamis.sep_api.credito.domain.model.DecisaoCredito;
 import com.dynamis.sep_api.credito.domain.model.ParecerCredito;
 import com.dynamis.sep_api.credito.domain.model.PropostaCredito;
@@ -71,8 +71,7 @@ public class RegistrarParecerUseCase {
                 .orElseThrow(() -> new PropostaNaoEncontradaException(cmd.propostaId()));
 
         if (proposta.getStatus().isFinal()) {
-            throw new PropostaInvalidaException(
-                    "Proposta ja esta em estado final " + proposta.getStatus() + "; novo parecer nao permitido");
+            throw StatusPropostaInvalidoException.novoParecerEmEstadoFinal(proposta.getStatus());
         }
 
         Integer scoreMotor = scoreRepository

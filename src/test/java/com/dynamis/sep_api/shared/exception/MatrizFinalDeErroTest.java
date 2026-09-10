@@ -94,7 +94,7 @@ class MatrizFinalDeErroTest {
                         "CTR-422-001",
                         null),
                 linha("CcbGeracao (36.3)", h -> h.apply(new CcbGeracaoException("m", null)), 422, "CTR-422-004", null),
-                linha("Ownership (excluido)", h -> h.apply(new OwnershipPropostaException("m")), 403, null, null));
+                linha("Ownership (37.4)", h -> h.apply(new OwnershipPropostaException("m")), 403, "PRP-403-001", null));
     }
 
     private static Arguments linha(
@@ -155,27 +155,29 @@ class MatrizFinalDeErroTest {
     }
 
     /**
-     * O caso que a matriz revelou. {@code OwnershipPropostaException} carrega {@code CRD-403-001},
-     * que o Gate 36.0 excluiu por <b>colisao</b>: o mesmo valor identifica "proposta de outro
-     * tomador" no modulo credito e "credora de outro dono" no modulo credores. Ele herda de
-     * {@code AcessoNegadoException}, entao chega ao {@code handleDomain} como qualquer outro.
+     * O caso que a matriz revelou na Sprint 36: {@code OwnershipPropostaException} carregava
+     * {@code CRD-403-001}, excluido por <b>colisao</b> — o mesmo valor identificava "proposta de
+     * outro tomador" no credito e "credora de outro dono" no credores —, e chegava ao
+     * {@code handleDomain} como qualquer outro.
      *
      * <p>Sem filtro, o corpo entregaria ao cliente um valor que o {@code enum} do OpenAPI nao
-     * declara — resposta violando o proprio schema publicado — e ainda por cima um identificador
-     * ambiguo, que e exatamente o que a §Decisao tecnica principal da Spec 036 proibe: "todo codigo
-     * que falha em qualquer um dos tres criterios simplesmente nao emite codigo".
+     * declara — resposta violando o proprio schema publicado —, que e exatamente o que a §Decisao
+     * tecnica principal da Spec 036 proibe. A Sprint 37 normaliza os codigos reais um a um, entao o
+     * teste usa um codigo canonico que nunca sera publicado: o que ele prova e o filtro, e nao a
+     * existencia de algum codigo excluido.
      */
     @Test
     void codigoForaDoPerimetroNaoVazaParaOCorpo() {
+        String foraDoCatalogo = "TST-400-999";
+        assertThat(CatalogoCodigosErro.publicados()).doesNotContain(foraDoCatalogo);
+
         ResponseEntity<ErrorResponseDto> resposta =
-                handler.handleDomain(new OwnershipPropostaException("proposta de outro tomador"), request);
+                handler.handleDomain(new ValidacaoException(foraDoCatalogo, "codigo fora do catalogo"), request);
 
         assertThat(resposta.getBody()).isNotNull();
         assertThat(resposta.getBody().codigo())
-                .as("CRD-403-001 esta fora do catalogo por colisao; emiti-lo publicaria identificador"
-                        + " ambiguo e violaria o enum declarado no contrato")
+                .as("codigo fora do catalogo nao pode ir ao corpo: violaria o enum declarado no contrato")
                 .isNull();
-        assertThat(CatalogoCodigosErro.publicados()).doesNotContain("CRD-403-001");
     }
 
     private void conferir(ResponseEntity<ErrorResponseDto> resposta, int status, String codigo, String retryAfter) {

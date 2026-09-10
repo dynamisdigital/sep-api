@@ -95,18 +95,19 @@ class CatalogoCodigosErroContratoTest {
     }
 
     /**
-     * Nenhum codigo excluido pelo perimetro pode vazar para o contrato. Os quatro abaixo sao um de
-     * cada motivo medido no Gate: colisao entre modulos, codigo aposentado (os de webhook sairam na
-     * 37.3b), sufixo semantico do modulo Pix e prefixo de duas letras. A Sprint 37 publica ou renomeia codigos desta
-     * amostra a cada Task (o ONB-400-007 foi publicado na 37.3a e o ONB-400-006 na 37.3b); a Task 37.7 a substitui por
-     * uma verificacao que nao dependa de lista fixa.
+     * Nenhum codigo excluido pelo perimetro pode vazar para o contrato. Os quatro abaixo cobrem os
+     * motivos que restam depois da 37.4: codigo inalcancavel ate o handler, codigo aposentado (os de
+     * webhook consolidados em WHK na 37.3b e na 37.4, inclusive o OF-400-001 de duas letras) e sufixo
+     * semantico do modulo Pix. A Sprint 37 publica ou renomeia codigos desta amostra a cada Task (o
+     * CRD-403-001 foi publicado na 37.4); a Task 37.7 a substitui por uma verificacao que nao dependa
+     * de lista fixa.
      */
     @Test
     void codigosForaDoPerimetroNaoAparecemNoContrato() throws Exception {
         List<String> doDocumento = JsonPath.read(documento(), CODIGO + ".enum");
 
         assertThat(doDocumento)
-                .doesNotContain("CRD-403-001", "WHK-400-002", "PIX-404-CHAVE", "OF-400-001")
+                .doesNotContain("AUTH-403-PASSWORD_RESET_REQUIRED", "WHK-400-002", "PIX-404-CHAVE", "OF-400-001")
                 .doesNotContain("CTR-422-CCB-001");
     }
 

@@ -24,6 +24,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = CelcoinOpenFinanceWebhookController.class)
@@ -114,7 +115,9 @@ class CelcoinOpenFinanceWebhookControllerTest {
                         .header("X-Webhook-Signature", "abc")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(PAYLOAD_AUTORIZADO))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-003"))
+                .andExpect(jsonPath("$.message").value("Header Idempotency-Key e obrigatorio"));
 
         verify(processarUseCase, never()).executar(anyString(), anyString(), anyString(), any());
     }
@@ -125,7 +128,25 @@ class CelcoinOpenFinanceWebhookControllerTest {
                         .header("Idempotency-Key", "idem-x")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(PAYLOAD_AUTORIZADO))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-003"))
+                .andExpect(jsonPath("$.message")
+                        .value("Header X-Webhook-Signature (ou X-Celcoin-Signature) e obrigatorio"));
+    }
+
+    @Test
+    void retorna400QuandoBodyEmBranco() throws Exception {
+        mockMvc.perform(post("/api/v1/webhooks/celcoin/open-finance")
+                        .header("Idempotency-Key", "idem-vazio")
+                        .header("X-Webhook-Signature", "abc")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("   "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-004"))
+                .andExpect(jsonPath("$.message").value("Body do webhook e obrigatorio"));
+
+        verify(signatureValidator, never()).isValid(anyString(), anyString(), anyString());
+        verify(processarUseCase, never()).executar(anyString(), anyString(), anyString(), any());
     }
 
     @Test
@@ -149,7 +170,9 @@ class CelcoinOpenFinanceWebhookControllerTest {
                         .header("X-Webhook-Signature", "abc")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("not-json"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-005"))
+                .andExpect(jsonPath("$.message").value("Body do webhook nao e JSON valido"));
 
         verify(processarUseCase, never()).executar(anyString(), anyString(), anyString(), any());
     }

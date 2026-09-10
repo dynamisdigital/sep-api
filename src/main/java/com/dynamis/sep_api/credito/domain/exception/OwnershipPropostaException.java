@@ -9,7 +9,7 @@ import com.dynamis.sep_api.shared.exception.AcessoNegadoException;
  */
 public class OwnershipPropostaException extends AcessoNegadoException {
 
-    public static final String CODIGO = "CRD-403-001";
+    public static final String CODIGO = "PRP-403-001";
 
     public OwnershipPropostaException(String mensagem) {
         super(CODIGO, mensagem);

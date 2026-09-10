@@ -10,7 +10,7 @@ import com.dynamis.sep_api.shared.exception.OperacaoNaoProcessavelException;
  */
 public class ConsentimentoNaoAutorizadoException extends OperacaoNaoProcessavelException {
 
-    public static final String CODIGO = "CRD-422-003";
+    public static final String CODIGO = "PRP-422-003";
 
     public ConsentimentoNaoAutorizadoException(StatusConsentimento atual) {
         super(CODIGO, "Consentimento Open Finance nao autorizado; status atual: " + atual);
