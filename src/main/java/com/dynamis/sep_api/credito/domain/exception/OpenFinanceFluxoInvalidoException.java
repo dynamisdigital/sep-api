@@ -9,7 +9,7 @@ import com.dynamis.sep_api.shared.exception.OperacaoNaoProcessavelException;
  */
 public class OpenFinanceFluxoInvalidoException extends OperacaoNaoProcessavelException {
 
-    public static final String CODIGO = "CRD-422-002";
+    public static final String CODIGO = "PRP-422-002";
 
     public OpenFinanceFluxoInvalidoException(StatusProposta statusAtual) {
         super(CODIGO, "Open Finance nao aceito para proposta no status " + statusAtual);

@@ -9,9 +9,9 @@ import com.dynamis.sep_api.credito.domain.vo.TipoOperacao;
 import com.dynamis.sep_api.credito.infrastructure.persistence.PropostaCreditoRepository;
 import com.dynamis.sep_api.onboarding.application.query.ConsultarOnboardingParaCreditoQuery;
 import com.dynamis.sep_api.onboarding.application.query.OnboardingResumoCredito;
+import com.dynamis.sep_api.onboarding.domain.exception.OnboardingNaoEncontradoException;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.TipoSolicitante;
-import com.dynamis.sep_api.shared.exception.RecursoNaoEncontradoException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -71,9 +71,13 @@ class CriarPropostaCreditoUseCaseTest {
         UUID onbId = UUID.randomUUID();
         when(onboardingQuery.consultarPorId(onbId)).thenReturn(Optional.empty());
 
+        // Mesma condicao que o onboarding ja nomeia: um codigo, um dono (ADR 0020 §3). A mensagem
+        // byte-identica prova que a resposta ao cliente nao muda com a troca de dono.
         assertThatThrownBy(() -> useCase.executar(new CriarPropostaCreditoCommand(
                         UUID.randomUUID(), onbId, TipoOperacao.OUTROS, new BigDecimal("10000"), 12)))
-                .isInstanceOf(RecursoNaoEncontradoException.class);
+                .isInstanceOf(OnboardingNaoEncontradoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "ONB-404-001")
+                .hasMessage("Solicitacao de onboarding " + onbId + " nao encontrada");
     }
 
     @Test

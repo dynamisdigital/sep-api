@@ -46,6 +46,12 @@ class CatalogoCodigosErroContratoTest {
                 .getContentAsString();
     }
 
+    /**
+     * O enum do OpenAPI e exatamente o catalogo. Junto com o {@code ParticaoDeCodigosErroTest}, que
+     * exige catalogo == codigos aptos do codigo-fonte, isto garante que nenhum codigo excluido chega
+     * ao contrato — sem lista fixa de excluidos. A amostra fixa que morava aqui foi invalidada a cada
+     * Task da Sprint 37 e saiu na 37.7.
+     */
     @Test
     void catalogoPublicadoEIgualAFonteUnica() throws Exception {
         List<String> doDocumento = JsonPath.read(documento(), CODIGO + ".enum");
@@ -92,20 +98,6 @@ class CatalogoCodigosErroContratoTest {
     @Test
     void osTresCodigosDeMfaQueDesbloqueiamAFsprint26EstaoPublicados() {
         assertThat(CatalogoCodigosErro.publicados()).contains("MFA-400-002", "MFA-400-003", "MFA-400-004");
-    }
-
-    /**
-     * Nenhum codigo excluido pelo perimetro pode vazar para o contrato. Os quatro abaixo sao um de
-     * cada motivo medido no Gate: colisao entre modulos, colisao de tres sites, sufixo semantico do
-     * modulo Pix e prefixo de duas letras.
-     */
-    @Test
-    void codigosForaDoPerimetroNaoAparecemNoContrato() throws Exception {
-        List<String> doDocumento = JsonPath.read(documento(), CODIGO + ".enum");
-
-        assertThat(doDocumento)
-                .doesNotContain("CRD-403-001", "ONB-400-007", "PIX-404-CHAVE", "OF-400-001")
-                .doesNotContain("CTR-422-CCB-001");
     }
 
     /**

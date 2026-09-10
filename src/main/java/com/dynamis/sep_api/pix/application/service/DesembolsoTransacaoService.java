@@ -43,7 +43,7 @@ public class DesembolsoTransacaoService {
             // uma corrida concorrente. Como a tx desta fase reverte sozinha, devolvemos 409 e o retry
             // sequencial do cliente cai no pre-check idempotente.
             throw new ConflitoException(
-                    "PIX-409-CONFLITO-CONCORRENTE",
+                    "PIX-409-002",
                     "Desembolso concorrente para o contrato " + contratoId + "; reapresente a solicitacao.");
         }
     }

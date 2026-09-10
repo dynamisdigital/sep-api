@@ -5,6 +5,9 @@ import com.dynamis.sep_api.contratos.web.dto.AssinaturaCallbackClicksign;
 import com.dynamis.sep_api.shared.application.port.out.WebhookSignatureValidator;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
 import com.dynamis.sep_api.shared.exception.ValidacaoException;
+import com.dynamis.sep_api.shared.exception.WebhookBodyInvalidoException;
+import com.dynamis.sep_api.shared.exception.WebhookBodyObrigatorioException;
+import com.dynamis.sep_api.shared.exception.WebhookHeaderObrigatorioException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,7 +53,7 @@ import java.util.Set;
 @Tag(name = "webhooks", description = "Webhook de assinatura digital (HMAC + idempotencia + outbox)")
 public class AssinaturaWebhookController {
 
-    static final String CODIGO_HEADER_OBRIGATORIO = "ASN-400-001";
+    static final String CODIGO_PROVIDER_OBRIGATORIO = "ASN-400-001";
     static final String CODIGO_PROVIDER_NAO_SUPORTADO = "ASN-400-002";
     static final String CODIGO_PAYLOAD_TAMANHO = "ASN-400-003";
     private static final String HMAC_PREFIXO = "sha256=";
@@ -102,7 +105,7 @@ public class AssinaturaWebhookController {
             @RequestBody String payload) {
 
         if (provider == null || provider.isBlank()) {
-            throw new ValidacaoException(CODIGO_HEADER_OBRIGATORIO, "Path param {provider} eh obrigatorio");
+            throw new ValidacaoException(CODIGO_PROVIDER_OBRIGATORIO, "Path param {provider} eh obrigatorio");
         }
         String providerNormalizado = provider.toLowerCase();
         if (!PROVIDERS_SUPORTADOS.contains(providerNormalizado)) {
@@ -111,7 +114,7 @@ public class AssinaturaWebhookController {
         }
 
         if (payload == null || payload.isBlank()) {
-            throw new ValidacaoException(CODIGO_HEADER_OBRIGATORIO, "Body do webhook e obrigatorio");
+            throw new WebhookBodyObrigatorioException();
         }
         if (payload.length() > PAYLOAD_MAX_BYTES) {
             throw new ValidacaoException(
@@ -120,8 +123,7 @@ public class AssinaturaWebhookController {
 
         String signature = extrairSignature(contentHmac, signaturePadrao);
         if (signature == null) {
-            throw new ValidacaoException(
-                    CODIGO_HEADER_OBRIGATORIO, "Header Content-Hmac (ou X-Webhook-Signature) e obrigatorio");
+            throw new WebhookHeaderObrigatorioException("Content-Hmac (ou X-Webhook-Signature)");
         }
 
         String secretKey = providerNormalizado + "-assinatura";
@@ -160,7 +162,7 @@ public class AssinaturaWebhookController {
         try {
             return objectMapper.readValue(payload, AssinaturaCallbackClicksign.class);
         } catch (JsonProcessingException ex) {
-            throw new ValidacaoException(CODIGO_HEADER_OBRIGATORIO, "Body do webhook nao e JSON valido");
+            throw new WebhookBodyInvalidoException();
         }
     }
 

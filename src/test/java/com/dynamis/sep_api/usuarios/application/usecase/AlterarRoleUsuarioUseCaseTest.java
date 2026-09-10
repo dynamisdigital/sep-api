@@ -56,6 +56,15 @@ class AlterarRoleUsuarioUseCaseTest {
         assertThat(event.roleNova()).isEqualTo(Role.FINANCEIRO);
     }
 
+    /** USR-400-001 era compartilhado com SenhaAtualIncorretaException: condicao distinta, codigo proprio. */
+    @Test
+    void rejeitaNovaRoleAusenteComCodigoProprio() {
+        assertThatThrownBy(() -> useCase.executar(UUID.randomUUID(), null, UUID.randomUUID()))
+                .hasFieldOrPropertyWithValue("codigo", "USR-400-003")
+                .hasMessage("novaRole obrigatoria");
+        verify(repository, never()).save(any());
+    }
+
     @Test
     void rejeitaAlteracaoDaPropriaRole() {
         UUID adminId = UUID.randomUUID();

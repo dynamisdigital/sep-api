@@ -7,6 +7,7 @@ import com.dynamis.sep_api.onboarding.application.port.out.dto.RespostaKyb;
 import com.dynamis.sep_api.onboarding.domain.event.KybFinalizadoEvent;
 import com.dynamis.sep_api.onboarding.domain.exception.KybNaoEncontradoException;
 import com.dynamis.sep_api.onboarding.domain.exception.OnboardingNaoEncontradoException;
+import com.dynamis.sep_api.onboarding.domain.exception.SolicitacaoNaoEmpresaException;
 import com.dynamis.sep_api.onboarding.domain.model.ConsultaCNPJ;
 import com.dynamis.sep_api.onboarding.domain.model.DocumentoCadastral;
 import com.dynamis.sep_api.onboarding.domain.model.KybEmpresa;
@@ -49,7 +50,6 @@ import java.util.UUID;
 @Service
 public class IniciarVerificacaoKybUseCase {
 
-    private static final String CODIGO_TIPO_INVALIDO = "ONB-400-008";
     private static final String CODIGO_DOCUMENTO_FALTANDO = "ONB-400-013";
 
     private static final Set<TipoDocumento> IDENTIFICACAO_SOCIETARIA =
@@ -90,7 +90,7 @@ public class IniciarVerificacaoKybUseCase {
             throw new AccessDeniedException("Solicitacao nao pertence ao usuario autenticado");
         }
         if (solicitacao.getTipo() != TipoSolicitante.EMPRESA) {
-            throw new ValidacaoException(CODIGO_TIPO_INVALIDO, "Solicitacao nao e do tipo EMPRESA");
+            throw new SolicitacaoNaoEmpresaException();
         }
         solicitacao.validarPodeIniciarVerificacao();
 

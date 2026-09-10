@@ -3,7 +3,8 @@ package com.dynamis.sep_api.shared.web.controller;
 import com.dynamis.sep_api.shared.application.port.out.WebhookSignatureValidator;
 import com.dynamis.sep_api.shared.application.usecase.RegistrarWebhookEventUseCase;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
-import com.dynamis.sep_api.shared.exception.ValidacaoException;
+import com.dynamis.sep_api.shared.exception.WebhookBodyObrigatorioException;
+import com.dynamis.sep_api.shared.exception.WebhookHeaderObrigatorioException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -25,8 +26,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/webhooks")
 @Tag(name = "webhooks", description = "Receptor generico de webhooks (HMAC + idempotencia)")
 public class WebhookController {
-
-    private static final String CODIGO_HEADER_OBRIGATORIO = "WHK-400-002";
 
     private final WebhookSignatureValidator signatureValidator;
     private final RegistrarWebhookEventUseCase registrarWebhookEventUseCase;
@@ -67,13 +66,13 @@ public class WebhookController {
             @RequestBody String payload) {
 
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            throw new ValidacaoException(CODIGO_HEADER_OBRIGATORIO, "Header Idempotency-Key e obrigatorio");
+            throw new WebhookHeaderObrigatorioException("Idempotency-Key");
         }
         if (signature == null || signature.isBlank()) {
-            throw new ValidacaoException(CODIGO_HEADER_OBRIGATORIO, "Header X-Webhook-Signature e obrigatorio");
+            throw new WebhookHeaderObrigatorioException("X-Webhook-Signature");
         }
         if (payload == null || payload.isBlank()) {
-            throw new ValidacaoException(CODIGO_HEADER_OBRIGATORIO, "Body do webhook e obrigatorio");
+            throw new WebhookBodyObrigatorioException();
         }
 
         if (!signatureValidator.isValid(provider, payload, signature)) {

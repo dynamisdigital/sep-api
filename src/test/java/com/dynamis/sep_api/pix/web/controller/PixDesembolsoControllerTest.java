@@ -214,7 +214,7 @@ class PixDesembolsoControllerTest {
         mfaHabilitado(true);
         stepUpValido();
         when(solicitarDesembolso.executar(any()))
-                .thenThrow(new ValidacaoException("PIX-400-IDEMPOTENCY-KEY", "Idempotency-Key obrigatoria."));
+                .thenThrow(new ValidacaoException("PIX-400-006", "Idempotency-Key obrigatoria."));
 
         mockMvc.perform(post("/api/v1/pix/desembolsos")
                         .header("X-Step-Up-Token", "tok-ok")

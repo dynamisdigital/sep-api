@@ -116,7 +116,8 @@ class IniciarRenegociacaoUseCaseTest {
                 .thenReturn(true);
 
         assertThatThrownBy(() -> useCase.executar(comando(parcela.getId())))
-                .isInstanceOf(RenegociacaoConflitanteException.class);
+                .isInstanceOf(RenegociacaoConflitanteException.class)
+                .hasFieldOrPropertyWithValue("codigo", "COB-409-002");
         assertThat(parcela.getStatus()).isEqualTo(StatusParcela.ATRASADA); // nao mudou
     }
 
@@ -129,7 +130,8 @@ class IniciarRenegociacaoUseCaseTest {
                         "could not execute statement; constraint [uq_renegociacao_parcela_ativa]"));
 
         assertThatThrownBy(() -> useCase.executar(comando(parcela.getId())))
-                .isInstanceOf(RenegociacaoConflitanteException.class);
+                .isInstanceOf(RenegociacaoConflitanteException.class)
+                .hasFieldOrPropertyWithValue("codigo", "COB-409-002");
     }
 
     @Test

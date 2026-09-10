@@ -101,7 +101,8 @@ class CriarUsuarioUseCaseTest {
 
         assertThatThrownBy(() -> useCase.executarInterno(dto))
                 .isInstanceOf(ValidacaoException.class)
-                .hasMessageContaining("FINANCEIRO");
+                .hasMessageContaining("FINANCEIRO")
+                .hasFieldOrPropertyWithValue("codigo", "USR-400-004");
 
         verify(repository, never()).save(any());
         verify(passwordEncoder, never()).encode(any());
@@ -115,7 +116,8 @@ class CriarUsuarioUseCaseTest {
 
         assertThatThrownBy(() -> useCase.executarInterno(dto))
                 .isInstanceOf(ValidacaoException.class)
-                .hasMessageContaining("BACKOFFICE");
+                .hasMessageContaining("BACKOFFICE")
+                .hasFieldOrPropertyWithValue("codigo", "USR-400-004");
 
         verify(repository, never()).save(any());
         verify(passwordEncoder, never()).encode(any());

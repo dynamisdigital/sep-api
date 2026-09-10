@@ -8,6 +8,7 @@ import com.dynamis.sep_api.onboarding.application.usecase.ConsultarStatusOnboard
 import com.dynamis.sep_api.onboarding.application.usecase.EnviarDocumentoUseCase;
 import com.dynamis.sep_api.onboarding.application.usecase.IniciarOnboardingEmpresaUseCase;
 import com.dynamis.sep_api.onboarding.application.usecase.IniciarVerificacaoKybUseCase;
+import com.dynamis.sep_api.onboarding.domain.exception.DocumentoSemConteudoException;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.TipoDocumento;
 import com.dynamis.sep_api.onboarding.web.dto.EmpresaResponse;
@@ -52,7 +53,6 @@ import java.util.UUID;
 @Tag(name = "onboarding", description = "Onboarding KYB Pessoa Juridica (Resolucao CMN 4.656/2018)")
 public class OnboardingEmpresaController {
 
-    private static final String CODIGO_ARQUIVO_INVALIDO = "ONB-400-007";
     private static final String CODIGO_TIPO_DOCUMENTO_INVALIDO = "ONB-400-016";
 
     private static final Set<TipoDocumento> TIPOS_PJ_ACEITOS =
@@ -146,14 +146,14 @@ public class OnboardingEmpresaController {
                     "Tipo de documento nao aceito em onboarding PJ: " + tipo + ". Aceitos: " + TIPOS_PJ_ACEITOS);
         }
         if (arquivo == null || arquivo.isEmpty()) {
-            throw new ValidacaoException(CODIGO_ARQUIVO_INVALIDO, "Arquivo do documento e obrigatorio");
+            throw DocumentoSemConteudoException.arquivoAusente();
         }
         DocumentoUploadCommand cmd;
         try {
             cmd = new DocumentoUploadCommand(
                     tipo, arquivo.getContentType(), arquivo.getOriginalFilename(), arquivo.getBytes());
         } catch (IOException ex) {
-            throw new ValidacaoException(CODIGO_ARQUIVO_INVALIDO, "Falha ao ler bytes do arquivo");
+            throw new ArquivoIlegivelException();
         }
         boolean isAdmin = principal.temRole(Role.ADMIN);
         enviarDocumentoUseCase.executar(id, principal.id(), isAdmin, cmd);

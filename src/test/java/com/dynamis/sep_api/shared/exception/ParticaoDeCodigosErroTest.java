@@ -42,17 +42,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ParticaoDeCodigosErroTest {
 
-    private static final Path FONTE = Path.of("src", "main", "java");
+    // Visiveis ao pacote: o ConvencaoCodigosErroTest usa a mesma definicao do que tem forma de codigo.
+    static final Path FONTE = Path.of("src", "main", "java");
 
-    private static final Pattern FORMA = Pattern.compile("\"([A-Z]{2,5}-[0-9]{3}-[A-Z0-9_-]+)\"");
-    private static final Pattern CANONICO = Pattern.compile("^[A-Z]{3,4}-[0-9]{3}-[0-9]{3}$");
-    private static final Pattern CONSTANTE =
+    static final Pattern FORMA = Pattern.compile("\"([A-Z]{2,5}-[0-9]{3}-[A-Z0-9_-]+)\"");
+    static final Pattern CANONICO = Pattern.compile("^[A-Z]{3,4}-[0-9]{3}-[0-9]{3}$");
+    static final Pattern CONSTANTE =
             Pattern.compile("(?:public|private|protected)?\\s*(?:static\\s+)?final\\s+String\\s+"
                     + "([A-Za-z_]*(?:COD|CODIGO)[A-Za-z_]*)\\s*=\\s*\"([^\"]+)\"");
     /** {@code example = "AUTH-423-001"} num {@code @Schema} documenta o campo; nao define o codigo. */
-    private static final Pattern EXEMPLO_DE_SCHEMA = Pattern.compile("example\\s*=\\s*$");
+    static final Pattern EXEMPLO_DE_SCHEMA = Pattern.compile("example\\s*=\\s*$");
 
-    private static final Set<String> SUBTIPOS_SELADOS = Set.of(
+    static final Set<String> SUBTIPOS_SELADOS = Set.of(
             "ValidacaoException",
             "RecursoNaoEncontradoException",
             "ConflitoException",
@@ -60,11 +61,11 @@ class ParticaoDeCodigosErroTest {
             "OperacaoNaoProcessavelException");
 
     /** Fora da hierarquia selada, mas com {@code @ExceptionHandler} dedicado que le a constante. */
-    private static final Set<String> ORFAS_COM_HANDLER = Set.of(
+    static final Set<String> ORFAS_COM_HANDLER = Set.of(
             "ContaBloqueadaException", "LimiteReprocessoExcedidoException", "TipoReprocessoNaoSuportadoException");
 
     /** O catalogo publica os codigos; contabiliza-lo como dono faria dele dono de todos eles. */
-    private static final Set<String> ARTEFATOS_DE_PUBLICACAO = Set.of("CatalogoCodigosErro.java");
+    static final Set<String> ARTEFATOS_DE_PUBLICACAO = Set.of("CatalogoCodigosErro.java");
 
     @Test
     void oCatalogoContemExatamenteOsCodigosAptosDoCodigoFonte() {

@@ -208,7 +208,7 @@ class PixChaveControllerTest {
         mfaHabilitado(true);
         stepUpValido();
         when(cadastrarChave.executar(any()))
-                .thenThrow(new ValidacaoException("PIX-400-IDEMPOTENCY-KEY", "Idempotency-Key obrigatoria."));
+                .thenThrow(new ValidacaoException("PIX-400-006", "Idempotency-Key obrigatoria."));
 
         mockMvc.perform(post("/api/v1/pix/chaves")
                         .header("X-Step-Up-Token", "tok-ok")
@@ -223,7 +223,7 @@ class PixChaveControllerTest {
         mfaHabilitado(true);
         stepUpValido();
         when(cadastrarChave.executar(any()))
-                .thenThrow(new ValidacaoException("PIX-400-CHAVE", "chave Pix invalida para o tipo EMAIL."));
+                .thenThrow(new ValidacaoException("PIX-400-003", "chave Pix invalida para o tipo EMAIL."));
 
         mockMvc.perform(post("/api/v1/pix/chaves")
                         .header("Idempotency-Key", "idem-1")
@@ -304,7 +304,7 @@ class PixChaveControllerTest {
         autenticar(Role.FINANCEIRO);
         mfaHabilitado(true);
         stepUpValido();
-        doThrow(new RecursoNaoEncontradoException("PIX-404-CHAVE", "Chave Pix nao encontrada."))
+        doThrow(new RecursoNaoEncontradoException("PIX-404-002", "Chave Pix nao encontrada."))
                 .when(removerChave)
                 .executar(eq(chaveId), eq(operadorId), any());
 

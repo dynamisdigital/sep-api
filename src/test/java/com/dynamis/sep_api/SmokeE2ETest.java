@@ -232,7 +232,7 @@ class SmokeE2ETest {
                 .get("/api/v1/usuarios")
                 .then()
                 .statusCode(403)
-                .body("message", org.hamcrest.Matchers.containsString("AUTH-403-PASSWORD_RESET_REQUIRED"));
+                .body("message", org.hamcrest.Matchers.containsString("AUTH-403-001"));
 
         // PATCH proprio password -> 204 (e zera flag)
         RestAssured.given()

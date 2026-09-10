@@ -7,6 +7,7 @@ import com.dynamis.sep_api.onboarding.application.usecase.ConsultarStatusOnboard
 import com.dynamis.sep_api.onboarding.application.usecase.EnviarDocumentoUseCase;
 import com.dynamis.sep_api.onboarding.application.usecase.IniciarOnboardingPessoaUseCase;
 import com.dynamis.sep_api.onboarding.application.usecase.IniciarVerificacaoKycUseCase;
+import com.dynamis.sep_api.onboarding.domain.exception.DocumentoSemConteudoException;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.TipoDocumento;
 import com.dynamis.sep_api.onboarding.web.dto.IniciarOnboardingRequest;
@@ -14,7 +15,6 @@ import com.dynamis.sep_api.onboarding.web.dto.OnboardingResponse;
 import com.dynamis.sep_api.onboarding.web.dto.StatusOnboardingResponse;
 import com.dynamis.sep_api.onboarding.web.mapper.OnboardingWebMapper;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
-import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
 import com.dynamis.sep_api.usuarios.domain.model.Role;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,8 +47,6 @@ import java.util.UUID;
 @RequestMapping("/api/v1/onboarding/pessoa")
 @Tag(name = "onboarding", description = "Onboarding KYC Pessoa Fisica (Resolucao CMN 4.656/2018)")
 public class OnboardingPessoaController {
-
-    private static final String CODIGO_ARQUIVO_INVALIDO = "ONB-400-007";
 
     private final IniciarOnboardingPessoaUseCase iniciarUseCase;
     private final EnviarDocumentoUseCase enviarDocumentoUseCase;
@@ -115,14 +113,14 @@ public class OnboardingPessoaController {
             @RequestParam("arquivo") MultipartFile arquivo,
             @AuthenticationPrincipal UsuarioAutenticado principal) {
         if (arquivo == null || arquivo.isEmpty()) {
-            throw new ValidacaoException(CODIGO_ARQUIVO_INVALIDO, "Arquivo do documento e obrigatorio");
+            throw DocumentoSemConteudoException.arquivoAusente();
         }
         DocumentoUploadCommand cmd;
         try {
             cmd = new DocumentoUploadCommand(
                     tipo, arquivo.getContentType(), arquivo.getOriginalFilename(), arquivo.getBytes());
         } catch (IOException ex) {
-            throw new ValidacaoException(CODIGO_ARQUIVO_INVALIDO, "Falha ao ler bytes do arquivo");
+            throw new ArquivoIlegivelException();
         }
         boolean isAdmin = principal.temRole(Role.ADMIN);
         enviarDocumentoUseCase.executar(id, principal.id(), isAdmin, cmd);

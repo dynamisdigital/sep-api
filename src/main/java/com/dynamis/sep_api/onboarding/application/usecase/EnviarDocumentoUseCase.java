@@ -3,6 +3,7 @@ package com.dynamis.sep_api.onboarding.application.usecase;
 import com.dynamis.sep_api.onboarding.application.dto.DocumentoUploadCommand;
 import com.dynamis.sep_api.onboarding.application.port.out.DocumentoStorage;
 import com.dynamis.sep_api.onboarding.domain.event.DocumentoCadastralEnviadoEvent;
+import com.dynamis.sep_api.onboarding.domain.exception.DocumentoSemConteudoException;
 import com.dynamis.sep_api.onboarding.domain.exception.OnboardingNaoEncontradoException;
 import com.dynamis.sep_api.onboarding.domain.model.DocumentoCadastral;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
@@ -49,7 +50,7 @@ public class EnviarDocumentoUseCase {
     public DocumentoCadastral executar(
             UUID solicitacaoId, UUID usuarioAutenticadoId, boolean isAdmin, DocumentoUploadCommand cmd) {
         if (cmd == null || cmd.conteudo() == null || cmd.conteudo().length == 0) {
-            throw new ValidacaoException(CODIGO_TAMANHO_EXCEDIDO, "Conteudo do documento e obrigatorio");
+            throw DocumentoSemConteudoException.conteudoVazio();
         }
         if (!MIMES_ACEITOS.contains(cmd.mimeType())) {
             throw new ValidacaoException(

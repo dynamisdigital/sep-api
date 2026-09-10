@@ -3,6 +3,7 @@ package com.dynamis.sep_api.onboarding.application.usecase;
 import com.dynamis.sep_api.onboarding.application.dto.StatusOnboardingEmpresaView;
 import com.dynamis.sep_api.onboarding.domain.exception.KybNaoEncontradoException;
 import com.dynamis.sep_api.onboarding.domain.exception.OnboardingNaoEncontradoException;
+import com.dynamis.sep_api.onboarding.domain.exception.SolicitacaoNaoEmpresaException;
 import com.dynamis.sep_api.onboarding.domain.model.KybEmpresa;
 import com.dynamis.sep_api.onboarding.domain.model.RepresentanteLegal;
 import com.dynamis.sep_api.onboarding.domain.model.ResultadoVerificacao;
@@ -13,7 +14,6 @@ import com.dynamis.sep_api.onboarding.infrastructure.persistence.KybEmpresaRepos
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.RepresentanteLegalRepository;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.ResultadoVerificacaoRepository;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.SolicitacaoOnboardingRepository;
-import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,8 +27,6 @@ import java.util.UUID;
  */
 @Service
 public class ConsultarStatusOnboardingEmpresaUseCase {
-
-    private static final String CODIGO_TIPO_INVALIDO = "ONB-400-008";
 
     private final SolicitacaoOnboardingRepository solicitacaoRepository;
     private final KybEmpresaRepository kybRepository;
@@ -58,7 +56,7 @@ public class ConsultarStatusOnboardingEmpresaUseCase {
             throw new AccessDeniedException("Solicitacao nao pertence ao usuario autenticado");
         }
         if (solicitacao.getTipo() != TipoSolicitante.EMPRESA) {
-            throw new ValidacaoException(CODIGO_TIPO_INVALIDO, "Solicitacao nao e do tipo EMPRESA");
+            throw new SolicitacaoNaoEmpresaException();
         }
 
         KybEmpresa kyb = kybRepository

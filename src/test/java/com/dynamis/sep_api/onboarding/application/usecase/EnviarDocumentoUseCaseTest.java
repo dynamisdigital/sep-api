@@ -81,7 +81,8 @@ class EnviarDocumentoUseCaseTest {
 
         assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, false, cmd))
                 .isInstanceOf(ValidacaoException.class)
-                .hasMessageContaining("tamanho");
+                .hasFieldOrPropertyWithValue("codigo", "ONB-400-004")
+                .hasMessage("Documento excede o tamanho maximo permitido");
     }
 
     @Test
@@ -89,7 +90,9 @@ class EnviarDocumentoUseCaseTest {
         DocumentoUploadCommand cmd = new DocumentoUploadCommand(TipoDocumento.RG, "image/jpeg", "rg.jpg", new byte[0]);
 
         assertThatThrownBy(() -> useCase.executar(solicitacao.getId(), usuarioId, false, cmd))
-                .isInstanceOf(ValidacaoException.class);
+                .isInstanceOf(ValidacaoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "ONB-400-017")
+                .hasMessage("Conteudo do documento e obrigatorio");
     }
 
     @Test

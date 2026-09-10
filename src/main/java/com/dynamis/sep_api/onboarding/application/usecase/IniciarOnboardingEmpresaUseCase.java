@@ -2,6 +2,7 @@ package com.dynamis.sep_api.onboarding.application.usecase;
 
 import com.dynamis.sep_api.onboarding.domain.event.KybIniciadoEvent;
 import com.dynamis.sep_api.onboarding.domain.exception.CnpjComOnboardingAtivoException;
+import com.dynamis.sep_api.onboarding.domain.exception.CnpjInvalidoException;
 import com.dynamis.sep_api.onboarding.domain.model.KybEmpresa;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.Cnpj;
@@ -24,8 +25,6 @@ import java.util.UUID;
  */
 @Service
 public class IniciarOnboardingEmpresaUseCase {
-
-    private static final String CODIGO_CNPJ_INVALIDO = "ONB-400-006";
 
     private final SolicitacaoOnboardingRepository solicitacaoRepository;
     private final KybEmpresaRepository kybRepository;
@@ -72,18 +71,18 @@ public class IniciarOnboardingEmpresaUseCase {
 
     private static Cnpj parsearCnpj(String bruto) {
         if (bruto == null || bruto.isBlank()) {
-            throw new ValidacaoException(CODIGO_CNPJ_INVALIDO, "CNPJ e obrigatorio");
+            throw CnpjInvalidoException.obrigatorio();
         }
         try {
             return new Cnpj(bruto);
         } catch (IllegalArgumentException ex) {
-            throw new ValidacaoException(CODIGO_CNPJ_INVALIDO, ex.getMessage());
+            throw CnpjInvalidoException.invalido(ex.getMessage());
         }
     }
 
     private static void validarObrigatorio(String valor, String campo) {
         if (valor == null || valor.isBlank()) {
-            throw new ValidacaoException("ONB-400-007", campo + " e obrigatorio");
+            throw new ValidacaoException("ONB-400-019", campo + " e obrigatorio");
         }
     }
 }

@@ -82,7 +82,8 @@ class IniciarOnboardingEmpresaUseCaseTest {
     void rejeitaCnpjInvalido() {
         assertThatThrownBy(() -> useCase.executar(
                         UUID.randomUUID(), "11111111111111", "ACME", null, TipoSocietario.LTDA, PorteEmpresa.ME))
-                .isInstanceOf(ValidacaoException.class);
+                .isInstanceOf(ValidacaoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "ONB-400-006");
     }
 
     @Test
@@ -92,6 +93,8 @@ class IniciarOnboardingEmpresaUseCaseTest {
 
         assertThatThrownBy(() -> useCase.executar(
                         UUID.randomUUID(), CNPJ_VALIDO, " ", null, TipoSocietario.LTDA, PorteEmpresa.ME))
-                .isInstanceOf(ValidacaoException.class);
+                .isInstanceOf(ValidacaoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "ONB-400-019")
+                .hasMessageContaining("e obrigatorio");
     }
 }

@@ -11,6 +11,10 @@ import com.dynamis.sep_api.pix.application.service.ChavePixSeguranca;
 import com.dynamis.sep_api.pix.application.service.DesembolsoTransacaoService;
 import com.dynamis.sep_api.pix.application.service.ResultadoElegibilidadeDesembolso;
 import com.dynamis.sep_api.pix.application.service.ValidadorElegibilidadeDesembolso;
+import com.dynamis.sep_api.pix.domain.exception.ChavePixInvalidaException;
+import com.dynamis.sep_api.pix.domain.exception.IdempotencyKeyConflitanteException;
+import com.dynamis.sep_api.pix.domain.exception.IdempotencyKeyMuitoLongaException;
+import com.dynamis.sep_api.pix.domain.exception.IdempotencyKeyObrigatoriaException;
 import com.dynamis.sep_api.pix.domain.model.PixTransferencia;
 import com.dynamis.sep_api.pix.domain.vo.StatusPixTransferencia;
 import com.dynamis.sep_api.pix.infrastructure.persistence.PixTransferenciaRepository;
@@ -146,31 +150,28 @@ public class SolicitarDesembolsoPixUseCase {
         boolean mesmoValor = existente.getValor().compareTo(cmd.valor().setScale(2)) == 0;
         boolean mesmaChave = chaveHash.equals(existente.getChaveDestinoHash());
         if (!mesmoContrato || !mesmoValor || !mesmaChave) {
-            throw new ConflitoException(
-                    "PIX-409-IDEMPOTENCIA",
-                    "Idempotency-Key '" + cmd.idempotencyKey() + "' ja foi usada com contrato/valor/chave diferentes.");
+            throw IdempotencyKeyConflitanteException.desembolso(cmd.idempotencyKey());
         }
     }
 
     private void validarComando(SolicitarDesembolsoPixCommand cmd) {
         if (cmd.idempotencyKey() == null || cmd.idempotencyKey().isBlank()) {
-            throw new ValidacaoException("PIX-400-IDEMPOTENCY-KEY", "Idempotency-Key obrigatoria.");
+            throw new IdempotencyKeyObrigatoriaException();
         }
         if (cmd.idempotencyKey().length() > 100) {
-            throw new ValidacaoException(
-                    "PIX-400-IDEMPOTENCY-KEY-TAMANHO", "Idempotency-Key nao pode exceder 100 caracteres.");
+            throw new IdempotencyKeyMuitoLongaException();
         }
         if (cmd.contratoId() == null) {
-            throw new ValidacaoException("PIX-400-CONTRATO", "contratoId obrigatorio.");
+            throw new ValidacaoException("PIX-400-005", "contratoId obrigatorio.");
         }
         if (cmd.chavePixDestino() == null || cmd.chavePixDestino().isBlank()) {
-            throw new ValidacaoException("PIX-400-CHAVE", "chave Pix destino obrigatoria.");
+            throw ChavePixInvalidaException.destinoObrigatorio();
         }
         if (cmd.valor() == null || cmd.valor().signum() <= 0) {
-            throw new ValidacaoException("PIX-400-VALOR", "valor deve ser positivo.");
+            throw new ValidacaoException("PIX-400-009", "valor deve ser positivo.");
         }
         if (cmd.valor().scale() > 2) {
-            throw new ValidacaoException("PIX-400-VALOR-ESCALA", "valor nao pode ter mais de 2 casas decimais.");
+            throw new ValidacaoException("PIX-400-010", "valor nao pode ter mais de 2 casas decimais.");
         }
     }
 
@@ -181,26 +182,24 @@ public class SolicitarDesembolsoPixUseCase {
         }
         throw switch (resultado.motivo()) {
             case CONTRATO_NAO_ENCONTRADO -> new RecursoNaoEncontradoException(
-                    "PIX-404-CONTRATO", "Contrato nao encontrado para desembolso: " + contratoId);
+                    "PIX-404-003", "Contrato nao encontrado para desembolso: " + contratoId);
             case CONTRATO_NAO_ASSINADO -> new OperacaoNaoProcessavelException(
-                    "PIX-422-CONTRATO-NAO-ASSINADO", "Contrato nao esta ASSINADO; desembolso indisponivel.");
+                    "PIX-422-003", "Contrato nao esta ASSINADO; desembolso indisponivel.");
             case AGENDA_INEXISTENTE -> new OperacaoNaoProcessavelException(
-                    "PIX-422-AGENDA-INEXISTENTE", "Contrato sem agenda de cobranca ativa; desembolso indisponivel.");
+                    "PIX-422-001", "Contrato sem agenda de cobranca ativa; desembolso indisponivel.");
             case ESCROW_INOPERANTE -> new OperacaoNaoProcessavelException(
-                    "PIX-422-ESCROW-INOPERANTE", "Conta escrow da proposta nao esta operacional.");
+                    "PIX-422-004", "Conta escrow da proposta nao esta operacional.");
         };
     }
 
     private void validarValorContraContrato(BigDecimal valor, ContratoDesembolsoView contrato) {
         if (contrato.valorDesembolso() == null) {
             throw new OperacaoNaoProcessavelException(
-                    "PIX-422-VALOR-INDISPONIVEL",
-                    "Valor de desembolso indisponivel para o contrato " + contrato.contratoId());
+                    "PIX-422-008", "Valor de desembolso indisponivel para o contrato " + contrato.contratoId());
         }
         if (valor.compareTo(contrato.valorDesembolso()) != 0) {
             throw new OperacaoNaoProcessavelException(
-                    "PIX-422-VALOR-DIVERGENTE",
-                    "Valor informado diverge do valor financiado do contrato " + contrato.contratoId());
+                    "PIX-422-007", "Valor informado diverge do valor financiado do contrato " + contrato.contratoId());
         }
     }
 
@@ -214,8 +213,7 @@ public class SolicitarDesembolsoPixUseCase {
 
     private ConflitoException desembolsoDuplicado(UUID contratoId) {
         return new ConflitoException(
-                "PIX-409-DESEMBOLSO-DUPLICADO",
-                "Contrato " + contratoId + " ja possui um desembolso Pix ativo ou concluido.");
+                "PIX-409-003", "Contrato " + contratoId + " ja possui um desembolso Pix ativo ou concluido.");
     }
 
     private SolicitarDesembolsoPixResult resultado(PixTransferencia t, boolean novo) {
