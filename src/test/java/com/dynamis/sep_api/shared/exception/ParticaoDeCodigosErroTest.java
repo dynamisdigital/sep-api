@@ -47,7 +47,7 @@ class ParticaoDeCodigosErroTest {
 
     static final Pattern FORMA = Pattern.compile("\"([A-Z]{2,5}-[0-9]{3}-[A-Z0-9_-]+)\"");
     static final Pattern CANONICO = Pattern.compile("^[A-Z]{3,4}-[0-9]{3}-[0-9]{3}$");
-    private static final Pattern CONSTANTE =
+    static final Pattern CONSTANTE =
             Pattern.compile("(?:public|private|protected)?\\s*(?:static\\s+)?final\\s+String\\s+"
                     + "([A-Za-z_]*(?:COD|CODIGO)[A-Za-z_]*)\\s*=\\s*\"([^\"]+)\"");
     /** {@code example = "AUTH-423-001"} num {@code @Schema} documenta o campo; nao define o codigo. */

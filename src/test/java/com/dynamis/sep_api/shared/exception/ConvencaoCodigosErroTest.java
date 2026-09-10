@@ -43,7 +43,6 @@ class ConvencaoCodigosErroTest {
             "WHK-400-002"); // 37.3b: validacao do webhook generico -> WHK-400-003/004
 
     private static final Pattern CONSTANTE_JAVA = Pattern.compile("[A-Z][A-Z0-9_]*");
-    private static final Pattern DECLARACAO_DE_CONSTANTE = Pattern.compile("final\\s+String\\s+([A-Z][A-Z0-9_]*)\\s*=");
 
     /** Mesmo recorte de pontos de lancamento que a particao le: {@code new Tipo(ARG, ...)} e {@code super(ARG, ...)}. */
     private static final Pattern PONTO_DE_LANCAMENTO = Pattern.compile("(?:new\\s+(?:\\w+\\.)*("
@@ -74,9 +73,15 @@ class ConvencaoCodigosErroTest {
 
     @Test
     void cadaPrefixoSoApareceNoModuloDono() {
-        assertThat(ocorrencias())
-                .filteredOn(o -> registrados().contains(o.prefixo())
-                        && !PrefixoCodigoErro.valueOf(o.prefixo()).modulo().equals(o.modulo()))
+        assertThat(ocorrencias().stream()
+                        .filter(o -> registrados().contains(o.prefixo()))
+                        .filter(o ->
+                                !PrefixoCodigoErro.valueOf(o.prefixo()).modulo().equals(o.modulo()))
+                        .map(o -> {
+                            PrefixoCodigoErro prefixo = PrefixoCodigoErro.valueOf(o.prefixo());
+                            return o + ": " + prefixo + " (" + prefixo.area() + ") e do modulo " + prefixo.modulo();
+                        })
+                        .toList())
                 .as("prefixo usado fora do modulo dono — o mesmo prefixo em dois modulos e a colisao que"
                         + " a Sprint 37 desfez no CRD")
                 .isEmpty();
@@ -100,12 +105,21 @@ class ConvencaoCodigosErroTest {
     }
 
     /**
-     * A particao resolve o codigo de um ponto de lancamento pelas constantes do proprio arquivo.
-     * Constante herdada ({@code super(CODIGO, ...)} num subtipo) ou qualificada ({@code new
-     * ValidacaoException(Outra.CODIGO, ...)}) fica invisivel para ela: um subtipo pode emitir o
-     * codigo do pai e pendurar uma segunda condicao num codigo publicado sem nada reprovar — foi o
-     * que a mutacao mP2 da Task 37.4 mostrou. Parametro ({@code super(codigo, mensagem)}) e literal
-     * continuam validos.
+     * A particao resolve o codigo de um ponto de lancamento pelas constantes do proprio arquivo, e so
+     * pelas que ela reconhece: nome com {@code COD}/{@code CODIGO} e valor literal
+     * ({@link ParticaoDeCodigosErroTest#CONSTANTE}). Fora disso o ponto fica invisivel e o codigo sai
+     * como inalcancavel — nunca publicado, sem nada reprovar. Quatro formas caem nisso:
+     *
+     * <ul>
+     *   <li>constante herdada ({@code super(CODIGO, ...)} num subtipo) — a mutacao mP2 da Task 37.4;
+     *   <li>constante qualificada ({@code new ValidacaoException(Outra.CODIGO, ...)});
+     *   <li>alias sem literal ({@code CODIGO = Outra.CODIGO});
+     *   <li>codigo numa constante sem {@code COD} no nome ({@code ERRO_X = "PIX-400-011"}) — achado do
+     *       code review da Task 37.6, provado por mutacao.
+     * </ul>
+     *
+     * <p>Parametro ({@code super(codigo, mensagem)}), literal e constante de mensagem
+     * ({@code MOTIVO_SANITIZADO = "Falha ..."}) continuam validos.
      */
     @Test
     void todoCodigoDeLancamentoResolveNoProprioArquivo() {
@@ -113,7 +127,7 @@ class ConvencaoCodigosErroTest {
         for (Path arquivo : javas()) {
             String texto = ler(arquivo);
             boolean ehExcecao = arquivo.getFileName().toString().endsWith("Exception.java");
-            Set<String> constantes = DECLARACAO_DE_CONSTANTE
+            Set<String> legiveis = ParticaoDeCodigosErroTest.CONSTANTE
                     .matcher(texto)
                     .results()
                     .map(r -> r.group(1))
@@ -122,19 +136,34 @@ class ConvencaoCodigosErroTest {
             while (ponto.find()) {
                 boolean ehSuper = ponto.group(1) == null;
                 String argumento = ponto.group(2);
-                boolean qualificado = argumento.contains(".");
-                boolean constanteDeFora =
-                        CONSTANTE_JAVA.matcher(argumento).matches() && !constantes.contains(argumento);
-                if ((!ehSuper || ehExcecao) && (qualificado || constanteDeFora)) {
+                if ((!ehSuper || ehExcecao) && invisivelParaAParticao(argumento, texto, legiveis)) {
                     invisiveis.add(argumento + " em " + RAIZ_DOS_MODULOS.relativize(arquivo) + ":"
                             + linhaDe(texto, ponto.start()));
                 }
             }
         }
         assertThat(invisiveis)
-                .as("codigo de lancamento que a particao nao consegue ler: declare a constante no proprio"
-                        + " arquivo ou passe o literal")
+                .as("codigo de lancamento que a particao nao consegue ler: declare no proprio arquivo uma"
+                        + " constante CODIGO_* com o literal, ou passe o literal")
                 .isEmpty();
+    }
+
+    private static boolean invisivelParaAParticao(String argumento, String texto, Set<String> legiveis) {
+        if (argumento.contains(".")) {
+            return true; // qualificada: Outra.CODIGO
+        }
+        if (!CONSTANTE_JAVA.matcher(argumento).matches()) {
+            return false; // parametro: super(codigo, mensagem)
+        }
+        Matcher declaracao = Pattern.compile("final\\s+String\\s+" + argumento + "\\s*=\\s*([^;]+);")
+                .matcher(texto);
+        if (!declaracao.find() || !declaracao.group(1).strip().startsWith("\"")) {
+            return true; // herdada, ou alias sem literal
+        }
+        boolean temFormaDeCodigo = ParticaoDeCodigosErroTest.FORMA
+                .matcher(declaracao.group(1).strip())
+                .matches();
+        return temFormaDeCodigo && !legiveis.contains(argumento);
     }
 
     private record Ocorrencia(String codigo, String modulo, String local) {
