@@ -10,12 +10,14 @@ import com.dynamis.sep_api.pix.application.port.out.dto.RespostaCadastroChavePix
 import com.dynamis.sep_api.pix.application.service.ChavePixSeguranca;
 import com.dynamis.sep_api.pix.application.service.NormalizadorChavePix;
 import com.dynamis.sep_api.pix.domain.event.PixChaveCadastradaEvent;
+import com.dynamis.sep_api.pix.domain.exception.IdempotencyKeyConflitanteException;
+import com.dynamis.sep_api.pix.domain.exception.IdempotencyKeyMuitoLongaException;
+import com.dynamis.sep_api.pix.domain.exception.IdempotencyKeyObrigatoriaException;
 import com.dynamis.sep_api.pix.domain.model.ChavePix;
 import com.dynamis.sep_api.pix.domain.vo.StatusChavePix;
 import com.dynamis.sep_api.pix.infrastructure.persistence.ChavePixRepository;
 import com.dynamis.sep_api.shared.exception.ConflitoException;
 import com.dynamis.sep_api.shared.exception.OperacaoNaoProcessavelException;
-import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -165,9 +167,7 @@ public class CadastrarChavePixUseCase {
         boolean mesmoTipo = existente.getTipo() == cmd.tipo();
         boolean mesmoValor = existente.getValorHash().equals(valorHash);
         if (!mesmoTipo || !mesmoValor) {
-            throw new ConflitoException(
-                    "PIX-409-IDEMPOTENCIA-CHAVE",
-                    "Idempotency-Key '" + cmd.idempotencyKey() + "' ja foi usada com tipo/valor de chave diferentes.");
+            throw IdempotencyKeyConflitanteException.cadastroDeChave(cmd.idempotencyKey());
         }
         return resultado(existente, false);
     }
@@ -178,7 +178,7 @@ public class CadastrarChavePixUseCase {
                         contaEscrowId, cmd.tipo(), valorHash, StatusChavePix.ATIVA)
                 .ifPresent(ativa -> {
                     throw new ConflitoException(
-                            "PIX-409-CHAVE-ATIVA", "Ja existe chave Pix ativa equivalente na conta operacional.");
+                            "PIX-409-001", "Ja existe chave Pix ativa equivalente na conta operacional.");
                 });
     }
 
@@ -186,17 +186,15 @@ public class CadastrarChavePixUseCase {
         return contaPort
                 .buscarContaOperacionalAtiva()
                 .orElseThrow(() -> new OperacaoNaoProcessavelException(
-                        "PIX-422-CONTA-OPERACIONAL",
-                        "Conta operacional/escrow indisponivel para gestao de chaves Pix."));
+                        "PIX-422-002", "Conta operacional/escrow indisponivel para gestao de chaves Pix."));
     }
 
     private void validarIdempotencyKey(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            throw new ValidacaoException("PIX-400-IDEMPOTENCY-KEY", "Idempotency-Key obrigatoria.");
+            throw new IdempotencyKeyObrigatoriaException();
         }
         if (idempotencyKey.length() > 100) {
-            throw new ValidacaoException(
-                    "PIX-400-IDEMPOTENCY-KEY-TAMANHO", "Idempotency-Key nao pode exceder 100 caracteres.");
+            throw new IdempotencyKeyMuitoLongaException();
         }
     }
 

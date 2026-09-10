@@ -66,21 +66,21 @@ public class GerarReferenciaRecebimentoPixUseCase {
     @Transactional
     public GerarReferenciaRecebimentoPixResult executar(GerarReferenciaRecebimentoPixCommand cmd) {
         if (cmd.parcelaId() == null) {
-            throw new ValidacaoException("PIX-400-PARCELA", "parcelaId obrigatorio.");
+            throw new ValidacaoException("PIX-400-008", "parcelaId obrigatorio.");
         }
 
         ParcelaRecebimentoPixView parcela = cobrancaQueryPort
                 .buscarParcelaParaReferenciaPix(cmd.parcelaId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
-                        "PIX-404-PARCELA", "Parcela nao encontrada para recebimento Pix: " + cmd.parcelaId()));
+                        "PIX-404-004", "Parcela nao encontrada para recebimento Pix: " + cmd.parcelaId()));
 
         if (!parcela.permiteRecebimento()) {
             throw new OperacaoNaoProcessavelException(
-                    "PIX-422-PARCELA-NAO-RECEBIVEL", "Parcela nao permite recebimento no estado atual.");
+                    "PIX-422-005", "Parcela nao permite recebimento no estado atual.");
         }
         if (parcela.valorEmAberto().signum() <= 0) {
             throw new OperacaoNaoProcessavelException(
-                    "PIX-422-PARCELA-SEM-SALDO", "Parcela sem valor em aberto para gerar cobranca Pix.");
+                    "PIX-422-006", "Parcela sem valor em aberto para gerar cobranca Pix.");
         }
 
         Optional<PixReferenciaRecebimento> ativa =
@@ -110,7 +110,7 @@ public class GerarReferenciaRecebimentoPixUseCase {
             return referenciaRepository.saveAndFlush(referencia);
         } catch (DataIntegrityViolationException ex) {
             throw new ConflitoException(
-                    "PIX-409-REFERENCIA-CONCORRENTE",
+                    "PIX-409-005",
                     "Ja existe geracao de referencia Pix em andamento para a parcela " + parcela.parcelaId());
         }
     }

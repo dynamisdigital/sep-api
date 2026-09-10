@@ -172,14 +172,27 @@ class NormalizadorChavePixTest {
     @Test
     void tipoNulo_rejeita() {
         assertThatThrownBy(() -> NormalizadorChavePix.normalizar(null, "12345678909"))
-                .isInstanceOf(ValidacaoException.class);
+                .isInstanceOf(ValidacaoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "PIX-400-004")
+                .hasMessage("tipo da chave Pix obrigatorio.");
     }
 
     @Test
     void valorNuloOuVazio_rejeita() {
         assertThatThrownBy(() -> NormalizadorChavePix.normalizar(TipoChavePix.CPF, null))
-                .isInstanceOf(ValidacaoException.class);
+                .isInstanceOf(ValidacaoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "PIX-400-003")
+                .hasMessage("valor da chave Pix obrigatorio.");
         assertThatThrownBy(() -> NormalizadorChavePix.normalizar(TipoChavePix.CPF, "   "))
                 .isInstanceOf(ValidacaoException.class);
+    }
+
+    /** Ausente e invalida sao a mesma condicao (PIX-400-003); a mensagem nomeia o tipo, nunca o valor. */
+    @Test
+    void chaveInvalida_temOCodigoDaChaveAusente() {
+        assertThatThrownBy(() -> NormalizadorChavePix.normalizar(TipoChavePix.EMAIL, "sem-arroba"))
+                .isInstanceOf(ValidacaoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "PIX-400-003")
+                .hasMessage("chave Pix invalida para o tipo EMAIL.");
     }
 }

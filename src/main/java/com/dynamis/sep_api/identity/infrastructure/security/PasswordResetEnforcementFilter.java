@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
  * </ul>
  *
  * Demais rotas autenticadas recebem {@code 403 Forbidden} com codigo {@code
- * AUTH-403-PASSWORD_RESET_REQUIRED}, impedindo que um cliente malicioso ignore o redirect do
+ * AUTH-403-001}, impedindo que um cliente malicioso ignore o redirect do
  * frontend e use o token normalmente.
  */
 @Component
@@ -46,7 +46,7 @@ public class PasswordResetEnforcementFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(PasswordResetEnforcementFilter.class);
 
     /** Codigo do erro de dominio para clientes detectarem o estado. */
-    public static final String ERROR_CODE = "AUTH-403-PASSWORD_RESET_REQUIRED";
+    public static final String ERROR_CODE = "AUTH-403-001";
 
     private static final Pattern ALTERAR_SENHA_PATH = Pattern.compile("^/api/v1/usuarios/[^/]+/senha$");
     private static final String AUTH_ME_PATH = "/api/v1/auth/me";

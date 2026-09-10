@@ -197,8 +197,9 @@ class SolicitarDesembolsoPixUseCaseTest {
 
         assertThatThrownBy(() -> useCase.executar(comando(new BigDecimal("9999.00"), "idem-1")))
                 .isInstanceOf(ConflitoException.class)
+                .hasMessage("Idempotency-Key 'idem-1' ja foi usada com contrato/valor/chave diferentes.")
                 .extracting("codigo")
-                .isEqualTo("PIX-409-IDEMPOTENCIA");
+                .isEqualTo("PIX-409-004");
     }
 
     @Test
@@ -208,7 +209,21 @@ class SolicitarDesembolsoPixUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(comando(VALOR, longa)))
                 .isInstanceOf(ValidacaoException.class)
                 .extracting("codigo")
-                .isEqualTo("PIX-400-IDEMPOTENCY-KEY-TAMANHO");
+                .isEqualTo("PIX-400-007");
+    }
+
+    /** Chave de destino ausente e a mesma condicao da chave invalida no cadastro (PIX-400-003). */
+    @Test
+    void chaveDestinoAusente_validacao400() {
+        SolicitarDesembolsoPixCommand semChave =
+                new SolicitarDesembolsoPixCommand(contratoId, VALOR, "  ", "idem-sem-chave", operadorId, "corr-1");
+
+        assertThatThrownBy(() -> useCase.executar(semChave))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessage("chave Pix destino obrigatoria.")
+                .extracting("codigo")
+                .isEqualTo("PIX-400-003");
+        verify(pixProvider, never()).solicitarTransferencia(any(), any(), any());
     }
 
     @Test
@@ -228,7 +243,7 @@ class SolicitarDesembolsoPixUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(comando(VALOR, "idem-1")))
                 .isInstanceOf(OperacaoNaoProcessavelException.class)
                 .extracting("codigo")
-                .isEqualTo("PIX-422-CONTRATO-NAO-ASSINADO");
+                .isEqualTo("PIX-422-003");
     }
 
     @Test
@@ -239,7 +254,7 @@ class SolicitarDesembolsoPixUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(comando(VALOR, "idem-1")))
                 .isInstanceOf(OperacaoNaoProcessavelException.class)
                 .extracting("codigo")
-                .isEqualTo("PIX-422-AGENDA-INEXISTENTE");
+                .isEqualTo("PIX-422-001");
     }
 
     @Test
@@ -250,7 +265,7 @@ class SolicitarDesembolsoPixUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(comando(VALOR, "idem-1")))
                 .isInstanceOf(OperacaoNaoProcessavelException.class)
                 .extracting("codigo")
-                .isEqualTo("PIX-422-ESCROW-INOPERANTE");
+                .isEqualTo("PIX-422-004");
     }
 
     @Test
@@ -261,7 +276,7 @@ class SolicitarDesembolsoPixUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(comando(new BigDecimal("9999.00"), "idem-1")))
                 .isInstanceOf(OperacaoNaoProcessavelException.class)
                 .extracting("codigo")
-                .isEqualTo("PIX-422-VALOR-DIVERGENTE");
+                .isEqualTo("PIX-422-007");
     }
 
     @Test
@@ -276,7 +291,7 @@ class SolicitarDesembolsoPixUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(comando(VALOR, "idem-1")))
                 .isInstanceOf(ConflitoException.class)
                 .extracting("codigo")
-                .isEqualTo("PIX-409-DESEMBOLSO-DUPLICADO");
+                .isEqualTo("PIX-409-003");
         verify(repository, never()).saveAndFlush(any());
     }
 
@@ -291,7 +306,7 @@ class SolicitarDesembolsoPixUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(comando(VALOR, "idem-1")))
                 .isInstanceOf(ConflitoException.class)
                 .extracting("codigo")
-                .isEqualTo("PIX-409-CONFLITO-CONCORRENTE");
+                .isEqualTo("PIX-409-002");
 
         // Nao reconsulta na transacao ja marcada rollback-only: apenas o pre-check inicial.
         verify(repository).findByIdempotencyKey("idem-1");
