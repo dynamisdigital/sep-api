@@ -6,6 +6,7 @@ import com.dynamis.sep_api.backoffice.domain.vo.TipoChamadaProvider;
 import com.dynamis.sep_api.contratos.application.service.ccb.CcbGeracaoException;
 import com.dynamis.sep_api.credito.domain.exception.OwnershipPropostaException;
 import com.dynamis.sep_api.identity.application.exception.ContaBloqueadaException;
+import com.dynamis.sep_api.pix.domain.exception.IdempotencyKeyConflitanteException;
 import com.dynamis.sep_api.shared.integration.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.AfterEach;
@@ -94,7 +95,13 @@ class MatrizFinalDeErroTest {
                         "CTR-422-001",
                         null),
                 linha("CcbGeracao (36.3)", h -> h.apply(new CcbGeracaoException("m", null)), 422, "CTR-422-004", null),
-                linha("Ownership (37.4)", h -> h.apply(new OwnershipPropostaException("m")), 403, "PRP-403-001", null));
+                linha("Ownership (37.4)", h -> h.apply(new OwnershipPropostaException("m")), 403, "PRP-403-001", null),
+                linha(
+                        "IdempotencyKeyConflitante (37.5)",
+                        h -> h.apply(IdempotencyKeyConflitanteException.desembolso("k")),
+                        409,
+                        "PIX-409-004",
+                        null));
     }
 
     private static Arguments linha(

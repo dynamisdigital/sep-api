@@ -46,6 +46,12 @@ class CatalogoCodigosErroContratoTest {
                 .getContentAsString();
     }
 
+    /**
+     * O enum do OpenAPI e exatamente o catalogo. Junto com o {@code ParticaoDeCodigosErroTest}, que
+     * exige catalogo == codigos aptos do codigo-fonte, isto garante que nenhum codigo excluido chega
+     * ao contrato — sem lista fixa de excluidos. A amostra fixa que morava aqui foi invalidada a cada
+     * Task da Sprint 37 e saiu na 37.7.
+     */
     @Test
     void catalogoPublicadoEIgualAFonteUnica() throws Exception {
         List<String> doDocumento = JsonPath.read(documento(), CODIGO + ".enum");
@@ -92,22 +98,6 @@ class CatalogoCodigosErroContratoTest {
     @Test
     void osTresCodigosDeMfaQueDesbloqueiamAFsprint26EstaoPublicados() {
         assertThat(CatalogoCodigosErro.publicados()).contains("MFA-400-002", "MFA-400-003", "MFA-400-004");
-    }
-
-    /**
-     * Nenhum codigo excluido pelo perimetro pode vazar para o contrato. Depois da 37.5 restam dois
-     * motivos, e os quatro abaixo cobrem ambos: codigo inalcancavel ate o handler ({@code
-     * AUTH-403-001}, escrito pelo filtro) e codigo aposentado — os de webhook consolidados em WHK na
-     * 37.3b e na 37.4, inclusive o OF-400-001 de duas letras, e o PIX-409-IDEMPOTENCIA-CHAVE absorvido
-     * na 37.5. A Task 37.7 substitui esta amostra por uma verificacao que nao dependa de lista fixa.
-     */
-    @Test
-    void codigosForaDoPerimetroNaoAparecemNoContrato() throws Exception {
-        List<String> doDocumento = JsonPath.read(documento(), CODIGO + ".enum");
-
-        assertThat(doDocumento)
-                .doesNotContain("AUTH-403-001", "WHK-400-002", "PIX-409-IDEMPOTENCIA-CHAVE", "OF-400-001")
-                .doesNotContain("CTR-422-CCB-001");
     }
 
     /**
