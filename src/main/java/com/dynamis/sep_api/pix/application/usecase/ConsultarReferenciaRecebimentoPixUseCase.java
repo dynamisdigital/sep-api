@@ -24,7 +24,7 @@ public class ConsultarReferenciaRecebimentoPixUseCase {
         PixReferenciaRecebimento r = repository
                 .findById(referenciaId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
-                        "PIX-404-REFERENCIA", "Referencia Pix de recebimento nao encontrada: " + referenciaId));
+                        "PIX-404-006", "Referencia Pix de recebimento nao encontrada: " + referenciaId));
         return new ReferenciaRecebimentoPixResult(
                 r.getId(),
                 r.getParcelaId(),

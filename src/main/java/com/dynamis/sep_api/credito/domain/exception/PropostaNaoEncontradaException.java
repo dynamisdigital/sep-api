@@ -7,7 +7,7 @@ import java.util.UUID;
 /** Proposta nao encontrada (HTTP 404). */
 public class PropostaNaoEncontradaException extends RecursoNaoEncontradoException {
 
-    public static final String CODIGO = "CRD-404-001";
+    public static final String CODIGO = "PRP-404-001";
 
     public PropostaNaoEncontradaException(UUID propostaId) {
         super(CODIGO, "Proposta de credito " + propostaId + " nao encontrada");

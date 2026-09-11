@@ -187,7 +187,8 @@ class RegistrarRecebimentoUseCaseTest {
 
         assertThatThrownBy(() -> useCase.executar(comando(outraParcela.getId(), new BigDecimal("100.00"), KEY)))
                 .isInstanceOf(ChaveIdempotenciaConflitanteException.class)
-                .hasMessageContaining("parcela diferente");
+                .hasMessageContaining("parcela diferente")
+                .hasFieldOrPropertyWithValue("codigo", "COB-409-004");
     }
 
     @Test
@@ -206,7 +207,8 @@ class RegistrarRecebimentoUseCaseTest {
 
         assertThatThrownBy(() -> useCase.executar(comando(parcela.getId(), new BigDecimal("40.00"), KEY)))
                 .isInstanceOf(ChaveIdempotenciaConflitanteException.class)
-                .hasMessageContaining("valor diferente");
+                .hasMessageContaining("valor diferente")
+                .hasFieldOrPropertyWithValue("codigo", "COB-409-004");
     }
 
     @Test

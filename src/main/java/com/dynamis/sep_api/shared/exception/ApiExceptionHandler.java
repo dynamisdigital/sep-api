@@ -375,8 +375,9 @@ public class ApiExceptionHandler {
      *
      * <p>Nem todo codigo que o dominio carrega pode ser publicado: dos 133 medidos no Gate 36.0, 46
      * ficaram fora por colisao ou formato. Varios deles vivem em subtipos de {@link DomainException}
-     * e chegam aqui normalmente — {@code OwnershipPropostaException} carrega {@code CRD-403-001}, que
-     * significa "proposta de outro tomador" no modulo credito e "credora de outro dono" no credores.
+     * e chegam aqui normalmente — ate a Sprint 37, {@code OwnershipPropostaException} carregava
+     * {@code CRD-403-001}, que significava "proposta de outro tomador" no modulo credito e "credora de
+     * outro dono" no credores (a Task 37.4 moveu o credito para {@code PRP}).
      *
      * <p>Sem este filtro o corpo entregaria um valor que o {@code enum} do OpenAPI nao declara: a
      * resposta violaria o proprio schema publicado, e o cliente receberia um identificador ambiguo

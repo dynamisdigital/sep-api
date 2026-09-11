@@ -46,7 +46,7 @@ public class ConsultarStatusDesembolsoPixUseCase {
         PixTransferencia transferencia = transferenciaRepository
                 .findById(cmd.transferenciaId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
-                        "PIX-404-TRANSFERENCIA", "Transferencia Pix nao encontrada: " + cmd.transferenciaId()));
+                        "PIX-404-007", "Transferencia Pix nao encontrada: " + cmd.transferenciaId()));
 
         boolean providerConsultado = false;
         boolean providerIndisponivel = false;

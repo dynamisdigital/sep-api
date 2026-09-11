@@ -36,7 +36,8 @@ class PropostaCreditoTest {
         assertThatThrownBy(() ->
                         PropostaCredito.criar(TOMADOR, ONBOARDING, TipoOperacao.CAPITAL_GIRO, Money.brl("10000"), 0))
                 .isInstanceOf(PropostaInvalidaException.class)
-                .hasMessageContaining("prazoMeses");
+                .hasMessageContaining("prazoMeses")
+                .hasFieldOrPropertyWithValue("codigo", "PRP-400-001");
         assertThatThrownBy(() ->
                         PropostaCredito.criar(TOMADOR, ONBOARDING, TipoOperacao.CAPITAL_GIRO, Money.brl("10000"), -3))
                 .isInstanceOf(PropostaInvalidaException.class);
@@ -67,7 +68,8 @@ class PropostaCreditoTest {
     void aplicarSugestaoMotorNaoAceitaStatusInvalido() {
         PropostaCredito p = novaProposta();
         assertThatThrownBy(() -> p.aplicarSugestaoMotor(StatusProposta.APROVADA))
-                .isInstanceOf(StatusPropostaInvalidoException.class);
+                .isInstanceOf(StatusPropostaInvalidoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "PRP-400-002");
         assertThatThrownBy(() -> p.aplicarSugestaoMotor(StatusProposta.PENDENCIA))
                 .isInstanceOf(StatusPropostaInvalidoException.class);
     }
@@ -100,7 +102,8 @@ class PropostaCreditoTest {
         PropostaCredito p = novaProposta();
         p.registrarDecisaoManual(DecisaoParecer.REJEITAR);
         assertThatThrownBy(() -> p.registrarDecisaoManual(DecisaoParecer.APROVAR))
-                .isInstanceOf(StatusPropostaInvalidoException.class);
+                .isInstanceOf(StatusPropostaInvalidoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "PRP-400-002");
     }
 
     @Test

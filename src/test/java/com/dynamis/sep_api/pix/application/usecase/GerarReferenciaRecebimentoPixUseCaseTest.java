@@ -114,7 +114,7 @@ class GerarReferenciaRecebimentoPixUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(comando()))
                 .isInstanceOf(RecursoNaoEncontradoException.class)
                 .extracting("codigo")
-                .isEqualTo("PIX-404-PARCELA");
+                .isEqualTo("PIX-404-004");
     }
 
     @Test
@@ -124,7 +124,7 @@ class GerarReferenciaRecebimentoPixUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(comando()))
                 .isInstanceOf(OperacaoNaoProcessavelException.class)
                 .extracting("codigo")
-                .isEqualTo("PIX-422-PARCELA-NAO-RECEBIVEL");
+                .isEqualTo("PIX-422-005");
         verify(pixProvider, never()).criarCobrancaRecebimento(any(), any());
     }
 
@@ -135,7 +135,7 @@ class GerarReferenciaRecebimentoPixUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(comando()))
                 .isInstanceOf(OperacaoNaoProcessavelException.class)
                 .extracting("codigo")
-                .isEqualTo("PIX-422-PARCELA-SEM-SALDO");
+                .isEqualTo("PIX-422-006");
     }
 
     @Test
@@ -147,7 +147,7 @@ class GerarReferenciaRecebimentoPixUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(comando()))
                 .isInstanceOf(ConflitoException.class)
                 .extracting("codigo")
-                .isEqualTo("PIX-409-REFERENCIA-CONCORRENTE");
+                .isEqualTo("PIX-409-005");
         // Provider nao eh chamado: a corrida bate na UNIQUE antes da chamada externa (anti-orphan).
         verify(pixProvider, never()).criarCobrancaRecebimento(any(), any());
     }
@@ -168,6 +168,6 @@ class GerarReferenciaRecebimentoPixUseCaseTest {
         assertThatThrownBy(() -> useCase.executar(new GerarReferenciaRecebimentoPixCommand(null, "corr-1")))
                 .isInstanceOf(ValidacaoException.class)
                 .extracting("codigo")
-                .isEqualTo("PIX-400-PARCELA");
+                .isEqualTo("PIX-400-008");
     }
 }

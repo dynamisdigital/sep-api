@@ -152,6 +152,8 @@ class CadastrarChavePixUseCaseTest {
 
         assertThatThrownBy(() -> useCase.executar(comando(VALOR_BRUTO, KEY)))
                 .isInstanceOf(ConflitoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "PIX-409-004")
+                .hasMessage("Idempotency-Key '" + KEY + "' ja foi usada com tipo/valor de chave diferentes.")
                 .satisfies(ex -> assertThat(ex.getMessage()).doesNotContain(VALOR_NORMALIZADO));
         verify(pixProvider, never()).cadastrarChave(any(), any(), any());
     }
@@ -223,10 +225,13 @@ class CadastrarChavePixUseCaseTest {
 
     @Test
     void idempotencyKeyInvalida_rejeitaSemResolverConta() {
-        assertThatThrownBy(() -> useCase.executar(comando(VALOR_BRUTO, null))).isInstanceOf(ValidacaoException.class);
+        assertThatThrownBy(() -> useCase.executar(comando(VALOR_BRUTO, null)))
+                .isInstanceOf(ValidacaoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "PIX-400-006");
         assertThatThrownBy(() -> useCase.executar(comando(VALOR_BRUTO, "  "))).isInstanceOf(ValidacaoException.class);
         assertThatThrownBy(() -> useCase.executar(comando(VALOR_BRUTO, "k".repeat(101))))
-                .isInstanceOf(ValidacaoException.class);
+                .isInstanceOf(ValidacaoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "PIX-400-007");
         verify(contaPort, never()).buscarContaOperacionalAtiva();
     }
 
@@ -234,6 +239,7 @@ class CadastrarChavePixUseCaseTest {
     void valorInvalido_rejeitaSemEcoarESemProvider() {
         assertThatThrownBy(() -> useCase.executar(comando("nao-e-email", KEY)))
                 .isInstanceOf(ValidacaoException.class)
+                .hasFieldOrPropertyWithValue("codigo", "PIX-400-003")
                 .satisfies(ex -> assertThat(ex.getMessage()).doesNotContain("nao-e-email"));
         verify(pixProvider, never()).cadastrarChave(any(), any(), any());
     }

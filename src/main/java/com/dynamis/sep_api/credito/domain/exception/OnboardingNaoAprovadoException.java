@@ -10,7 +10,7 @@ import com.dynamis.sep_api.shared.exception.OperacaoNaoProcessavelException;
  */
 public class OnboardingNaoAprovadoException extends OperacaoNaoProcessavelException {
 
-    public static final String CODIGO = "CRD-422-001";
+    public static final String CODIGO = "PRP-422-001";
 
     public OnboardingNaoAprovadoException(StatusOnboarding statusAtual) {
         super(CODIGO, "Onboarding deve estar APROVADO_FINAL; atual: " + statusAtual);

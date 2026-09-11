@@ -9,7 +9,7 @@ import com.dynamis.sep_api.shared.exception.ConflitoException;
  */
 public class ConsentimentoAtivoException extends ConflitoException {
 
-    public static final String CODIGO = "CRD-409-002";
+    public static final String CODIGO = "PRP-409-002";
 
     public ConsentimentoAtivoException() {
         super(CODIGO, "Ja existe consentimento Open Finance PENDENTE para esta proposta");

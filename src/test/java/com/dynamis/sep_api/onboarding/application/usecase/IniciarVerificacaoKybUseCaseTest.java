@@ -168,7 +168,9 @@ class IniciarVerificacaoKybUseCaseTest {
         when(solicitacaoRepository.findById(pf.getId())).thenReturn(Optional.of(pf));
 
         assertThatThrownBy(() -> useCase.executar(pf.getId(), usuarioId, false, "corr-3"))
-                .isInstanceOf(ValidacaoException.class);
+                .isInstanceOf(com.dynamis.sep_api.onboarding.domain.exception.SolicitacaoNaoEmpresaException.class)
+                .hasFieldOrPropertyWithValue("codigo", "ONB-400-008")
+                .hasMessage("Solicitacao nao e do tipo EMPRESA");
     }
 
     @Test

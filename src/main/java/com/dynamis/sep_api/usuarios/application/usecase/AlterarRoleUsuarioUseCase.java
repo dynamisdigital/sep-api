@@ -31,7 +31,7 @@ import java.util.UUID;
 public class AlterarRoleUsuarioUseCase {
 
     public static final String CODIGO_AUTO_ALTERACAO = "USR-403-001";
-    public static final String CODIGO_ROLE_INVALIDA = "USR-400-001";
+    public static final String CODIGO_ROLE_INVALIDA = "USR-400-003";
 
     private final UsuarioRepository repository;
     private final ApplicationEventPublisher eventPublisher;

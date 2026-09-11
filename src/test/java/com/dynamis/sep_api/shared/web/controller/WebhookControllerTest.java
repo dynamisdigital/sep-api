@@ -24,6 +24,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = WebhookController.class)
@@ -89,7 +90,9 @@ class WebhookControllerTest {
                         .header("X-Webhook-Signature", "deadbeef")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-003"))
+                .andExpect(jsonPath("$.message").value("Header Idempotency-Key e obrigatorio"));
         verify(registrarWebhookEventUseCase, never()).executar(any(), any(), any(), any(), any());
     }
 
@@ -99,7 +102,23 @@ class WebhookControllerTest {
                         .header("Idempotency-Key", "k1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-003"))
+                .andExpect(jsonPath("$.message").value("Header X-Webhook-Signature e obrigatorio"));
+        verify(registrarWebhookEventUseCase, never()).executar(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void bodyEmBrancoRetorna400() throws Exception {
+        mockMvc.perform(post("/api/v1/webhooks/celcoin/pagamento_recebido")
+                        .header("Idempotency-Key", "k1")
+                        .header("X-Webhook-Signature", "deadbeef")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("   "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("WHK-400-004"))
+                .andExpect(jsonPath("$.message").value("Body do webhook e obrigatorio"));
+        verify(signatureValidator, never()).isValid(anyString(), anyString(), anyString());
         verify(registrarWebhookEventUseCase, never()).executar(any(), any(), any(), any(), any());
     }
 

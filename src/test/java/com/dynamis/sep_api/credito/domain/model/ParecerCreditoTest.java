@@ -33,7 +33,8 @@ class ParecerCreditoTest {
     @Test
     void justificativaVaziaRejeitada() {
         assertThatThrownBy(() -> ParecerCredito.registrar(PROPOSTA, PARECERISTA, DecisaoParecer.APROVAR, "", 800, 1))
-                .isInstanceOf(PropostaInvalidaException.class);
+                .isInstanceOf(PropostaInvalidaException.class)
+                .hasFieldOrPropertyWithValue("codigo", "PRP-400-001");
         assertThatThrownBy(() -> ParecerCredito.registrar(PROPOSTA, PARECERISTA, DecisaoParecer.APROVAR, "   ", 800, 1))
                 .isInstanceOf(PropostaInvalidaException.class);
     }

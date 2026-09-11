@@ -4,7 +4,9 @@ import com.dynamis.sep_api.onboarding.application.usecase.ProcessarCallbackPldUs
 import com.dynamis.sep_api.onboarding.web.dto.CelcoinPldCallbackRequest;
 import com.dynamis.sep_api.shared.application.port.out.WebhookSignatureValidator;
 import com.dynamis.sep_api.shared.exception.ErrorResponseDto;
-import com.dynamis.sep_api.shared.exception.ValidacaoException;
+import com.dynamis.sep_api.shared.exception.WebhookBodyInvalidoException;
+import com.dynamis.sep_api.shared.exception.WebhookBodyObrigatorioException;
+import com.dynamis.sep_api.shared.exception.WebhookHeaderObrigatorioException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,7 +33,6 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "webhooks", description = "Webhook PLD do Celcoin Background Check (HMAC + idempotencia)")
 public class CelcoinPldWebhookController {
 
-    static final String CODIGO_HEADER_OBRIGATORIO = "ONB-400-015";
     static final String PROVIDER_HMAC = "celcoin-pld";
 
     private final WebhookSignatureValidator signatureValidator;
@@ -72,14 +73,13 @@ public class CelcoinPldWebhookController {
         String signature = signaturePadrao != null && !signaturePadrao.isBlank() ? signaturePadrao : signatureAlias;
 
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            throw new ValidacaoException(CODIGO_HEADER_OBRIGATORIO, "Header Idempotency-Key e obrigatorio");
+            throw new WebhookHeaderObrigatorioException("Idempotency-Key");
         }
         if (signature == null || signature.isBlank()) {
-            throw new ValidacaoException(
-                    CODIGO_HEADER_OBRIGATORIO, "Header X-Webhook-Signature (ou X-Celcoin-Signature) e obrigatorio");
+            throw new WebhookHeaderObrigatorioException("X-Webhook-Signature (ou X-Celcoin-Signature)");
         }
         if (payload == null || payload.isBlank()) {
-            throw new ValidacaoException(CODIGO_HEADER_OBRIGATORIO, "Body do webhook e obrigatorio");
+            throw new WebhookBodyObrigatorioException();
         }
 
         if (!signatureValidator.isValid(PROVIDER_HMAC, payload, signature)) {
@@ -96,7 +96,7 @@ public class CelcoinPldWebhookController {
         try {
             return objectMapper.readValue(payload, CelcoinPldCallbackRequest.class);
         } catch (JsonProcessingException ex) {
-            throw new ValidacaoException(CODIGO_HEADER_OBRIGATORIO, "Body do webhook nao e JSON valido");
+            throw new WebhookBodyInvalidoException();
         }
     }
 }

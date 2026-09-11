@@ -80,6 +80,6 @@ public class RemoverChavePixUseCase {
 
     /** 404 neutro: nao distingue chave inexistente, fora do escopo da conta ou conta ausente. */
     private static RecursoNaoEncontradoException naoEncontrada() {
-        return new RecursoNaoEncontradoException("PIX-404-CHAVE", "Chave Pix nao encontrada.");
+        return new RecursoNaoEncontradoException("PIX-404-002", "Chave Pix nao encontrada.");
     }
 }

@@ -2,11 +2,11 @@ package com.dynamis.sep_api.onboarding.application.usecase;
 
 import com.dynamis.sep_api.onboarding.domain.event.OnboardingIniciadoEvent;
 import com.dynamis.sep_api.onboarding.domain.exception.CpfComOnboardingAtivoException;
+import com.dynamis.sep_api.onboarding.domain.exception.CpfInvalidoException;
 import com.dynamis.sep_api.onboarding.domain.model.SolicitacaoOnboarding;
 import com.dynamis.sep_api.onboarding.domain.vo.Cpf;
 import com.dynamis.sep_api.onboarding.domain.vo.StatusOnboarding;
 import com.dynamis.sep_api.onboarding.infrastructure.persistence.SolicitacaoOnboardingRepository;
-import com.dynamis.sep_api.shared.exception.ValidacaoException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,8 +21,6 @@ import java.util.UUID;
  */
 @Service
 public class IniciarOnboardingPessoaUseCase {
-
-    private static final String CODIGO_CPF_INVALIDO = "ONB-400-002";
 
     private final SolicitacaoOnboardingRepository repository;
     private final ApplicationEventPublisher eventPublisher;
@@ -56,12 +54,12 @@ public class IniciarOnboardingPessoaUseCase {
 
     private static Cpf parsearCpf(String bruto) {
         if (bruto == null || bruto.isBlank()) {
-            throw new ValidacaoException(CODIGO_CPF_INVALIDO, "CPF e obrigatorio");
+            throw CpfInvalidoException.obrigatorio();
         }
         try {
             return new Cpf(bruto);
         } catch (IllegalArgumentException ex) {
-            throw new ValidacaoException(CODIGO_CPF_INVALIDO, ex.getMessage());
+            throw CpfInvalidoException.invalido(ex.getMessage());
         }
     }
 }

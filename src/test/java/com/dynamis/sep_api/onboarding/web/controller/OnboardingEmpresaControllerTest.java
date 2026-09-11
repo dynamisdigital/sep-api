@@ -210,7 +210,8 @@ class OnboardingEmpresaControllerTest {
         mockMvc.perform(multipart("/api/v1/onboarding/empresa/{id}/documentos", solicitacaoId)
                         .file(vazio)
                         .param("tipo", "CONTRATO_SOCIAL"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("ONB-400-017"));
         verify(enviarDocumentoUseCase, never()).executar(any(), any(), anyBoolean(), any());
     }
 

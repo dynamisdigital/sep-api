@@ -48,7 +48,7 @@ public class CriarUsuarioUseCase {
     public Usuario executarInterno(UsuarioInternoCreateDto dto) {
         if (dto.role() == Role.FINANCEIRO || dto.role() == Role.BACKOFFICE) {
             throw new ValidacaoException(
-                    "USR-400-002",
+                    "USR-400-004",
                     "Criacao direta com role " + dto.role()
                             + " nao permitida; promova via POST /api/v1/usuarios/{id}/role");
         }

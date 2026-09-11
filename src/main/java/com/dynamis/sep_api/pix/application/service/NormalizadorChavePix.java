@@ -1,5 +1,6 @@
 package com.dynamis.sep_api.pix.application.service;
 
+import com.dynamis.sep_api.pix.domain.exception.ChavePixInvalidaException;
 import com.dynamis.sep_api.pix.domain.vo.TipoChavePix;
 import com.dynamis.sep_api.shared.exception.ValidacaoException;
 
@@ -22,8 +23,7 @@ import java.util.regex.Pattern;
  */
 public final class NormalizadorChavePix {
 
-    static final String CODIGO_TIPO_OBRIGATORIO = "PIX-400-CHAVE-TIPO";
-    static final String CODIGO_CHAVE_INVALIDA = "PIX-400-CHAVE";
+    static final String CODIGO_TIPO_OBRIGATORIO = "PIX-400-004";
 
     private static final Pattern PONTUACAO_DOCUMENTO = Pattern.compile("[.\\-/\\s]");
     private static final Pattern FORMATACAO_TELEFONE = Pattern.compile("[().\\-\\s]");
@@ -40,7 +40,7 @@ public final class NormalizadorChavePix {
             throw new ValidacaoException(CODIGO_TIPO_OBRIGATORIO, "tipo da chave Pix obrigatorio.");
         }
         if (valor == null || valor.isBlank()) {
-            throw new ValidacaoException(CODIGO_CHAVE_INVALIDA, "valor da chave Pix obrigatorio.");
+            throw ChavePixInvalidaException.valorObrigatorio();
         }
         String base = valor.strip();
         return switch (tipo) {
@@ -142,7 +142,7 @@ public final class NormalizadorChavePix {
         }
     }
 
-    private static ValidacaoException chaveInvalida(TipoChavePix tipo) {
-        return new ValidacaoException(CODIGO_CHAVE_INVALIDA, "chave Pix invalida para o tipo " + tipo + ".");
+    private static ChavePixInvalidaException chaveInvalida(TipoChavePix tipo) {
+        return ChavePixInvalidaException.paraOTipo(tipo);
     }
 }
