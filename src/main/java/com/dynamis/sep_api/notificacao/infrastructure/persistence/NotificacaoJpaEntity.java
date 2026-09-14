@@ -100,7 +100,7 @@ public class NotificacaoJpaEntity extends EntidadeAuditavel {
     }
 
     /** Copia so o que muda depois da criacao: entrega e leitura. */
-    private void aplicarEstado(Notificacao notificacao) {
+    public void aplicarEstado(Notificacao notificacao) {
         Entrega entrega = notificacao.getEntrega();
         situacao = entrega.situacao();
         situacaoAtualizadaEm = entrega.atualizadaEm();

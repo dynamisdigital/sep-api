@@ -12,4 +12,7 @@ public interface NotificacaoPort {
      *     (ADR 0021 §4); qualquer outra violacao de integridade propaga.
      */
     boolean registrarSeInedita(Notificacao notificacao);
+
+    /** Grava, em transacao propria, a entrega de uma notificacao ja registrada. */
+    void atualizarEntrega(Notificacao notificacao);
 }

@@ -51,6 +51,16 @@ public class NotificacaoPersistenceAdapter implements NotificacaoPort {
         }
     }
 
+    @Override
+    public void atualizarEntrega(Notificacao notificacao) {
+        transacaoPropria.executeWithoutResult(status -> {
+            NotificacaoJpaEntity entidade = repository
+                    .findById(notificacao.getId())
+                    .orElseThrow(() -> new IllegalStateException("notificacao nao registrada: " + notificacao.getId()));
+            entidade.aplicarEstado(notificacao);
+        });
+    }
+
     private static boolean violouChaveDeOrigem(Throwable violacao) {
         for (Throwable causa = violacao; causa != null; causa = causa.getCause()) {
             if (causa instanceof ConstraintViolationException constraint) {

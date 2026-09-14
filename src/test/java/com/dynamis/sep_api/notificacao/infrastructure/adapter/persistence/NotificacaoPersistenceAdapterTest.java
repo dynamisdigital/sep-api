@@ -135,6 +135,30 @@ class NotificacaoPersistenceAdapterTest {
     }
 
     @Test
+    void atualizarEntrega_gravaOResultadoDoEnvio() {
+        Notificacao email = emailDoBloqueio();
+        port.registrarSeInedita(email);
+        email.registrarFalha("java.lang.IllegalStateException", AGORA.plusSeconds(5));
+
+        port.atualizarEntrega(email);
+
+        Object[] linha = tx.execute(status -> (Object[]) entityManager
+                .createNativeQuery("select situacao, motivo_falha from notificacao where id = :id")
+                .setParameter("id", email.getId())
+                .getSingleResult());
+        assertThat(linha).containsExactly("FALHOU", "java.lang.IllegalStateException");
+    }
+
+    @Test
+    void atualizarEntrega_deNotificacaoNaoRegistrada_falha() {
+        Notificacao naoRegistrada = emailDoBloqueio();
+        naoRegistrada.registrarSimulacao(AGORA);
+
+        assertThatThrownBy(() -> port.atualizarEntrega(naoRegistrada)).isInstanceOf(IllegalStateException.class);
+        assertThat(linhasDoUsuario()).isZero();
+    }
+
+    @Test
     void violacaoQueNaoEAChaveDeOrigem_propaga() {
         Notificacao semUsuario = Notificacao.registrarEmail(UUID.randomUUID(), BLOQUEIO, CONTEUDO, AGORA);
 
