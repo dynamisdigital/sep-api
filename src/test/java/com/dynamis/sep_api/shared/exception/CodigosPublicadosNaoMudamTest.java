@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * ADR 0020 §3: codigo publicado nao se renomeia nem sai do contrato. Esta lista e a memoria do
- * contrato — todo codigo publicado ate o fechamento da Sprint 37 — e ela so cresce.
+ * contrato — todo codigo publicado ate o fechamento da Sprint 38 — e ela so cresce.
  *
  * <p>Pega o que as guardas estruturais nao pegam. Particao, gate e o {@code enum} do OpenAPI
  * verificam consistencia <b>no presente</b>: fonte, catalogo e documento concordam agora. Renomear um
@@ -17,11 +17,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p><b>Manutencao</b>: no fechamento de cada sprint que publica codigo, acrescentar aqui os novos.
  * Os 80 publicados ate a Sprint 36 estao marcados no {@code CODIGOS-DE-ERRO.md}; a Sprint 37
- * acrescentou 63.
+ * acrescentou 63, e a Sprint 38 os dois da central de notificacoes ({@code NTF}).
  */
 class CodigosPublicadosNaoMudamTest {
 
-    private static final List<String> PUBLICADOS_ATE_A_SPRINT_37 = List.of(
+    private static final List<String> PUBLICADOS_ATE_A_SPRINT_38 = List.of(
             "ASN-400-001",
             "ASN-400-002",
             "ASN-400-003",
@@ -94,6 +94,8 @@ class CodigosPublicadosNaoMudamTest {
             "MFA-400-003",
             "MFA-400-004",
             "MFA-409-001",
+            "NTF-400-001",
+            "NTF-404-001",
             "ONB-400-001",
             "ONB-400-002",
             "ONB-400-003",
@@ -168,10 +170,10 @@ class CodigosPublicadosNaoMudamTest {
 
     @Test
     void nenhumCodigoJaPublicadoSaiDoCatalogo() {
-        assertThat(PUBLICADOS_ATE_A_SPRINT_37).hasSize(143).doesNotHaveDuplicates();
+        assertThat(PUBLICADOS_ATE_A_SPRINT_38).hasSize(145).doesNotHaveDuplicates();
 
         assertThat(CatalogoCodigosErro.publicados())
                 .as("codigo publicado nao se renomeia nem sai do contrato (ADR 0020 §3)")
-                .containsAll(PUBLICADOS_ATE_A_SPRINT_37);
+                .containsAll(PUBLICADOS_ATE_A_SPRINT_38);
     }
 }
