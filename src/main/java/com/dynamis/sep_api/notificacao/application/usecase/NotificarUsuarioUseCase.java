@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 /**
@@ -100,7 +101,8 @@ public class NotificarUsuarioUseCase {
                 .log("Notificacao ja registrada para esta origem");
     }
 
+    /** Na precisao que o PostgreSQL guarda, para o instante em memoria ser o mesmo do relido. */
     private OffsetDateTime agora() {
-        return OffsetDateTime.now(clock);
+        return OffsetDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
     }
 }

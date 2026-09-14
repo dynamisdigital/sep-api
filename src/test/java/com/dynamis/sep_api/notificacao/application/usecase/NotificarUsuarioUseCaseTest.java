@@ -79,6 +79,18 @@ class NotificarUsuarioUseCaseTest {
     }
 
     @Test
+    void instantes_saoGravadosNaPrecisaoDoBanco() {
+        NotificarUsuarioUseCase comNanossegundos = new NotificarUsuarioUseCase(
+                port, provider, Clock.fixed(Instant.parse("2026-09-14T13:00:00.123456789Z"), ZoneOffset.UTC));
+
+        comNanossegundos.disponibilizarNaCentral(USUARIO, DESEMBOLSO, CONTEUDO);
+
+        assertThat(port.entregasPersistidas())
+                .extracting(Entrega::atualizadaEm)
+                .containsExactly(java.time.OffsetDateTime.parse("2026-09-14T13:00:00.123456Z"));
+    }
+
+    @Test
     void central_repetida_naoGravaSegunda() {
         useCase().disponibilizarNaCentral(USUARIO, DESEMBOLSO, CONTEUDO);
         useCase().disponibilizarNaCentral(USUARIO, DESEMBOLSO, CONTEUDO);

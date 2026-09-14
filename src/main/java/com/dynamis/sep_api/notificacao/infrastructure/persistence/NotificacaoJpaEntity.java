@@ -108,6 +108,11 @@ public class NotificacaoJpaEntity extends EntidadeAuditavel {
         lidaEm = notificacao.getLidaEm().orElse(null);
     }
 
+    /** Copia so a leitura: a central nao toca a entrega. */
+    public void aplicarLeitura(Notificacao notificacao) {
+        lidaEm = notificacao.getLidaEm().orElse(null);
+    }
+
     public Notificacao paraDominio() {
         Referencia referencia = referenciaTipo == null ? null : new Referencia(referenciaTipo, referenciaId);
         return Notificacao.reconstituir(

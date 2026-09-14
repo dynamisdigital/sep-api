@@ -112,6 +112,8 @@ public final class CatalogoCodigosErro {
             "MFA-400-003",
             "MFA-400-004",
             "MFA-409-001",
+            "NTF-400-001",
+            "NTF-404-001",
             "ONB-400-001",
             "ONB-400-002",
             "ONB-400-003",
