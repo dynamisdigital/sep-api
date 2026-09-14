@@ -14,6 +14,7 @@ import com.dynamis.sep_api.usuarios.domain.model.Role;
 import com.dynamis.sep_api.usuarios.domain.model.Usuario;
 import com.dynamis.sep_api.usuarios.infrastructure.persistence.UsuarioRepository;
 import jakarta.persistence.EntityManager;
+import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,12 +29,16 @@ import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Recorte da central contra o PostgreSQL: dono, canal, ordem e contagem (Sprint 38 Task 38.4). */
-@DataJpaTest
+@DataJpaTest(
+        properties = "spring.jpa.properties.hibernate.session_factory.statement_inspector="
+                + "com.dynamis.sep_api.notificacao.infrastructure.adapter.persistence."
+                + "CentralNotificacoesPersistenceAdapterTest$SqlEmitido")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({JpaAuditingConfig.class, AuditorAwareImpl.class, CentralNotificacoesPersistenceAdapter.class})
 @ActiveProfiles("dev")
@@ -55,6 +60,18 @@ class CentralNotificacoesPersistenceAdapterTest {
 
     private UUID dono;
     private UUID outro;
+
+    /** Guarda o SQL que o Hibernate manda ao banco, para provar a forma da consulta. */
+    public static class SqlEmitido implements StatementInspector {
+
+        static final List<String> SQL = new CopyOnWriteArrayList<>();
+
+        @Override
+        public String inspect(String sql) {
+            SQL.add(sql);
+            return sql;
+        }
+    }
 
     @BeforeEach
     void criarUsuarios() {
@@ -153,6 +170,27 @@ class CentralNotificacoesPersistenceAdapterTest {
         assertThat(central.buscarParaAtualizar(dono, emailDoDono.getId())).isEmpty();
         assertThat(central.buscarParaAtualizar(dono, propria.getId()))
                 .hasValueSatisfying(n -> assertThat(n.getId()).isEqualTo(propria.getId()));
+    }
+
+    /**
+     * Os indices da central sao parciais em {@code canal = 'IN_APP'}. Com o canal como parametro, o
+     * plano generico do PostgreSQL nao prova o predicado e varre a tabela inteira (medido na Task
+     * 38.4); por isso as consultas precisam chegar ao banco com o literal.
+     */
+    @Test
+    void consultasDaCentral_chegamAoBancoComOCanalLiteral() {
+        inApp(dono, BASE);
+        SqlEmitido.SQL.clear();
+
+        central.listar(dono, 0, 20);
+        central.contarNaoLidas(dono);
+
+        List<String> daTabela = SqlEmitido.SQL.stream()
+                .filter(sql -> sql.contains("from notificacao"))
+                .toList();
+        assertThat(daTabela).hasSizeGreaterThanOrEqualTo(2);
+        assertThat(daTabela)
+                .allSatisfy(sql -> assertThat(sql).contains("canal='IN_APP'").doesNotContain("canal=?"));
     }
 
     @Test

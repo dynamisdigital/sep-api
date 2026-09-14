@@ -36,14 +36,13 @@ public class CentralNotificacoesPersistenceAdapter implements CentralNotificacoe
     @Override
     public Page<Notificacao> listar(UUID usuarioId, int pagina, int tamanho) {
         return repository
-                .findByUsuarioIdAndCanal(
-                        usuarioId, CanalNotificacao.IN_APP, PageRequest.of(pagina, tamanho, ORDEM_DA_CENTRAL))
+                .listarDaCentral(usuarioId, PageRequest.of(pagina, tamanho, ORDEM_DA_CENTRAL))
                 .map(NotificacaoJpaEntity::paraDominio);
     }
 
     @Override
     public long contarNaoLidas(UUID usuarioId) {
-        return repository.countByUsuarioIdAndCanalAndLidaEmIsNull(usuarioId, CanalNotificacao.IN_APP);
+        return repository.contarNaoLidasDaCentral(usuarioId);
     }
 
     @Override
