@@ -20,10 +20,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -78,6 +80,9 @@ class LockoutLoginIT {
     @Autowired
     LoginAttemptRepository loginAttemptRepository;
 
+    @Autowired
+    JdbcTemplate jdbc;
+
     private String username;
     private UUID usuarioId;
 
@@ -100,6 +105,8 @@ class LockoutLoginIT {
         if (!environment.getProperty("spring.datasource.url", "").contains("sep_test")) {
             throw new IllegalStateException("LockoutLoginIT deve rodar apenas no banco sep_test");
         }
+        // Sprint 38: o lockout grava o e-mail no historico, e notificacao tem FK para usuario.
+        jdbc.update("delete from notificacao");
         usuarioRepository.deleteAll();
     }
 
@@ -178,6 +185,12 @@ class LockoutLoginIT {
                 .filteredOn(tentativa -> tentativa.getStatus() == LoginAttemptStatus.CONTA_BLOQUEADA)
                 .as("ate a Sprint 33 a tentativa barrada nao gerava linha nenhuma em login_attempt")
                 .hasSize(2);
+
+        // Sprint 38 Task 38.5: o e-mail continua saindo (adapter de log) e agora deixa historico.
+        // Uma linha so: as tentativas barradas nao sao novo bloqueio, e o login ja respondeu 401.
+        assertThat(jdbc.queryForList("select tipo, canal, situacao from notificacao where usuario_id = ?", usuarioId))
+                .as("o bloqueio real chega ao modulo de notificacao e fica gravado, uma unica vez")
+                .containsExactly(Map.of("tipo", "CONTA_BLOQUEADA", "canal", "EMAIL", "situacao", "SIMULADA"));
     }
 
     /** Copia do padrao replicado em 7 ITs (ver {@code CarteiraCredoraIT}). */
