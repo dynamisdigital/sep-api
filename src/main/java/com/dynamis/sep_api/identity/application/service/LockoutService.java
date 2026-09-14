@@ -1,6 +1,7 @@
 package com.dynamis.sep_api.identity.application.service;
 
 import com.dynamis.sep_api.identity.application.exception.ContaBloqueadaException;
+import com.dynamis.sep_api.identity.domain.event.ContaBloqueadaEvent;
 import com.dynamis.sep_api.identity.domain.model.LoginAttemptStatus;
 import com.dynamis.sep_api.identity.domain.model.PoliticaLockout;
 import com.dynamis.sep_api.identity.infrastructure.persistence.LoginAttemptRepository;
@@ -8,11 +9,11 @@ import com.dynamis.sep_api.identity.infrastructure.security.LockoutProperties;
 import com.dynamis.sep_api.shared.audit.AuditLogSeguranca;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaRepository;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
-import com.dynamis.sep_api.shared.email.EmailService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -55,7 +56,7 @@ public class LockoutService {
     private final LoginAttemptRepository attemptRepository;
     private final AuditLogSegurancaRepository auditRepository;
     private final LockoutProperties properties;
-    private final EmailService emailService;
+    private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
 
     /**
@@ -79,13 +80,13 @@ public class LockoutService {
             LoginAttemptRepository attemptRepository,
             AuditLogSegurancaRepository auditRepository,
             LockoutProperties properties,
-            EmailService emailService,
+            ApplicationEventPublisher eventPublisher,
             ObjectMapper objectMapper,
             Clock clock) {
         this.attemptRepository = attemptRepository;
         this.auditRepository = auditRepository;
         this.properties = properties;
-        this.emailService = emailService;
+        this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -143,17 +144,20 @@ public class LockoutService {
     }
 
     /**
-     * Avalia se uma falha recem-registrada acabou de bloquear a conta e, em caso afirmativo, emite
-     * email + audit log de LOCKOUT. Deve ser chamado pelo {@code AutenticarUsuarioUseCase} apos
-     * persistir a tentativa falha.
+     * Avalia se uma falha recem-registrada acabou de bloquear a conta e, em caso afirmativo, grava o
+     * audit log de LOCKOUT e publica {@link ContaBloqueadaEvent}. Deve ser chamado pelo {@code
+     * AutenticarUsuarioUseCase} apos persistir a tentativa falha.
      *
      * <p>A emissao e por <b>transicao</b>: so dispara quando o evento de bloqueio e a falha mais
      * recente, ou seja, a que acabou de ser registrada. Ate a Sprint 33 a condicao era
      * {@code falhasJanela == maxAttempts}, entao duas falhas concorrentes que levassem o contador de
      * 4 para 6 pulavam a igualdade e o bloqueio ficava <b>sem registro nenhum</b>.
      *
-     * <p>Sob falhas concorrentes a notificacao pode sair mais de uma vez para o mesmo bloqueio —
-     * trade-off deliberado: duplicar um aviso de seguranca e melhor que perde-lo.
+     * <p>O e-mail nao sai daqui (Sprint 38, ADR 0021): o modulo de notificacao consome o evento depois
+     * do commit desta transacao. Falha no e-mail nao alcanca mais o audit — ate a Sprint 37 o envio
+     * rodava aqui dentro, e uma excecao dele reverteria o LOCKOUT e trocaria o {@code 401} por
+     * {@code 500} (o adapter de log de entao nunca lancava). Reavaliar o mesmo
+     * bloqueio publica o mesmo instante, e a notificacao deduplica por ele.
      *
      * <p>Roda em transacao propria pelo mesmo motivo de {@code RegistrarTentativaLoginUseCase}: o
      * chamador lanca {@code BadCredentialsException} logo depois e o audit de LOCKOUT seria
@@ -172,12 +176,20 @@ public class LockoutService {
                     .log("Conta entrou em lockout");
             auditRepository.save(AuditLogSeguranca.registrar(
                     TipoEventoSeguranca.LOCKOUT, usuarioId, null, null, detalhesDoBloqueio(username)));
-            emailService.enviar(
-                    username,
-                    "Conta SEP bloqueada temporariamente",
-                    "Detectamos varias tentativas de login. Sua conta esta bloqueada por "
-                            + properties.getLockoutMinutes() + " minutos.");
+            publicarBloqueio(usuarioId, username, evento.get());
         }
+    }
+
+    /**
+     * Sem usuario nao ha destinatario. So acontece com username inexistente, cujo status
+     * ({@code USUARIO_INEXISTENTE}) nem conta como falha — o audit continua sendo gravado acima.
+     */
+    private void publicarBloqueio(UUID usuarioId, String username, OffsetDateTime bloqueadaEm) {
+        if (usuarioId == null) {
+            return;
+        }
+        eventPublisher.publishEvent(
+                new ContaBloqueadaEvent(usuarioId, username, bloqueadaEm, properties.getLockoutMinutes()));
     }
 
     /**

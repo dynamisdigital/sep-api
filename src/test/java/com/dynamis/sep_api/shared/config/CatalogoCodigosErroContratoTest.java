@@ -103,7 +103,9 @@ class CatalogoCodigosErroContratoTest {
     /**
      * Regressao dirigida da licao da Sprint 35 Task 35.7: mexer em {@code components} apagou, la,
      * 21 descriptions e 17 examples em silencio, e depois o {@code securitySchemes} inteiro. Os
-     * numeros sao os do documento medido no Gate 36.0, antes desta sprint.
+     * numeros sao os do documento medido no Gate 36.0, antes desta sprint. As rotas sao contagem
+     * exata e crescem com endpoint novo: 98 ate a Sprint 37, 101 com as tres da central de
+     * notificacoes (Sprint 38).
      */
     @Test
     void publicarOCatalogoNaoApagaDescricoesExemplosNemSeguranca() throws Exception {
@@ -112,7 +114,7 @@ class CatalogoCodigosErroContratoTest {
         assertThat(JsonPath.<String>read(documento, "$.openapi")).startsWith("3.1");
         assertThat(JsonPath.<String>read(documento, "$.components.securitySchemes.bearerAuth.scheme"))
                 .isEqualTo("bearer");
-        assertThat(JsonPath.<Integer>read(documento, "$.paths.length()")).isEqualTo(98);
+        assertThat(JsonPath.<Integer>read(documento, "$.paths.length()")).isEqualTo(101);
         assertThat(contar(documento, "description")).isGreaterThanOrEqualTo(795);
         assertThat(contar(documento, "example")).isGreaterThanOrEqualTo(137);
     }
