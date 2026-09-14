@@ -1,18 +1,19 @@
 package com.dynamis.sep_api.identity.application.service;
 
 import com.dynamis.sep_api.identity.application.exception.ContaBloqueadaException;
+import com.dynamis.sep_api.identity.domain.event.ContaBloqueadaEvent;
 import com.dynamis.sep_api.identity.domain.model.LoginAttemptStatus;
 import com.dynamis.sep_api.identity.infrastructure.persistence.LoginAttemptRepository;
 import com.dynamis.sep_api.identity.infrastructure.security.LockoutProperties;
 import com.dynamis.sep_api.shared.audit.AuditLogSeguranca;
 import com.dynamis.sep_api.shared.audit.AuditLogSegurancaRepository;
 import com.dynamis.sep_api.shared.audit.TipoEventoSeguranca;
-import com.dynamis.sep_api.shared.email.EmailService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 
 import java.time.Clock;
@@ -44,7 +45,7 @@ class LockoutServiceTest {
 
     private LoginAttemptRepository repository;
     private AuditLogSegurancaRepository auditRepository;
-    private EmailService emailService;
+    private ApplicationEventPublisher eventPublisher;
     private LockoutProperties properties;
     private LockoutService service;
     private RelogioAjustavel relogio;
@@ -53,11 +54,11 @@ class LockoutServiceTest {
     void setup() {
         repository = mock(LoginAttemptRepository.class);
         auditRepository = mock(AuditLogSegurancaRepository.class);
-        emailService = mock(EmailService.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
         properties = new LockoutProperties();
         relogio = new RelogioAjustavel(INSTANTE_BASE, ZoneId.of("America/Sao_Paulo"));
-        service =
-                new LockoutService(repository, auditRepository, properties, emailService, new ObjectMapper(), relogio);
+        service = new LockoutService(
+                repository, auditRepository, properties, eventPublisher, new ObjectMapper(), relogio);
     }
 
     /**
@@ -275,17 +276,35 @@ class LockoutServiceTest {
     }
 
     @Test
-    void avaliarPosFalhaEmiteEmailEAuditQuandoAFalhaAtualBloqueia() {
+    void avaliarPosFalhaGravaAuditEPublicaOBloqueioQuandoAFalhaAtualBloqueia() {
         UUID usuarioId = UUID.randomUUID();
+        List<OffsetDateTime> falhas = falhasRecentes(properties.getMaxAttempts(), Duration.ofMinutes(2));
         when(repository.buscarInstantesDeFalha(eq("u@sep.test"), anyList(), any(), any()))
-                .thenReturn(falhasRecentes(properties.getMaxAttempts(), Duration.ofMinutes(2)));
+                .thenReturn(falhas);
 
         service.avaliarPosFalha(usuarioId, "u@sep.test");
 
         ArgumentCaptor<AuditLogSeguranca> captor = ArgumentCaptor.forClass(AuditLogSeguranca.class);
         verify(auditRepository).save(captor.capture());
         assertThat(captor.getValue().getTipo()).isEqualTo(TipoEventoSeguranca.LOCKOUT);
-        verify(emailService).enviar(eq("u@sep.test"), any(), any());
+        verify(eventPublisher)
+                .publishEvent(new ContaBloqueadaEvent(
+                        usuarioId, "u@sep.test", falhas.get(0), properties.getLockoutMinutes()));
+    }
+
+    /**
+     * O e-mail vai para o usuario; sem usuario nao ha destinatario. O audit do bloqueio nao depende
+     * disso e continua sendo gravado.
+     */
+    @Test
+    void avaliarPosFalhaSemUsuarioGravaAuditMasNaoPublica() {
+        when(repository.buscarInstantesDeFalha(eq("u@sep.test"), anyList(), any(), any()))
+                .thenReturn(falhasRecentes(properties.getMaxAttempts(), Duration.ofMinutes(2)));
+
+        service.avaliarPosFalha(null, "u@sep.test");
+
+        verify(auditRepository).save(any());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     @Test
@@ -296,7 +315,7 @@ class LockoutServiceTest {
         service.avaliarPosFalha(UUID.randomUUID(), "u@sep.test");
 
         verify(auditRepository, never()).save(any());
-        verify(emailService, never()).enviar(any(), any(), any());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     /**
@@ -312,7 +331,7 @@ class LockoutServiceTest {
         service.avaliarPosFalha(UUID.randomUUID(), "u@sep.test");
 
         verify(auditRepository).save(any());
-        verify(emailService).enviar(eq("u@sep.test"), any(), any());
+        verify(eventPublisher).publishEvent(any(ContaBloqueadaEvent.class));
     }
 
     /**
@@ -332,7 +351,7 @@ class LockoutServiceTest {
         service.avaliarPosFalha(UUID.randomUUID(), "u@sep.test");
 
         verify(auditRepository, never()).save(any());
-        verify(emailService, never()).enviar(any(), any(), any());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     /**

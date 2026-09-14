@@ -18,6 +18,7 @@ public enum PrefixoCodigoErro {
     CTR("contratos", "formalizacao contratual"),
     GOV("governanca", "parametros e papeis"),
     MFA("identity", "segundo fator"),
+    NTF("notificacao", "central de notificacoes do usuario"),
     ONB("onboarding", "KYC, KYB e PLD"),
     PIX("pix", "desembolso, recebimento e chaves"),
     PRP("credito", "proposta de credito e Open Finance"),
