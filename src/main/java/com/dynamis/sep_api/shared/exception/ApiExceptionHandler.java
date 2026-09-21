@@ -15,10 +15,13 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -154,6 +157,89 @@ public class ApiExceptionHandler {
                 .headers(resposta.getHeaders())
                 .allow(aceitos.toArray(new HttpMethod[0]))
                 .body(resposta.getBody());
+    }
+
+    /**
+     * {@code Content-Type} nao suportado (FMF-4.2). Irmao do {@code 405} acima: ate aqui a excecao
+     * caia no {@link #handleGeneric} e o cliente recebia <b>500</b> com {@code ERROR
+     * unhandled_exception} no log — medido em {@code POST /api/v1/auth/login} com
+     * {@code Content-Type: text/plain}, que e {@code permitAll}. Ou seja, um cliente <b>anonimo</b>
+     * escolhia quando o servidor gravava uma stack de erro.
+     *
+     * <p>Anuncia os tipos aceitos no header {@code Accept}, como o {@code 405} anuncia o
+     * {@code Allow} (RFC 9110 §15.5.16). A lista vem ordenada pela mesma razao registrada em
+     * {@link #metodosAceitos}: a resposta nao deve mudar porque alguem reordenou o controller.
+     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponseDto> handleMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException ex, HttpServletRequest request) {
+        List<MediaType> aceitos = tiposOrdenados(ex.getSupportedMediaTypes());
+        MediaType recebido = ex.getContentType();
+        String mensagem = "Content-Type " + (recebido == null ? "ausente" : recebido) + " nao suportado nesta rota"
+                + (aceitos.isEmpty()
+                        ? ""
+                        : ". Tipos aceitos: "
+                                + aceitos.stream().map(MediaType::toString).collect(Collectors.joining(", ")));
+        log.atWarn()
+                .addKeyValue("event", "unsupported_media_type")
+                .addKeyValue("contentType", String.valueOf(recebido))
+                .addKeyValue("path", request.getRequestURI())
+                .log("Content-Type nao suportado na rota");
+        ResponseEntity<ErrorResponseDto> resposta =
+                build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported Media Type", mensagem, request);
+        if (aceitos.isEmpty()) {
+            return resposta;
+        }
+        return ResponseEntity.status(resposta.getStatusCode())
+                .headers(resposta.getHeaders())
+                .header(
+                        HttpHeaders.ACCEPT,
+                        aceitos.stream().map(MediaType::toString).collect(Collectors.joining(", ")))
+                .body(resposta.getBody());
+    }
+
+    /**
+     * {@code Accept} que nenhum representante satisfaz (FMF-4.2).
+     *
+     * <p><b>Este handler nao devolve corpo, e a razao foi medida.</b> O cliente acabou de declarar que
+     * nao aceita o que a API produz; escrever o {@code ErrorResponseDto} em JSON falha na mesma
+     * negociacao que causou a excecao, a falha sobe pela cadeia de filtros e o
+     * {@code ApiAuthenticationEntryPoint} responde <b>401</b> — que foi exatamente o que a sonda da
+     * FMF-4.2 observou em todas as rotas publicas testadas ({@code /v3/api-docs},
+     * {@code /actuator/health}, {@code /api/v1/auth/politica-lockout}). O registro do follow-up (a) da
+     * Sprint 35 dizia que o {@code 406} caia em {@code 500} como o {@code 415}; nao caia, e o
+     * sintoma era outro.
+     *
+     * <p>Corpo vazio e o que o RFC 9110 §15.5.7 permite e o que resolve: o {@code 406} chega ao
+     * cliente com o status certo em vez de um {@code 401} que mente sobre a causa. Os tipos
+     * disponiveis vao no header {@code Accept}, que nao passa por negociacao.
+     */
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<Void> handleMediaTypeNotAcceptable(
+            HttpMediaTypeNotAcceptableException ex, HttpServletRequest request) {
+        List<MediaType> disponiveis = tiposOrdenados(ex.getSupportedMediaTypes());
+        log.atWarn()
+                .addKeyValue("event", "not_acceptable")
+                .addKeyValue("accept", String.valueOf(request.getHeader(HttpHeaders.ACCEPT)))
+                .addKeyValue("path", request.getRequestURI())
+                .log("Accept nao satisfeito na rota");
+        if (disponiveis.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).build();
+        }
+        return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE)
+                .header(
+                        HttpHeaders.ACCEPT,
+                        disponiveis.stream().map(MediaType::toString).collect(Collectors.joining(", ")))
+                .build();
+    }
+
+    /** Mesma razao do {@link #metodosAceitos}: ordem estavel, independente da ordem de declaracao. */
+    private static List<MediaType> tiposOrdenados(List<MediaType> tipos) {
+        return tipos == null
+                ? List.of()
+                : tipos.stream()
+                        .sorted(Comparator.comparing(MediaType::toString))
+                        .toList();
     }
 
     /**
