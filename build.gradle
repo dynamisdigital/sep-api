@@ -278,9 +278,19 @@ dependencyCheck {
 	failBuildOnCVSS = 7.0f
 
 	// Chave lida do ambiente (secret `NVD_API_KEY`) para nunca versionar segredo.
-	// Sem chave o NVD limita a ~1 requisicao a cada 6s e a carga inicial leva
-	// dezenas de minutos; com chave cai para minutos. Depois da primeira carga o
-	// que roda e atualizacao incremental, cacheada no CI.
+	//
+	// SEM CHAVE O COMPORTAMENTO DEPENDE DO IP, e isso custou um CI vermelho:
+	//  - maquina de desenvolvimento, IP proprio: a carga anonima COMPLETA, em
+	//    ~1h30m (~1 requisicao a cada 6s);
+	//  - runner do GitHub, IP compartilhado: o NVD devolve **429** e o scan
+	//    ABORTA — `NvdApiException: NVD Returned Status Code: 429` apos ~13 min
+	//    e 31 retentativas.
+	// Medicao feita fora do ambiente de execucao nao vale como previsao. Por isso
+	// o `ci.yml` checa o secret e pula o scan quando ele falta, em vez de gastar
+	// 13 min para falhar por infraestrutura.
+	//
+	// Com chave, a carga cai para minutos; depois dela o que roda e atualizacao
+	// incremental, cacheada no CI.
 	//
 	// POR QUE A SERIE 12 E NAO A 13 — medido, nao presumido (FMF-4.5):
 	// na 13.0.0 o scan ABORTA sem chave, com
@@ -290,11 +300,11 @@ dependencyCheck {
 	// nao nulo, e o cliente do NVD rejeita a vazia antes de considerar o modo
 	// anonimo. Na 12.2.2 o mesmo cenario avisa
 	//   `An NVD API Key was not provided - it is highly recommended ...`
-	// e SEGUE. A diferenca importa porque este repositorio e publico: PR vindo
-	// de fork nunca recebe secret, e na 13 o gate reprovaria por falta de chave
-	// e nao por vulnerabilidade — gate que reprova pelo motivo errado ensina o
-	// time a ignora-lo. Subir para a 13 exige antes tornar a chave obrigatoria
-	// e aceitar que fork nao roda scan.
+	// e SEGUE. A diferenca importa para quem roda LOCAL sem chave: na 12.2.2 o
+	// scan funciona, na 13 nao ha como rodar. No CI a guarda do `ci.yml` ja pula
+	// o job quando o secret falta — inclusive em PR de fork, que em repositorio
+	// publico nunca recebe secret —, entao ali a versao do plugin nao muda o
+	// desfecho. Subir para a 13 exige aceitar que ninguem escaneia sem chave.
 	//
 	// A guarda `if` fica de todo modo: sem ela, `apiKey = null` tambem quebra.
 	nvd {
