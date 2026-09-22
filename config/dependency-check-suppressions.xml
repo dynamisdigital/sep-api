@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Supressoes do OWASP Dependency-Check (FMF-4.5).
+
+  REGRA: nenhuma supressao entra aqui sem, no proprio bloco:
+    1. o CVE ou CPE suprimido;
+    2. por que ele NAO alcanca este produto (caminho de codigo, nao "e falso
+       positivo"), OU por que nao ha correcao a aplicar, com a evidencia;
+    3. a data, a task que a adicionou e um `until` com prazo.
+
+  Supressao sem os quatro vira divida invisivel: o gate fica verde e ninguem
+  lembra por que. Mesma licao que o `contract-check.mjs` pagou na F-Sprint 28 —
+  gate que pode ser desligado por dado precisa de teste que prenda o dado.
+
+  Se o gate reprovar, a PRIMEIRA resposta e subir a dependencia. Suprimir e o
+  ultimo recurso, e so quando nao existe versao para subir.
+
+  DUAS PROTECOES contra supressao eterna:
+    - `until` faz o Dependency-Check PARAR de honrar o bloco na data. O CI volta
+      a reprovar sozinho, sem ninguem precisar lembrar.
+    - o `packageUrl` fixa a VERSAO instalada (`@6.2.19`, `@6.5.11`). No instante
+      em que o BOM subir, o regex deixa de casar e qualquer CVE ainda aberto
+      reaparece. A supressao nao sobrevive ao proprio pretexto.
+-->
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+
+  <!--
+    Spring Framework 6.2.19 — 12 CVEs, sem correcao publicada.
+
+    MEDIDO em 2026-09-22 (FMF-4.5): os avisos apontam a correcao em 6.2.20.
+    Essa versao NAO EXISTE:
+      https://repo1.maven.org/maven2/org/springframework/spring-core/6.2.20/ -> HTTP 404
+    A ultima publicada na serie e 6.2.19, que e exatamente a que o Spring Boot
+    3.5.16 (o Boot mais novo da serie 3.5.x) resolve. Nao ha versao para subir
+    dentro da stack que o AGENT.md fixa; sair para Spring Framework 7.x / Boot
+    4.x e migracao com ADR, fora do escopo desta task.
+
+    NAO e afirmacao de que nao alcancam o produto — alcancabilidade por CVE nao
+    foi estabelecida. E afirmacao de que nao ha o que aplicar hoje.
+
+    REAVALIAR quando 6.2.20 for publicada. O `until` derruba o CI em 2026-11-30
+    se ninguem tiver agido ate la.
+  -->
+  <suppress until="2026-11-30Z">
+    <notes>FMF-4.5 2026-09-22: sem patch publicado (6.2.20 -> HTTP 404 no Maven Central).</notes>
+    <packageUrl regex="true">^pkg:maven/org\.springframework/spring-.*@6\.2\.19$</packageUrl>
+    <cve>CVE-2026-47884</cve>  <!-- CVSS 9.8 -->
+    <cve>CVE-2026-47890</cve>  <!-- CVSS 9.8 -->
+    <cve>CVE-2026-47891</cve>  <!-- CVSS 9.8 -->
+    <cve>CVE-2026-47892</cve>  <!-- CVSS 9.8 -->
+    <cve>CVE-2026-59313</cve>  <!-- CVSS 9.8 -->
+    <cve>CVE-2026-59283</cve>  <!-- CVSS 9.1 -->
+    <cve>CVE-2026-47885</cve>  <!-- CVSS 7.5 -->
+    <cve>CVE-2026-47886</cve>  <!-- CVSS 7.5 -->
+    <cve>CVE-2026-47888</cve>  <!-- CVSS 7.5 -->
+    <cve>CVE-2026-47889</cve>  <!-- CVSS 7.5 -->
+    <cve>CVE-2026-47893</cve>  <!-- CVSS 7.5 -->
+    <cve>CVE-2026-59282</cve>  <!-- CVSS 7.5 -->
+  </suppress>
+
+  <!--
+    Spring Security 6.5.11 — 2 CVEs, mesma situacao.
+
+    MEDIDO em 2026-09-22 (FMF-4.5): avisos apontam 6.5.12.
+      https://repo1.maven.org/maven2/org/springframework/security/spring-security-core/6.5.12/ -> HTTP 404
+    Ultima publicada: 6.5.11, que e a que o Boot 3.5.16 resolve.
+  -->
+  <suppress until="2026-11-30Z">
+    <notes>FMF-4.5 2026-09-22: sem patch publicado (6.5.12 -> HTTP 404 no Maven Central).</notes>
+    <packageUrl regex="true">^pkg:maven/org\.springframework\.security/spring-security-.*@6\.5\.11$</packageUrl>
+    <cve>CVE-2026-59270</cve>  <!-- CVSS 9.1 -->
+    <cve>CVE-2026-47841</cve>  <!-- CVSS 7.4 -->
+  </suppress>
+
+</suppressions>
