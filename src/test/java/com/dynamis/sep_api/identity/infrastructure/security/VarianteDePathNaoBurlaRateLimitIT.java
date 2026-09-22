@@ -9,6 +9,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 import java.util.UUID;
 
@@ -53,6 +55,20 @@ class VarianteDePathNaoBurlaRateLimitIT {
 
     /** Sufixo por execucao: o {@code sep_test} e reusado entre rodadas e a contagem tem de ser desta. */
     private static final String EXECUCAO = UUID.randomUUID().toString().substring(0, 8);
+
+    /**
+     * Mesmo par perfil + propriedade que {@code ReprocessoIT}, {@code CentralNotificacoesIT} e mais uma
+     * duzia de ITs: a chave do cache de contexto e identica, entao esta classe <b>entra no contexto que
+     * ja existe</b> em vez de subir um novo — o custo que o follow-up (aj38) cobra.
+     *
+     * <p>Serve para o teste nao disputar orcamento com quem divide o contexto padrao. As nove variantes
+     * custam zero (path que nao casa sai do filtro antes do {@code computeIfAbsent}), mas o controle
+     * canonico consome 1 dos 10 por minuto — pouco, e ainda assim acoplamento que nao precisa existir.
+     */
+    @DynamicPropertySource
+    static void configurar(DynamicPropertyRegistry registry) {
+        registry.add("app.security.rate-limit.login-per-minute-per-ip", () -> 1000);
+    }
 
     @LocalServerPort
     private int porta;
