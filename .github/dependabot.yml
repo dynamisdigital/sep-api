@@ -1,0 +1,106 @@
+# Configuracao do Dependabot para o sep-api.
+#
+# Ate a FMF-4.5 este repo nao tinha Dependabot NENHUM — nem alerta, nem PR de
+# correcao —, enquanto `sep-app` e `sep-mobile` tinham desde 2026-09-11. Era a
+# metade invisivel da pre-condicao P8: o `build.gradle` sem plugin de scan era
+# o que o plano registrava, mas sem Dependabot tambem nao havia quem trouxesse
+# o patch depois que o scan acusasse.
+#
+# Estrategia espelha a dos dois fronts: agrupar amplamente para reduzir o numero
+# de PRs, limite baixo, e ignore de majors que exigem migracao deliberada. Ordem
+# dos grupos importa: cada dependencia entra no PRIMEIRO grupo cujo pattern casa.
+version: 2
+updates:
+  - package-ecosystem: 'gradle'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 5
+    groups:
+      # O conjunto Spring sobe junto: starters, framework e security compartilham
+      # versao vinda do BOM do Spring Boot, e subir um sozinho produz combinacao
+      # que o BOM nao testou.
+      spring:
+        patterns:
+          - 'org.springframework.boot:*'
+          - 'org.springframework:*'
+          - 'org.springframework.security:*'
+          - 'io.spring.dependency-management*'
+        update-types:
+          - 'minor'
+          - 'patch'
+      # Security updates NAO usam os grupos acima: sem `applies-to`, um grupo vale
+      # so para version updates (docs do Dependabot). Foi essa exata lacuna que
+      # prendeu a GHSA-hh8m nos dois fronts por semanas, cada pacote chegando em
+      # PR separado e nenhum instalando. Aqui o risco e o mesmo: o BOM do Spring
+      # amarra as versoes entre si.
+      spring-security-updates:
+        applies-to: security-updates
+        patterns:
+          - 'org.springframework.boot:*'
+          - 'org.springframework:*'
+          - 'org.springframework.security:*'
+      # Ferramental de teste: sobe junto para nao misturar com dependencia de
+      # runtime na mesma PR.
+      test-tooling:
+        patterns:
+          - 'org.testcontainers:*'
+          - 'org.wiremock:*'
+          - 'org.wiremock.integrations:*'
+          - 'io.rest-assured:*'
+        update-types:
+          - 'minor'
+          - 'patch'
+      # Catch-all de baixo risco: tudo que nao casou acima, em UMA PR.
+      minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
+    # Sem grupo de majors: o Dependabot nao abre PR de major automaticamente.
+    # Os ignore abaixo reforcam por dependencia o que ja era politica.
+    ignore:
+      # Spring Boot 4.x muda baseline de Java, remove APIs e obriga a revisar
+      # springdoc, Flyway e a cadeia de seguranca inteira. Migracao com ADR,
+      # nunca por bump automatico. A stack vigente e Boot 3.5.x (AGENT.md).
+      - dependency-name: 'org.springframework.boot:*'
+        update-types:
+          - 'version-update:semver-major'
+      - dependency-name: 'org.springframework:*'
+        update-types:
+          - 'version-update:semver-major'
+      - dependency-name: 'org.springframework.security:*'
+        update-types:
+          - 'version-update:semver-major'
+      # springdoc 2.x pareia com Boot 3.x; a serie 3.x acompanha o Boot 4. Subir
+      # sozinho quebra `/v3/api-docs` — o repo ja pagou essa conta com o 2.6.x.
+      - dependency-name: 'org.springdoc:*'
+        update-types:
+          - 'version-update:semver-major'
+      # httpclient esta PINADO em 4.5.14 por `constraints` (Sprint 5 Task 5.2):
+      # o googleauth 1.5.0 puxa 4.5.12 transitivamente e a serie 4 esta EOL. Ir
+      # para 5.x e a migracao prevista no ADR pos-Sprint 5, nao um bump.
+      - dependency-name: 'org.apache.httpcomponents:httpclient'
+        update-types:
+          - 'version-update:semver-major'
+      # Spotless 7 troca o motor de formatacao: um bump reformata o repo inteiro
+      # e polui todo diff seguinte. Sobe em commit proprio, deliberado.
+      - dependency-name: 'com.diffplug.spotless*'
+        update-types:
+          - 'version-update:semver-major'
+      # PDFBox gera a CCB, que e prova juridica (Lei 10.931/2004). Major muda
+      # API de layout e o PDF precisa ser reconferido a olho antes de subir.
+      - dependency-name: 'org.apache.pdfbox:pdfbox'
+        update-types:
+          - 'version-update:semver-major'
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - '*'
