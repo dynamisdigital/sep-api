@@ -96,6 +96,68 @@ jobs:
           path: build/reports/tests/
           retention-days: 14
 
+  scan:
+    name: Dependency Scan
+    runs-on: ubuntu-24.04
+    # Job PROPRIO, nao step do `test` (FMF-4.5 / pre-condicao P8):
+    #  - o `test` tem timeout de 15 min e a carga inicial do NVD estoura isso;
+    #  - achado de dependencia nao e regressao de codigo, e misturar os dois faz
+    #    um CVE publicado hoje reprovar o build de quem nao mexeu em dependencia;
+    #  - rodando em paralelo com o `test`, nao atrasa o feedback da suite.
+    # Espelha o `npm audit` dos dois fronts, que tambem e step proprio e nao
+    # roda dentro de `npm test`.
+    #
+    # 20 min pressupoe o secret `NVD_API_KEY` configurado: medido nesta maquina,
+    # a carga fria da base do NVD leva 1h30m SEM chave e minutos COM chave.
+    # Se o secret for removido, este job passa a estourar o timeout — o que e o
+    # comportamento desejado (falha visivel), nao um defeito a contornar
+    # subindo o numero.
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
+
+      # A base do NVD e mutavel (atualiza todo dia), entao a chave exata nunca
+      # bate e o cache SEMPRE grava; o `restore-keys` recupera a entrada mais
+      # recente. Sem isso, cada run refaz a carga inicial inteira.
+      - name: Cache NVD database
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/dependency-check-data
+          key: nvd-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            nvd-${{ runner.os }}-
+
+      # `failBuildOnCVSS = 7.0` no build.gradle == `--audit-level=high` dos
+      # fronts. O secret NVD_API_KEY e OPCIONAL: sem ele o NVD limita a ~1
+      # requisicao a cada 6s e a carga inicial leva dezenas de minutos, mas o
+      # scan roda. Em repositorio publico, PR vindo de fork nunca recebe secret
+      # — e por isso que a versao do plugin tem de tolerar a ausencia da chave.
+      - name: Dependency scan
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: ./gradlew dependencyCheckAnalyze --no-daemon
+
+      - name: Upload dependency-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: build/reports/dependency-check-report.*
+          retention-days: 14
+
   build:
     name: Build Package
     runs-on: ubuntu-24.04

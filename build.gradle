@@ -3,6 +3,7 @@ plugins {
 	id 'org.springframework.boot' version '3.5.5'
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'com.diffplug.spotless' version '6.25.0'
+	id 'org.owasp.dependencycheck' version '12.2.2'
 	id 'jacoco'
 }
 
@@ -242,3 +243,94 @@ jacocoTestCoverageVerification {
 }
 
 check.dependsOn 'jacocoTestCoverageVerification'
+
+// ========================
+// OWASP Dependency-Check (FMF-4.5 / pre-condicao P8 do PLANO-INFRA-AWS)
+//
+// Fecha a ultima lacuna de scan de dependencia dos tres repos: `sep-app` e
+// `sep-mobile` ja tinham `npm audit --audit-level=high` no CI desde a
+// D-Sprint 1; o `sep-api` nao tinha nada.
+//
+// `failBuildOnCVSS = 7.0` e a MESMA semantica do `--audit-level=high` dos dois
+// fronts: CVSS v3 >= 7.0 e a faixa HIGH. Um so criterio nos tres repos.
+//
+// DELIBERADAMENTE FORA DE `check`: o gate e task propria, chamada por step
+// proprio no CI, espelhando o `npm audit` dos fronts (que tambem nao roda
+// dentro de `npm test`). Motivos: (1) `dependencyCheckAnalyze` precisa de rede
+// e da base do NVD, e `./gradlew check` tem de continuar rodando offline e em
+// segundos; (2) achado de dependencia nao e regressao de codigo, e misturar os
+// dois faz um CVE novo reprovar o build de quem nao mexeu em dependencia.
+// ========================
+dependencyCheck {
+	// CVSS v3 >= 7.0 == HIGH. Mesmo limiar do `--audit-level=high` dos fronts.
+	failBuildOnCVSS = 7.0f
+
+	// Chave lida do ambiente (secret `NVD_API_KEY`) para nunca versionar segredo.
+	// Sem chave o NVD limita a ~1 requisicao a cada 6s e a carga inicial leva
+	// dezenas de minutos; com chave cai para minutos. Depois da primeira carga o
+	// que roda e atualizacao incremental, cacheada no CI.
+	//
+	// POR QUE A SERIE 12 E NAO A 13 — medido, nao presumido (FMF-4.5):
+	// na 13.0.0 o scan ABORTA sem chave, com
+	//   `NvdApiException: Invalid API Key, length of 0 too short to provided a
+	//    masked partial key`
+	// e a guarda `if` abaixo NAO evita isso: o default do plugin e string vazia,
+	// nao nulo, e o cliente do NVD rejeita a vazia antes de considerar o modo
+	// anonimo. Na 12.2.2 o mesmo cenario avisa
+	//   `An NVD API Key was not provided - it is highly recommended ...`
+	// e SEGUE. A diferenca importa porque este repositorio e publico: PR vindo
+	// de fork nunca recebe secret, e na 13 o gate reprovaria por falta de chave
+	// e nao por vulnerabilidade — gate que reprova pelo motivo errado ensina o
+	// time a ignora-lo. Subir para a 13 exige antes tornar a chave obrigatoria
+	// e aceitar que fork nao roda scan.
+	//
+	// A guarda `if` fica de todo modo: sem ela, `apiKey = null` tambem quebra.
+	nvd {
+		def nvdApiKey = System.getenv('NVD_API_KEY')
+		if (nvdApiKey) {
+			apiKey = nvdApiKey
+		}
+	}
+
+	// Cada supressao precisa de evidencia escrita no proprio arquivo.
+	suppressionFile = 'config/dependency-check-suppressions.xml'
+
+	// HTML para leitura humana, JSON para consumo por ferramenta.
+	formats = ['HTML', 'JSON']
+
+	// ESCOPO: so o que vai para producao. O plugin pula configuracoes de teste
+	// por default; a linha esta escrita para ser DECISAO e nao acidente.
+	// Medido: sem ela o scan cobre 162 artefatos e NENHUM de teste — junit,
+	// mockito, wiremock, rest-assured e testcontainers ficam de fora.
+	//
+	// Diferenca consciente para os fronts: o `npm audit --audit-level=high`
+	// deles gateia a arvore inteira, incluindo devDependencies. Aqui um CVE no
+	// WireMock nao alcanca o produto, e gatear por ele so ensinaria o time a
+	// ignorar o job. O recorte de runtime dos fronts (`--omit=dev`) e o que
+	// corresponde a este escopo, e nos dois esta em zero.
+	skipTestGroups = true
+
+	analyzers {
+		// Analisadores de ecossistemas que este repo nao tem. Desligados para
+		// cortar tempo de analise e falso positivo, nao para esconder achado.
+		assemblyEnabled = false
+		nodeAuditEnabled = false
+		nodeEnabled = false
+		nuspecEnabled = false
+		nugetconfEnabled = false
+		retirejs { enabled = false }
+	}
+}
+
+// O Gradle da `dependencyCheckAnalyze` como UP-TO-DATE quando as dependencias
+// nao mudam — e foi exatamente isso que produziu um verde falso ao provar este
+// gate por mutacao: a dependencia vulneravel entrou no `runtimeClasspath`, a
+// task nao rodou, e o build passou.
+//
+// Em CI o efeito e pior que num ensaio: as entradas da task sao as dependencias
+// do projeto, mas a fonte de verdade e a base do NVD, que muda TODO DIA. Sem
+// esta linha, um CVE publicado hoje contra uma dependencia que ninguem tocou
+// nunca reprovaria o build — o gate existiria e nao mediria nada.
+dependencyCheckAnalyze {
+	outputs.upToDateWhen { false }
+}
